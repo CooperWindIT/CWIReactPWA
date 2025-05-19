@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import axios from 'axios';
+import { BASE_API_URL } from './Config';
 
 const Base = ({ children }) => {
 
@@ -7,7 +9,43 @@ const Base = ({ children }) => {
     const currentPath = location.pathname;
     const [showChat, setShowChat] = useState(false);
     const [showEnquiry, setShowEnquiry] = useState(false);
+    const [catDropDowns, setCatDropDowns] = useState(null);
+    const [loading, setLoading] = useState(false);
 
+    useEffect(() => {
+        fetchContentByType();
+    }, []);
+
+    const fetchContentByType = async (type) => {
+        setLoading(true);
+    
+        // Check sessionStorage first
+        const cachedData = sessionStorage.getItem("categoryItems");
+        if (cachedData) {
+            const parsedData = JSON.parse(cachedData);
+            setCatDropDowns(parsedData);
+            setLoading(false);
+            return parsedData;
+        }
+    
+        try {
+            const response = await axios.get(`${BASE_API_URL}ADMINRoutes/GetDDLItems?OrgId=9330&UserId=1`);
+            const allItems = response.data.ResultData;
+    
+            const categoryItems = allItems.filter(item => item.DDLName === "Categories");
+    
+            // Save to sessionStorage
+            sessionStorage.setItem("categoryItems", JSON.stringify(categoryItems));
+    
+            setCatDropDowns(categoryItems);
+            setLoading(false);
+            return categoryItems;
+        } catch (error) {
+            console.error(`Error fetching ${type}:`, error);
+            setLoading(false);
+            return null;
+        }
+    };    
 
     return (
         <>
@@ -22,22 +60,30 @@ const Base = ({ children }) => {
                             <li><Link to='/home' className={`text-decoration-none ${currentPath === '/' ? 'active' : ''}`}>Home</Link></li>
                             <li className="dropdown "><a href="#" className='text-decoration-none'><span>Products</span> <i className="bi bi-chevron-down toggle-dropdown"></i></a>
                                 <ul>
-                                    <li><Link to='/product1' className='text-decoration-none'>Product-1</Link></li>
-                                    <li><Link to='/product2' className='text-decoration-none'>Product-2</Link></li>
+                                    {catDropDowns && catDropDowns?.map((item, indx) => (
+                                        <li key={indx}><Link to={`/products/${item.ItemId}`} className='text-decoration-none'>{item.ItemValue}</Link></li>
+                                    ))}
+
+                                    {/* <li><Link to='/product2' className='text-decoration-none'>Product-2</Link></li>
                                     <li><Link to='/product3' className='text-decoration-none'>Product-3</Link></li>
                                     <li><Link to='/product4' className='text-decoration-none'>Product-4</Link></li>
                                     <li><Link to='/product5' className='text-decoration-none'>Product-5</Link></li>
                                     <li><Link to='/product6' className='text-decoration-none'>Product-6</Link></li>
-                                    <li><Link to='/product7' className='text-decoration-none'>Product-7</Link></li>
+                                    <li><Link to='/product7' className='text-decoration-none'>Product-7</Link></li> */}
                                 </ul>
                             </li>
                             {/* <li><a className='text-decoration-none' style={{ cursor: 'pointer' }} onClick={() => setShowEnquiry(true)}>Enquiry</a></li> */}
                             {/* <li><Link to='/about' className={`text-decoration-none ${currentPath === '/about' ? 'active' : ''}`}>About</Link></li> */}
                             <li><Link to='/careers' className={`text-decoration-none ${currentPath === '/careers' ? 'active' : ''}`}>Careers</Link></li>
                             {/* <li><Link to='/team' className={`text-decoration-none ${currentPath === '/team' ? 'active' : ''}`}>Team</Link></li> */}
-                            <li><Link to='/blog' className='text-decoration-none'>Blog</Link></li>
+                            {/* <li><Link to='/blog' className='text-decoration-none'>Blog</Link></li> */}
                             <li><Link to='/contact' className='text-decoration-none'>Contact</Link></li>
-                            <li><Link to='/' className='text-decoration-none text-warning'>Logout</Link></li>
+                            <li><Link to='/' className='text-decoration-none text-warning'
+                                onClick={() => {
+                                    localStorage.clear();
+                                    sessionStorage.clear();
+                                  }}
+                            >Logout</Link></li>
                         </ul>
                         <i className="mobile-nav-toggle d-xl-none bi bi-list"></i>
                     </nav>
@@ -49,7 +95,7 @@ const Base = ({ children }) => {
             </main>
 
             <footer id="footer" className="footer dark-background">
-                <div className="footer-newsletter">
+                {/* <div className="footer-newsletter">
                     <div className="container">
                         <div className="row justify-content-center text-center">
                             <div className="col-lg-6">
@@ -64,7 +110,7 @@ const Base = ({ children }) => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div> */}
 
                 <div className="container footer-top">
                     <div className="row gy-4">

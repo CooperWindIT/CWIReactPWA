@@ -13,6 +13,8 @@ import ClimbingGear from "./Components/Products/ClimibingGears/ClimibingGears.js
 import TowerCylinderAccessories from "./Components/Products/TowerCylinderAccessories/TowerCylinderAccessories.js";
 import Signin from "./Components/Auth/Signin.js";
 import Careers from "./Components/Careers/Careers.js";
+import Products from "./Components/CatProducts/Product.js";
+import CapabilityDetails from "./Components/Home/CapabilityDetails.js";
 
 const routes = [
     { path: "/", element: <Signin /> },
@@ -23,6 +25,8 @@ const routes = [
     { path: "/contact", element: <Contact /> },
     { path: "/about", element: <About /> },
     { path: "/product1", element: < Lifting/> },
+    { path: "/products/:CatId", element: < Products/> },
+    { path: "/capability-details", element: < CapabilityDetails/> },
     { path: "/product2", element: < MixingTowerUnit/> },
     { path: "/product3", element: < PhotovoltaicCleaningRobot/> },
     { path: "/product4", element: < FallPreventionEquipment/> },

@@ -39,7 +39,7 @@ export default function Contact() {
                                         >
                                             <i className="bi bi-geo-alt"></i>
                                             <h3>Address</h3>
-                                            <p>5th Floor, CWI Towers, Hyderabad, Telangana 500081</p>
+                                            <p>5th Floor, CWI Towers, Thirumudivakkam, Chennai, 600044</p>
                                         </div>
                                     </div>
 

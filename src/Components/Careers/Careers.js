@@ -2,27 +2,35 @@ import React, { useEffect, useState } from 'react';
 import Base from '../Config/Base.js';
 import ScrollToTop from './../Config/ScrollTop';
 import axios from 'axios';
-import { BASE_API_URL } from '../Config/Config.js';
+import { BASE_API_URL, BASE_IMAGE_API_URL } from '../Config/Config.js';
 
 
 export default function Careers() {
     const [selectedCareer, setSelectedCareer] = useState(null);
     const [careersData, setCareersData] = useState(null);
+    const [careersFirstData, setCareersFirstData] = useState(null);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         fetchContentByType();
     }, []);
 
     const fetchContentByType = async (type) => {
+        setLoading(true);
         try {
+            setLoading(true);
             const response = await axios.get(`${BASE_API_URL}CWIRoutes/GetContentByType`, {
                 params: {
                     OrgId: 9330,
                     Type: "Careers",
                 }
             });
-            setCareersData(response.data.ResultData);
+            setCareersData(response.data.ResultData.slice(1));
+            setCareersFirstData(response.data.ResultData[0]);
+            console.log(response.data.ResultData);
+            setLoading(false);
         } catch (error) {
+            setLoading(false);
             console.error(`Error fetching ${type}:`, error);
             return null;
         }
@@ -33,16 +41,53 @@ export default function Careers() {
         <>
             <ScrollToTop />
             <Base>
+                {loading && (
+                    <div className="loading-overlay">
+                        <div className="spinner">Loading...</div>
+                    </div>
+                )}
+                <style>
+        {`.loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            backdrop-filter: blur(5px); /* adds the blur */
+            background-color: rgba(0, 0, 0, 0.3); /* optional: dark translucent layer */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .spinner {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        `}
+                </style>
                 {/* Page Title */}
-                <div className="page-title dark-background">
+                <div className="page-title dark-background"
+                    style={{
+                        backgroundColor: '#222',
+                        backgroundImage: careersFirstData?.ImageUrl1
+                            ? `url(${BASE_IMAGE_API_URL}${careersFirstData.ImageUrl1})`
+                            : 'none',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat'
+                    }}
+                >
                     <div className="container position-relative">
                         <h1>Careers</h1>
                         <p>
-                            Premium-grade climbing equipment built for safety, comfort, and durability in industrial applications.
+                            {careersFirstData && careersFirstData?.Description1}
                         </p>
                         <nav className="breadcrumbs">
                             <ol>
-                                <li><a href="/">Home</a></li>
+                                <li><a href="/home">Home</a></li>
                                 <li className="current">Careers</li>
                             </ol>
                         </nav>
@@ -60,7 +105,11 @@ export default function Careers() {
                                         style={{ cursor: 'pointer' }}
                                     >
                                         <div className="card-body d-flex align-items-center">
-                                            {/* <i className={`bi ${career.icon} career-icon`}></i> */}
+                                            <i class="bi bi-tools career-icon"></i>
+                                            {/* <div
+                                                className="icon"
+                                                dangerouslySetInnerHTML={{ __html: career.ImageUrl1 }}
+                                            ></div> */}
                                             <div className="ms-3">
                                                 <h5 className="card-title">{career.Title}</h5>
                                                 <p className="card-text">{career.Description1}</p>
@@ -69,6 +118,7 @@ export default function Careers() {
                                     </div>
                                 </div>
                             ))}
+                            {/* <p className='text-center'>No data available.</p> */}
                         </div>
                     </div>
                 </section>
