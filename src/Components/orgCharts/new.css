@@ -1,0 +1,175 @@
+/* ===============================
+   ORG CHART WRAPPER
+================================ */
+
+.org-tree-wrapper {
+    width: 100%;
+    height: 83vh;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 40px 20px 0 40px;
+}
+
+/* make tree width expand with nodes */
+.org-tree-wrapper .react-organizational-chart {
+    display: inline-block;
+    min-width: max-content;
+}
+
+
+/* ===============================
+   TREE STRUCTURE
+================================ */
+
+.react-organizational-chart ul {
+    padding-top: 20px;
+}
+
+.react-organizational-chart li {
+    padding: 0 20px;
+    text-align: center;
+    list-style-type: none;
+    position: relative;
+}
+
+
+/* ===============================
+   CONNECTOR LINE FIXES
+================================ */
+
+/* remove lines for nodes without children */
+.react-organizational-chart li:not(:has(ul))::before,
+.react-organizational-chart li:not(:has(ul))::after,
+.react-organizational-chart li:not(:has(ul))>div::after {
+    display: none !important;
+    border: none !important;
+}
+
+/* remove extra line for only-child */
+.react-organizational-chart li:only-child::before,
+.react-organizational-chart li:only-child::after {
+    display: none !important;
+}
+
+/* ===============================
+   ZOOM BUTTON STYLE
+================================ */
+
+.zoom-btn {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    border: none;
+    background: #1976d2;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    transition: all .25s ease;
+}
+
+.zoom-btn:hover {
+    transform: scale(1.1);
+    background: #0d5ec9;
+}
+
+
+/* position zoom buttons bottom left */
+
+.org-controls {
+    position: fixed;
+    bottom: 25px;
+    left: 25px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+
+/* ===============================
+   HEADING STYLE
+================================ */
+
+.org-heading {
+    font-size: 32px;
+    font-weight: 700;
+    color: #0b4da2;
+    letter-spacing: 1px;
+    animation: headingSlide .8s ease;
+}
+
+
+/* heading animation */
+
+@keyframes headingSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
+/* ===============================
+   LIGHT BLUE BACKGROUND
+================================ */
+
+.org-chart-page {
+    background: linear-gradient(135deg,
+            rgba(30, 136, 229, 0.05),
+            rgba(30, 136, 229, 0.12));
+    min-height: 100vh;
+}
+
+/* ===============================
+   vertical
+================================ */
+
+
+
+/* employee group container */
+
+.employee-group {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 40px;
+    max-width: 450px;
+    margin: 0 auto;
+}
+
+/* each employee */
+
+.employee-item {
+    width: 120px;
+    display: flex;
+    justify-content: center;
+}
+
+/* employee container box */
+
+.employee-container {
+    border: 2px dashed #c5d4ec;
+    background: #f8fbff;
+    padding: 25px;
+    border-radius: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 30px;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+/* employee item */
+
+.employee-box-item {
+    width: 100px;
+    display: flex;
+    justify-content: center;
+}

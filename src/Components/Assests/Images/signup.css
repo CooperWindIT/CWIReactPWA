@@ -1,0 +1,11 @@
+.video-container video {
+    width: 100%; /* Adjust width */
+    height: auto; /* Maintain aspect ratio */
+  }
+  
+  @media (max-width: 768px) {
+    .video-container video {
+      width: 50%; /* Reduce size on mobile */
+    }
+  }
+  

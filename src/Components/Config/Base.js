@@ -1,378 +1,657 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import axios from 'axios';
-import { BASE_API_URL } from './Config';
+import { Popover } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import LogoImg from '../Assests/Images/cwilogo.png';
+import { fetchWithAuth } from "../../utils/api";
 
-const Base = ({ children }) => {
+const Base1 = ({ children }) => {
 
-    const location = useLocation();
-    const currentPath = location.pathname;
-    const [showChat, setShowChat] = useState(false);
-    const [showEnquiry, setShowEnquiry] = useState(false);
-    const [catDropDowns, setCatDropDowns] = useState(null);
+    const [sessionUserData, setSessionUserData] = useState([]);
+    const [menuItems, setMenuItems] = useState([]);
+    const [moduleData, setModuleData] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [activeDropdown, setActiveDropdown] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
+
+    const navigate = useNavigate();
+    const currentPath = window.location.pathname;
+    const location = useLocation();
+    const shouldHideSidebar = location.pathname.includes("/vms/");
+    const searchParams = new URLSearchParams(location.search);
+    const reportId = searchParams.get("reportId");
 
     useEffect(() => {
-        fetchContentByType();
+        const userDataString = sessionStorage.getItem('userData');
+        const moduleString = localStorage.getItem('ModuleData');
+
+        if (userDataString) {
+            const userData = JSON.parse(userDataString);
+            const moduledata = JSON.parse(moduleString);
+            setSessionUserData(userData);
+            setModuleData(moduledata);
+        } else {
+            console.log('User data not found in sessionStorage');
+        }
     }, []);
 
-    const fetchContentByType = async (type) => {
+    const handleLogout = async () => {
         setLoading(true);
-    
-        // Check sessionStorage first
-        const cachedData = sessionStorage.getItem("categoryItems");
-        if (cachedData) {
-            const parsedData = JSON.parse(cachedData);
-            setCatDropDowns(parsedData);
-            setLoading(false);
-            return parsedData;
+        sessionStorage.clear();
+        localStorage.clear();
+        navigate('/');
+        setLoading(false);
+    };
+
+    const content = (
+        <div className="text-dark">
+            <div className="menu-item px-3">
+                <div className="menu-content d-flex align-items-center px-3">
+                    <div className="symbol symbol-50px me-5">
+                        {/* <img alt="Logo" src="assets/media/avatars/300-3.jpg" /> */}
+                        <div
+                            style={{
+                                width: "40px",
+                                height: "40px",
+                                borderRadius: "50%",
+                                backgroundColor: "skyblue",
+                                color: "#333",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "18px",
+                                fontWeight: "bold",
+                                textTransform: "uppercase",
+                            }}
+                        >
+                            {/* {sessionUserData?.Name?.charAt(0)} */}
+                            <i className="fa-regular fa-user text-white"></i>
+                        </div>
+                    </div>
+                    <div className="d-flex flex-column">
+                        <div className="fw-bold d-flex align-items-center fs-5">{sessionUserData.Name}
+                            <span className="badge badge-light-success fw-bold fs-8 px-2 py-1 ms-2">{setSessionUserData.RoleName}</span></div>
+                        <a href="#" className="fw-semibold text-muted text-hover-primary fs-7">{sessionUserData.Email}</a>
+                    </div>
+                </div>
+            </div>
+            <div className="separator my-2"></div>
+            <div className="menu-item px-5">
+                <a className="menu-link px-5 text-dark text-hover-warning"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvasRightViewProfile"
+                ><i className="fa-regular fa-user text-info me-2"></i> My Profile</a>
+            </div>
+
+            <div className="menu-item px-5">
+                <a className="menu-link px-5 text-dark text-hover-warning" onClick={handleLogout}>
+                    <i className="fa-solid fa-arrow-right-from-bracket text-danger me-2"></i> Sign Out
+                </a>
+            </div>
+        </div>
+    );
+
+    useEffect(() => {
+        if (sessionUserData.OrgId) {
+            const fetchMenuData = async () => {
+                try {
+                    const sessionMenuData = sessionStorage.getItem("menuData");
+
+                    if (sessionMenuData) {
+                        const parsedMenu = JSON.parse(sessionMenuData);
+                        setMenuItems(parsedMenu);
+                        if (!sessionStorage.getItem("navigationPath") && parsedMenu.length > 0) {
+                            sessionStorage.setItem("navigationPath", parsedMenu[0].MenuPath);
+                        }
+                    } else {
+                       navigate('/user-modules');
+                    }
+                } catch (error) {
+                    console.error("Error fetching menu data:", error.message);
+                }
+            };
+
+            fetchMenuData();
         }
-    
-        try {
-            const response = await axios.get(`${BASE_API_URL}ADMINRoutes/GetDDLItems?OrgId=9330&UserId=1`);
-            const allItems = response.data.ResultData;
-    
-            const categoryItems = allItems.filter(item => item.DDLName === "Categories");
-    
-            // Save to sessionStorage
-            sessionStorage.setItem("categoryItems", JSON.stringify(categoryItems));
-    
-            setCatDropDowns(categoryItems);
-            setLoading(false);
-            return categoryItems;
-        } catch (error) {
-            console.error(`Error fetching ${type}:`, error);
-            setLoading(false);
-            return null;
-        }
-    };    
+    }, [sessionUserData]);
+
+    const toggleDropdown = (index) => {
+        setActiveDropdown((prevIndex) => (prevIndex === index ? null : index));
+    };
+
+    const overlayStyle = {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999,
+    };
+
+    const spinnerStyle = {
+        width: '60px',
+        height: '60px',
+        border: '6px solid #ccc',
+        borderTop: '6px solid #007bff',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+    };
+
+    // const iconColors = [
+    //     "#0d6efd", // blue
+    //     "#20c997", // teal
+    //     "#ffc107", // yellow
+    //     "#fd7e14", // orange
+    //     "#6f42c1", // purple
+    //     "#198754", // green
+    // ];
+
+    const currentSubPath = location.pathname + location.search;
+    useEffect(() => {
+        if (!menuItems) return;
+
+        menuItems.forEach((item, index) => {
+            if (item.SubItems?.some((sub) => `/${sub.MenuPath}` === currentSubPath)) {
+                setActiveDropdown(index);
+            }
+        });
+    }, [currentSubPath, menuItems]);
 
     return (
-        <>
-            <header id="header" className="header d-flex align-items-center fixed-top">
-                <div className="container-fluid container-xl position-relative d-flex align-items-center justify-content-between">
-                    <a className="logo d-flex align-items-center text-decoration-none">
-                        <img src="assets/img/logo.png" alt="" />
-                        <h1 className="sitename">CWI</h1>
-                    </a>
-                    <nav id="navmenu" className="navmenu">
-                        <ul>
-                            <li><Link to='/home' className={`text-decoration-none ${currentPath === '/' ? 'active' : ''}`}>Home</Link></li>
-                            <li className="dropdown "><a href="#" className='text-decoration-none'><span>Products</span> <i className="bi bi-chevron-down toggle-dropdown"></i></a>
-                                <ul>
-                                    {catDropDowns && catDropDowns?.map((item, indx) => (
-                                        <li key={indx}><Link to={`/products/${item.ItemId}`} className='text-decoration-none'>{item.ItemValue}</Link></li>
-                                    ))}
-
-                                    {/* <li><Link to='/product2' className='text-decoration-none'>Product-2</Link></li>
-                                    <li><Link to='/product3' className='text-decoration-none'>Product-3</Link></li>
-                                    <li><Link to='/product4' className='text-decoration-none'>Product-4</Link></li>
-                                    <li><Link to='/product5' className='text-decoration-none'>Product-5</Link></li>
-                                    <li><Link to='/product6' className='text-decoration-none'>Product-6</Link></li>
-                                    <li><Link to='/product7' className='text-decoration-none'>Product-7</Link></li> */}
-                                </ul>
-                            </li>
-                            {/* <li><a className='text-decoration-none' style={{ cursor: 'pointer' }} onClick={() => setShowEnquiry(true)}>Enquiry</a></li> */}
-                            {/* <li><Link to='/about' className={`text-decoration-none ${currentPath === '/about' ? 'active' : ''}`}>About</Link></li> */}
-                            <li><Link to='/careers' className={`text-decoration-none ${currentPath === '/careers' ? 'active' : ''}`}>Careers</Link></li>
-                            {/* <li><Link to='/team' className={`text-decoration-none ${currentPath === '/team' ? 'active' : ''}`}>Team</Link></li> */}
-                            {/* <li><Link to='/blog' className='text-decoration-none'>Blog</Link></li> */}
-                            <li><Link to='/contact' className='text-decoration-none'>Contact</Link></li>
-                            <li><Link to='/' className='text-decoration-none text-warning'
-                                onClick={() => {
-                                    localStorage.clear();
-                                    sessionStorage.clear();
-                                  }}
-                            >Logout</Link></li>
-                        </ul>
-                        <i className="mobile-nav-toggle d-xl-none bi bi-list"></i>
-                    </nav>
-                </div>
-            </header>
-
-            <main className="main">
-                {children}
-            </main>
-
-            <footer id="footer" className="footer dark-background">
-                {/* <div className="footer-newsletter">
-                    <div className="container">
-                        <div className="row justify-content-center text-center">
-                            <div className="col-lg-6">
-                                <h4>Join Our Newsletter</h4>
-                                <p>Subscribe to our newsletter and receive the latest news about our products and services!</p>
-                                <form action="forms/newsletter.php" method="post" className="php-email-form">
-                                    <div className="newsletter-form"><input type="email" name="email" /><input type="submit" value="Subscribe" /></div>
-                                    <div className="loading">Loading</div>
-                                    <div className="error-message"></div>
-                                    <div className="sent-message">Your subscription request has been sent. Thank you!</div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div> */}
-
-                <div className="container footer-top">
-                    <div className="row gy-4">
-                        <div className="col-lg-4 col-md-6 footer-about">
-                            <a href="index.html" className="d-flex align-items-center">
-                                <span className="sitename">Cooperwind India Pvt Ltd  </span>
-                            </a>
-                            <div className="footer-contact pt-3">
-                                <p>S.F.No.269/1E, Thiruneermalai main road,</p>
-                                <p>Thirumudivakkam, Chennai, 600044</p>
-                                <p className="mt-3"><strong>Phone:</strong> <span>+91 8939896671</span></p>
-                                <p><strong>Email:</strong> <span>Info@cooperwind.com</span></p>
-                            </div>
-                        </div>
-
-                        <div className="col-lg-2 col-md-3 footer-links">
-                            <h4>Useful Links</h4>
-                            <ul>
-                                <li><i className="bi bi-chevron-right"></i> <Link to='/home' className='text-decoration-none'>Home</Link></li>
-                                <li><i className="bi bi-chevron-right"></i> <Link to='/contact' className='text-decoration-none'>Contact us</Link></li>
-                                <li><i className="bi bi-chevron-right"></i> <Link to='/blog' className='text-decoration-none'>Blog</Link></li>
-                                <li><i className="bi bi-chevron-right"></i> <Link to='/careers' className='text-decoration-none'>Careers</Link></li>
-                            </ul>
-                        </div>
-
-                        <div className="col-lg-2 col-md-3 footer-links">
-                            <h4>Quick Links</h4>
-                            <ul>
-                                <li><i className="bi bi-chevron-right"></i> <a >Supplier portal</a></li>
-                                <li><i className="bi bi-chevron-right"></i> <a >Custmer portal</a></li>
-                                {/* <li><i className="bi bi-chevron-right"></i> <a >Product Management</a></li>
-                                <li><i className="bi bi-chevron-right"></i> <a >Marketing</a></li> */}
-                            </ul>
-                        </div>
-
-                        <div className="col-lg-4 col-md-12">
-                            <h4>Follow Us</h4>
-                            <p>Stay connected with us on social media for the latest updates, behind-the-scenes content, and exciting announcements. Join our community and be part of our journey.</p>
-                            <div className="social-links d-flex">
-                                {/* <a href=""><i className="bi bi-twitter-x"></i></a>
-                                <a href=""><i className="bi bi-facebook"></i></a>
-                                <a href=""><i className="bi bi-instagram"></i></a>
-                                <a href=""><i className="bi bi-linkedin"></i></a> */}
-                            </div>
-                        </div>
-
-                    </div>
-                </div>
-
-                <div className="container copyright text-center mt-4">
-                    <p>© <span>Copyright</span> <strong className="px-1 sitename">CWI</strong> <span>All Rights Reserved</span></p>
-                    <div className="credits">
-                        Designed by <a href="#">Cooperwind</a>
-                    </div>
-                </div>
-
-            </footer>
-            <button
-                onClick={() => setShowChat(prev => !prev)}
-                className="chatbot-toggle-btn"
-            >
-                <i className="bi bi-chat-dots-fill"></i>
-            </button>
-
-            {showChat && (
-                <div className="chatbot-box">
-                    <div className="chatbot-header">
-                        <span>Support Chat</span>
-                        <button onClick={() => setShowChat(false)} className="close-chat">&times;</button>
-                    </div>
-                    <div className="chatbot-body">
-                        <div className="chatbot-messages">
-                            <p className="bot-message">Hello! How can we assist you today? <span className="emoji-bounce">😊</span></p>
-                            {/* Add more messages dynamically if needed */}
-                        </div>
-                    </div>
-                    <div className="chatbot-input">
-                        <input
-                            type="text"
-                            placeholder="Type your message..."
-                            className="form-control"
-                        />
-                        <button className="btn text-white" style={{ backgroundColor: '#284e62' }}>Send</button>
-                    </div>
+        <div className="d-flex flex-column flex-root app-root" id="kt_app_root">
+            {loading && (
+                <div style={overlayStyle}>
+                    <div style={spinnerStyle}></div>
                 </div>
             )}
+
+            <div className="app-page flex-column flex-column-fluid" id="kt_app_page">
+                {/* <div id="kt_app_header" className="app-header text-white" data-kt-sticky="true" style={{ backgroundColor: moduleData?.UIThemeColor }} */}
+                <div id="kt_app_header" className="app-header text-white shadow-sm" data-kt-sticky="true" style={{ backgroundColor: '#90e0ef' }}
+                    data-kt-sticky-activate="{default: true, lg: true}" data-kt-sticky-name="app-header-minimize" data-kt-sticky-offset="{default: '200px', lg: '0'}" data-kt-sticky-animation="false">
+                    <div className="app-container container-fluid d-flex align-items-stretch justify-content-between" id="kt_app_header_container">
+                        <div className="d-flex align-items-center d-lg-none ms-n3 me-1 me-md-2" title="Show sidebar menu">
+                            <div className="btn btn-icon btn-active-color-primary w-35px h-35px" id="kt_app_sidebar_mobile_toggle"
+                                style={{
+                                    pointerEvents: (shouldHideSidebar || reportId === '3') ? 'none' : 'auto',
+                                    opacity: (shouldHideSidebar || reportId === '3') ? 0.3 : 1
+                                }}
+                            >
+                                <i className="ki-duotone ki-abstract-14 fs-2 fs-md-1 text-white"
+                                    data-bs-toggle="offcanvas"
+                                    data-bs-target="#offcanvasLeftNav"
+                                    aria-controls="offcanvasLeftNav"
+                                >
+                                    <span className="path1 text-dark"></span>
+                                    <span className="path2 text-info"></span>
+                                </i>
+                            </div>
+                        </div>
+                        <div className="d-flex align-items-center flex-grow-1 flex-lg-grow-0 d-lg-none">
+                            <img alt="Logo" src={LogoImg} className="h-30px" />
+                        </div>
+                        <div className="d-flex align-items-stretch justify-content-between flex-lg-grow-1" id="kt_app_header_wrapper">
+                            <div className="app-header-menu app-header-mobile-drawer align-items-stretch" data-kt-drawer="true" data-kt-drawer-name="app-header-menu" data-kt-drawer-activate="{default: true, lg: false}" data-kt-drawer-overlay="true" data-kt-drawer-width="250px" data-kt-drawer-direction="end" data-kt-drawer-toggle="#kt_app_header_menu_toggle" data-kt-swapper="true" data-kt-swapper-mode="{default: 'append', lg: 'prepend'}" data-kt-swapper-parent="{default: '#kt_app_body', lg: '#kt_app_header_wrapper'}">
+                                <div className="menu menu-rounded menu-column menu-lg-row my-5 my-lg-0 align-items-stretch fw-semibold px-2 px-lg-0" id="kt_app_header_menu" data-kt-menu="true">
+                                    <img alt="Logo" src={LogoImg} className="h-55px app-sidebar-logo-default" />
+                                    <img alt="Logo" src={LogoImg} className="h-20px app-sidebar-logo-minimize" />
+                                </div>
+                            </div>
+
+                            {/* Heading */}
+                            <div className="module-header shadow-sm p-3 mb-3 rounded d-flex align-items-center mt-3">
+                                <div className="flex-grow-1">
+                                    <h2 className="module-title mb-1 d-none d-md-block"><i className={`fas fa-${moduleData.ImageIcon} fs-5`}></i> {moduleData.Description}</h2>
+                                    <h2 className="module-title mb-0 d-flex align-items-center justify-content-center gap-2 d-block d-md-none text-center me-8">
+                                        {moduleData.ModuleName}
+                                    </h2>
+                                </div>
+                            </div>
+                            
+                            {/* Heading */}
+
+                            <div className="app-navbar flex-shrink-0">
+                                <div className="app-navbar-item ms-1 ms-md-4 ">
+
+                                </div>
+                                <div className="app-navbar-item ms-1 ms-md-4">
+                                    <div className="text-hover-primary btn btn-icon btn-custom btn-icon-muted btn-active-light btn-active-color-primary  btn-active-color-primary w-35px h-35px position-relative" id="kt_drawer_chat_toggle">
+                                        <i className="ki-duotone ki-message-text-2 fs-1 text-info">
+                                            <span className="path1"></span>
+                                            <span className="path2"></span>
+                                            <span className="path3"></span>
+                                        </i>
+                                        <span className="bullet bullet-dot bg-success h-6px w-6px position-absolute translate-middle top-0 start-50 animation-blink"></span>
+                                    </div>
+                                </div>
+
+                                <div className="app-navbar-item ms-1 ms-md-4">
+                                    <Popover placement="bottom" content={content} className='border p-2 rounded border-dark'>
+                                        <div className="text-hover-primary text-dark btn btn-icon btn-custom btn-icon-muted btn-active-light btn-active-color-primary  btn-active-color-primary w-35px h-35px position-relative" id="kt_drawer_chat_toggle">
+                                            {/* <i className="fa-regular fa-user text-white"></i> */}
+                                            {sessionUserData?.Name?.charAt(0)}
+                                        </div>
+                                    </Popover>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="app-wrapper flex-row flex-row-fluid" id="kt_app_wrapper">
+                    {!(shouldHideSidebar || reportId === '3') && (
+                        <div id="kt_app_sidebar" className="app-sidebar flex-column" data-kt-drawer="true" style={{ width: '250px' }}>
+                            {/* Sidebar */}
+                            {/* <div className="app-sidebar-menu overflow-hidden flex-column-fluid" style={{ backgroundColor: moduleData?.UITheme2 }}> */}
+                            <div className="app-sidebar-menu overflow-hidden flex-column-fluid bg-white shadow-sm">
+                                <div id="kt_app_sidebar_menu_wrapper" className="app-sidebar-wrapper">
+                                    <div id="kt_app_sidebar_menu_scroll" style={{ minHeight: '90vh' }} className="scroll-y my-5 mx-3" data-kt-scroll="true" data-kt-scroll-activate="true"
+                                        data-kt-scroll-height="auto" data-kt-scroll-dependencies="#kt_app_sidebar_logo, #kt_app_sidebar_footer" data-kt-scroll-wrappers="#kt_app_sidebar_menu" data-kt-scroll-offset="5px" data-kt-scroll-save-state="true">
+                                        <div className="menu menu-column menu-rounded menu-sub-indention fw-semibold fs-4" id="#kt_app_sidebar_menu" data-kt-menu="true" data-kt-menu-expand="false">
+                                            <div data-kt-menu-trigger="click" className="menu-item menu-accordion">
+                                                <div className="sidebar-menu">
+                                                    {menuItems &&
+                                                        menuItems.map((item, index) => (
+                                                            <div key={index} className="menu-item">
+                                                                <a
+                                                                    href={item.MenuPath}
+                                                                    // to={item.MenuPath}
+                                                                    className={`menu-link d-flex align-items-center p-2 ${activeDropdown === index ? "active" : ""
+                                                                        }  ${item.MenuPath === currentPath ? "text-highligh fw-bold border border-primary border-2" : "text-dark"} hover-effect`}
+                                                                    onClick={(e) => {
+                                                                        if (item.SubItems?.length) {
+                                                                            e.preventDefault();
+                                                                            toggleDropdown(index);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <i className={`me-2 fs-5 ${item.IconName}`}></i>
+                                                                    <span className="menu-title">{item.MenuName}</span>
+                                                                    {item.SubItems?.length > 0 && (
+                                                                        <i
+                                                                            className={`ms-auto fa-solid ${activeDropdown === index ? "fa-chevron-up" : "fa-chevron-down"
+                                                                                }`}
+                                                                        ></i>
+                                                                    )}
+                                                                </a>
+
+                                                                {item.SubItems?.length > 0 && (
+                                                                    <ul
+                                                                        className={`submenu list-unstyled ps-4 ${activeDropdown === index ? "d-block" : "d-none"
+                                                                            }`}
+                                                                    >
+                                                                        {item.SubItems.map((subItem, subIndex) => (
+                                                                            <li key={subIndex}>
+                                                                                <Link
+                                                                                    to={`/${subItem.MenuPath}`}
+                                                                                    className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath}` === currentSubPath ? "fw-bold text-primary" : "text-dark"
+                                                                                        }`}
+                                                                                    onClick={() => window.location.href = `/${subItem.MenuPath}`}
+                                                                                >
+                                                                                    <i className="fa-solid fa-arrow-right me-2"></i>
+                                                                                    {subItem.MenuName}
+                                                                                </Link>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="app-sidebar-footer flex-column-auto pt-2 pb-6 px-6" id="kt_app_sidebar_footer">
+                                    <a href="https://preview.keenthemes.com/html/metronic/docs" class="btn btn-flex flex-center btn-custom btn-primary overflow-hidden text-nowrap px-0 h-40px w-100" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-dismiss-="click" data-bs-original-title="200+ in-house components and 3rd-party plugins" data-kt-initialized="1">
+                                        <span class="btn-label">Docs &amp; Components</span>
+                                        <i class="ki-duotone ki-document btn-icon fs-2 m-0">
+                                            <span class="path1"></span>
+                                            <span class="path2"></span>
+                                        </i>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <div className="app-main flex-column flex-row-fluid" id="kt_app_main">
+
+                        {children}
+
+                        <div id="kt_app_footer" className="app-footer sticky-bottom bg-white shadow-sm">
+                            <div className="app-container container-fluid d-flex flex-column flex-md-row flex-center flex-md-stack py-3">
+                                <div className="text-gray-900 order-2 order-md-1">
+                                    <span className="text-muted fw-semibold me-1">2025&copy;</span>
+                                    <a className="text-gray-800 text-hover-primary">Cooper Wind India</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                className="offcanvas offcanvas-end custom-offcanvas"
+                tabIndex="-1"
+                id="offcanvasLeftNav"
+                aria-labelledby="offcanvasLeftLabel"
+            >
+                <div className="offcanvas-header border-bottom px-4 py-3">
+                    <h5 className="mb-0">Menu</h5>
+                    <button
+                        type="button"
+                        className="btn-close"
+                        data-bs-dismiss="offcanvas"
+                        aria-label="Close"
+                    ></button>
+                </div>
+
+                <div className="offcanvas-body p-4 custom-scrollbar">
+                    {menuItems &&
+                        menuItems.map((item, index) => (
+                            <div key={index} className="menu-item mb-3">
+                                <a
+                                    // to={`${item.MenuPath}`}
+                                    href={item.MenuPath}
+                                    className={`menu-link d-flex align-items-center justify-content-between ${item.SubItems?.length ? "has-submenu" : ""
+                                        } ${item.MenuPath === currentPath ? "active" : ""}`}
+                                    onClick={(e) => {
+                                        if (item.SubItems?.length) {
+                                            e.preventDefault();
+                                            toggleDropdown(index);
+                                        }
+                                    }}
+                                >
+                                    <div className="d-flex align-items-center">
+                                        <i
+                                            className={`me-3 fs-5 ${item.IconName}`}
+                                        // style={{ color: iconColors[index % iconColors.length] }}
+                                        ></i>
+                                        <span className="fs-6">{item.MenuName}</span>
+                                    </div>
+                                    {item.SubItems?.length > 0 && (
+                                        <i className={`fa fa-chevron-${activeDropdown === index ? "up" : "down"}`}></i>
+                                    )}
+                                </a>
+
+                                {item.SubItems?.length > 0 && (
+                                    <ul className={`submenu list-unstyled ps-4 mt-2 ${activeDropdown === index ? "show" : ""}`}>
+                                        {item.SubItems.map((subItem, subIndex) => (
+                                            <li key={subIndex}>
+                                                <Link
+                                                    to={`/${subItem.MenuPath}`}
+                                                    className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath}` === currentSubPath ? "fw-bold text-primary" : "text-dark"
+                                                        }`}
+                                                    onClick={() => window.location.href = `/${subItem.MenuPath}`}
+                                                >
+                                                    <i className="fa-solid fa-arrow-right me-2"></i>
+                                                    {subItem.MenuName}
+                                                </Link>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        ))}
+                </div>
+            </div>
 
             <style>
                 {`
-                .emoji-bounce {
-                    display: inline-block;
-                    animation: bounce 1.2s infinite ease-in-out;
+                    #offcanvasRightViewProfile {
+                        width: 90% !important;   /* Mobile view */
                     }
 
-                    @keyframes bounce {
-                    0%, 100% {
-                        transform: translateY(0);
+                    @media (min-width: 768px) { /* Tablet and up */
+                        #offcanvasRightViewProfile {
+                            width: 40% !important;
+                        }
                     }
-                    50% {
-                        transform: translateY(-6px);
-                    }
-                    }
-                .chatbot-toggle-btn {
-                        position: fixed;
-                        bottom: 20px;
-                        right: 20px;
-                        background-color: #284e62;
-                        color: white;
-                        border: none;
-                        border-radius: 50%;
-                        width: 60px;
-                        height: 60px;
-                        font-size: 24px;
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        z-index: 9999;
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-                        cursor: pointer;
-                        transition: transform 0.3s ease;
-                    }
-                    .chatbot-toggle-btn:hover {
-                        transform: scale(1.1);
-                    }
-
-                    .chatbot-box {
-                        position: fixed;
-                        bottom: 90px;
-                        right: 20px;
-                        width: 300px;
-                        height: 400px;
-                        background: white;
-                        border: 1px solid #ccc;
-                        border-radius: 12px;
-                        box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-                        z-index: 9999;
-                        display: flex;
-                        flex-direction: column;
-                        overflow: hidden;
-                    }
-
-                    .chatbot-header {
-                        background: #284e62;
-                        color: white;
-                        padding: 10px;
-                        font-weight: bold;
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                    }
-
-                    .chatbot-body {
-                        padding: 10px;
-                        flex: 1;
-                        overflow-y: auto;
-                    }
-
-                    .close-chat {
-                        background: none;
-                        border: none;
-                        color: white;
-                        font-size: 20px;
-                        cursor: pointer;
-                    }
-                        .chatbot-messages {
-                    padding: 10px;
-                    flex: 1;
-                    overflow-y: auto;
-                    display: flex;
-                    flex-direction: column;
-                    }
-
-                    .chatbot-input {
-                    display: flex;
-                    padding: 10px;
-                    border-top: 1px solid #ddd;
-                    gap: 10px;
-                    }
-
-                    .chatbot-input input {
-                    flex: 1;
-                    }
-
-                    .bot-message {
-                    background: #1e435;
-                    padding: 8px 12px;
-                    border-radius: 10px;
-                    max-width: 80%;
-                    margin-bottom: 8px;
-                    }
-                    .modal-overlay {
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 100%;
-                        height: 100%;
-                        background: rgba(0,0,0,0.4);
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        z-index: 10000;
+                        
+                    .text-highlight {
+                            color: #0dcaf0 !important; /* Same as Bootstrap's text-info */
+                        }
+                        .menu-link.hover-effect {
+                            transition: all 0.2s ease-in-out;
                         }
 
-                        .modal-box {
-                        background: white;
-                        padding: 20px 25px;
-                        border-radius: 10px;
-                        width: 400px;
-                        max-width: 90%;
-                        box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                        .menu-link.hover-effect:hover {
+                            // color: #0dcaf0 !important; 
+                            transform: translateX(4px);
+                            text-decoration: none;
                         }
-
-                        .modal-header {
-                        display: flex;
-                        justify-content: space-between;
-                        align-items: center;
-                        }
-
-                        .modal-header h5 {
-                        margin: 0;
-                        }
-
-                        .close-modal {
-                        background: none;
-                        border: none;
-                        font-size: 24px;
-                        cursor: pointer;
-                        }
-
-                        .modal-body input,
-                        .modal-body textarea {
-                        width: 100%;
-                        margin-top: 10px;
-                        padding: 10px;
-                        border: 1px solid #ddd;
-                        border-radius: 5px;
-                        }
+                   
+              
+                    @keyframes spin {
+                        0% { transform: rotate(0deg); }
+                        100% { transform: rotate(360deg); }
+                    }
+               
                 `}
             </style>
+            <div
+                className="offcanvas offcanvas-end custom-offcanvas"
+                tabIndex="-1"
+                id="offcanvasRightViewProfile"
+                aria-labelledby="offcanvasLeftLabel"
+            >
+                <div className="offcanvas-header border-bottom px-4 py-3">
+                    <h5 id="offcanvasProfileLabel" className="mb-0">
+                        <i className="fa-regular fa-user me-2"></i> My Profile
+                    </h5>
+                    <button
+                        type="button"
+                        className="btn-close"
+                        data-bs-dismiss="offcanvas"
+                        aria-label="Close"
+                    ></button>
+                </div>
 
-            {showEnquiry && (
-                <div className="modal-overlay">
-                    <div className="modal-box">
-                        <div className="modal-header">
-                            <h5>Enquiry Form</h5>
-                            <button onClick={() => setShowEnquiry(false)} className="close-modal">&times;</button>
-                        </div>
-                        <form className="modal-body">
-                            <div className="d-flex gap-2">
-                                <input type="text" className='form-control' placeholder="First Name" required />
-                                <input type="text" className='form-control' placeholder="Last Name" required />
+                <div className="offcanvas-body">
+                    <div className="card border-0 shadow-sm">
+                        <div className="card-body">
+                            <div className="d-flex align-items-center mb-3">
+                                <div className="avatar bg-light-primary text-dark rounded-circle d-flex align-items-center justify-content-center me-3" style={{ width: "50px", height: "50px", fontSize: "20px" }}>
+                                    QA
+                                </div>
+                                <div>
+                                    <h6 className="mb-0">{sessionUserData?.Name}</h6>
+                                    <small className="text-muted">{sessionUserData?.RoleName}</small>
+                                </div>
                             </div>
-                            <input type="email" className='form-control' placeholder="Email" required />
-                            <textarea rows="4" className='form-control' placeholder="Leave your message..." required></textarea>
-                            <button type="submit" className="btn text-white w-100 mt-3" style={{ backgroundColor: '#284e62' }}>Send Message</button>
-                        </form>
+
+                            <ul className="list-group list-group-flush">
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-id-badge text-primary me-2"></i> Org ID</span>
+                                    <span className="fw-bold">{sessionUserData?.OrgId}</span>
+                                </li>
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-envelope text-primary me-2"></i> Email</span>
+                                    <span className="fw-bold">{sessionUserData?.Email}</span>
+                                </li>
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-phone text-primary me-2"></i> Mobile</span>
+                                    <span className="fw-bold">{sessionUserData?.Mobile || '--'}</span>
+                                </li>
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-venus-mars text-primary me-2"></i> Gender</span>
+                                    <span className="fw-bold">{sessionUserData?.Gender === 1 ? 'Male' : 'Female'}</span>
+                                </li>
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-calendar text-primary me-2"></i> Created On</span>
+                                    <span className="fw-bold">{new Date(sessionUserData?.CreatedOn).toLocaleString("en-GB", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                    })}</span>
+                                </li>
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-lock text-primary me-2"></i> Password</span>
+                                    <span className="fw-bold text-muted d-flex align-items-center">
+                                        {showPassword ? sessionUserData?.Password : "••••••••"}
+                                        <i
+                                            className={`fa-regular ${showPassword ? "fa-eye" : "fa-eye-slash"} ms-2`}
+                                            style={{ cursor: "pointer" }}
+                                            onClick={() => setShowPassword(!showPassword)}
+                                        ></i>
+                                    </span>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
-            )}
+            </div>
 
-        </>
+            <style>
+                {`
+                {/* Heading */}
+               
+
+                .module-title {
+                    color: #0d75ae;
+                    font-weight: 700;
+                    font-size: 1.5rem;
+                    line-height: 1.3;
+                }
+
+                .module-subtitle {
+                    color: #6c757d;
+                    font-size: 0.95rem;
+                    font-weight: 500;
+                    line-height: 1.2;
+                }
+
+                .module-icon {
+                    background: rgba(13, 117, 174, 0.1);
+                    color: #0d75ae;
+                }
+                {/* Heading */}
+
+                .menu-item {
+                    margin-bottom: 5px;
+                    }
+
+                    .menu-link {
+                    text-decoration: none;
+                    color: #333;
+                    border-radius: 6px;
+                    transition: background 0.2s;
+                    }
+
+                    .menu-link:hover {
+                    background: #f5f5f5;
+                    }
+
+                    .menu-link.active {
+                    background: #eaf3ff;
+                    font-weight: bold;
+                    border: 1px solid #007bff;
+                    }
+
+                    .submenu {
+                    margin-top: 5px;
+                    }
+
+                    .submenu-link {
+                    text-decoration: none;
+                    color: #555;
+                    border-radius: 4px;
+                    }
+
+                    .submenu-link:hover {
+                    background: #f1f1f1;
+                    color: #007bff;
+                    }
+
+                    /* Custom Offcanvas */
+                .custom-offcanvas {
+                width: 80% !important;
+                background: #ffffff;
+                border-left: 1px solid #dee2e6;
+                border-radius: 0 0 0.75rem 0.75rem;
+                box-shadow: -5px 0 15px rgba(0, 0, 0, 0.05);
+                }
+
+                .custom-scrollbar {
+                max-height: calc(100vh - 100px);
+                overflow-y: auto;
+                scrollbar-width: thin;
+                }
+
+                /* Scrollbar styling */
+                .custom-scrollbar::-webkit-scrollbar {
+                width: 6px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                background-color: #ccc;
+                border-radius: 10px;
+                }
+
+                /* Menu links */
+                .menu-link {
+                padding: 0.75rem 1rem;
+                border-radius: 0.5rem;
+                background-color:rgb(236, 240, 244);
+                transition: all 0.3s;
+                font-weight: 500;
+                color: #212529;
+                text-decoration: none;
+                }
+
+                .menu-link:hover {
+                background-color: #e9ecef;
+                }
+
+                .menu-link.active:hover,
+                .submenu-link.active-sub:hover {
+                background-color: #c3e7fc;
+                }
+                /* Active states with light sky blue */
+                .menu-link.active,
+                .submenu-link.active-sub {
+                background-color: #d1ecff; /* Light sky blue */
+                color: #0d6efd !important; /* Bootstrap primary for text */
+                font-weight: 600;
+                }
+
+
+                .submenu-link {
+                padding-left: 1rem;
+                color: #495057;
+                transition: 0.2s ease;
+                }
+
+                .submenu-link:hover {
+                color: #0d6efd;
+                }
+
+                /* Arrow icons for dropdowns */
+                .menu-link.has-submenu i.fa-chevron-down,
+                .menu-link.has-submenu i.fa-chevron-up {
+                font-size: 0.9rem;
+                color: #6c757d;
+                margin-left: auto;
+                }
+
+                /* Submenu visibility */
+                .submenu {
+                display: none;
+                transition: all 0.3s ease;
+                }
+                .submenu.show {
+                display: block;
+                }
+                `}
+            </style>
+        </div>
     )
 };
 
-export default Base;
+export default Base1;

@@ -1,0 +1,289 @@
+        :root {
+          --primary: #04779d;
+          --primary-light: #0086b3;
+          --secondary: #ff6b35;
+          --dark: #2d3748;
+          --light: #f8f9fa;
+        }
+
+        .body1 {
+          font-family: 'Montserrat', sans-serif;
+          background-color: #f5f7fa;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          padding: 2rem;
+          overflow-x: hidden;
+        }
+
+        .initial-view {
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background-color: #f5f7fa;
+          z-index: 1000;
+          transition: all 1s ease;
+        }
+
+        .initial-view.hide {
+          opacity: 0;
+          pointer-events: none;
+          transform: translateY(-50px);
+        }
+
+        .nexus-logo {
+          width: 180px;
+          height: 180px;
+          transition: all 0.5s ease;
+        }
+
+        .nexus-logo img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+
+        .nexus-title {
+          text-align: center;
+          transition: all 0.5s ease;
+        }
+
+        .nexus-title h1 {
+          font-weight: 700;
+          color: var(--primary);
+          margin-bottom: 0.5rem;
+          font-size: 2.5rem;
+        }
+
+        .nexus-title p {
+          color: var(--dark);
+          font-size: 1.1rem;
+          max-width: 600px;
+          margin: 0 auto;
+        }
+
+        .main-content {
+          opacity: 0;
+          transform: translateY(20px);
+          transition: all 1s ease;
+        }
+
+        .main-content.show {
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .service-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+          gap: 1.5rem;
+          margin-top: 2rem;
+        }
+
+        .service-card {
+          background: white;
+          border-radius: 12px;
+          padding: 1rem;
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+          transition: all 0.3s ease;
+          cursor: pointer;
+          text-align: center;
+          border: 1px solid rgba(0, 0, 0, 0.05);
+          position: relative;
+          overflow: hidden;
+        }
+
+        .service-card:hover {
+          transform: translateY(-5px);
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+          border-color: var(--primary-light);
+        }
+
+        .service-card:hover::after {
+          content: 'CWI Portal';
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          width: 100%;
+          background: var(--primary);
+          color: white;
+          padding: 0.5rem;
+          font-weight: 600;
+          animation: slideUp .3s ease;
+        }
+
+        @keyframes slideUp {
+          from {
+            transform: translateY(100%);
+          }
+
+          to {
+            transform: translateY(0);
+          }
+        }
+
+        .service-icon {
+          width: 60px;
+          height: 60px;
+          background: linear-gradient(135deg, var(--primary), var(--primary-light));
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin: 0 auto 1rem;
+          color: white;
+          font-size: 1.5rem;
+        }
+
+        .service-card h3 {
+          font-weight: 600;
+          color: var(--dark);
+          margin-bottom: 0.5rem;
+          font-size: 1.1rem;
+        }
+
+        .service-card p {
+          color: #6c757d;
+          font-size: 0.9rem;
+          margin-bottom: 0;
+        }
+
+        /* Animation */
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .service-card {
+          animation: fadeIn 0.6s ease forwards;
+          opacity: 0;
+        }
+
+        .service-card:nth-child(1) {
+          animation-delay: 0.1s;
+        }
+
+        .service-card:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+
+        .service-card:nth-child(3) {
+          animation-delay: 0.3s;
+        }
+
+        .service-card:nth-child(4) {
+          animation-delay: 0.4s;
+        }
+
+        .service-card:nth-child(5) {
+          animation-delay: 0.5s;
+        }
+
+        .service-card:nth-child(6) {
+          animation-delay: 0.6s;
+        }
+
+        .service-card:nth-child(7) {
+          animation-delay: 0.7s;
+        }
+
+        .service-card:nth-child(8) {
+          animation-delay: 0.8s;
+        }
+
+        .service-card:nth-child(9) {
+          animation-delay: 0.9s;
+        }
+
+        .service-card:nth-child(10) {
+          animation-delay: 1s;
+        }
+
+        .service-card:nth-child(11) {
+          animation-delay: 1.1s;
+        }
+
+        @keyframes clickPulse {
+          0% {
+            transform: scale(1);
+          }
+
+          50% {
+            transform: scale(0.95);
+          }
+
+          100% {
+            transform: scale(1);
+          }
+        }
+
+        .click-animate {
+          animation: clickPulse 0.4s ease;
+        }
+
+        .header-animate {
+          transition: all 0.5s ease;
+        }
+
+        .header-animate.move-up {
+          transform: translateY(-20px);
+          margin-bottom: 1rem;
+        }
+
+        .header-animate.move-up .nexus-logo {
+          width: 100px;
+          height: 100px;
+        }
+
+        .header-animate.move-up .nexus-title h1 {
+          font-size: 2rem;
+        }
+
+        .nexuslogo {
+          width: 5px;
+          height: 5px;
+          align-items: center;
+        }
+
+        /* Animations */
+        .fade-in {
+          animation: fadeIn 1s ease-in-out forwards;
+          opacity: 0;
+        }
+
+        .fade-out {
+          animation: fadeOut 1s ease-in-out forwards;
+        }
+
+        @keyframes fadeIn {
+          to {
+            opacity: 1;
+          }
+        }
+
+        @keyframes fadeOut {
+          to {
+            opacity: 0;
+            display: none;
+          }
+        }
+
+        /* Optional: smooth transition if you want */
+        .initial-view {
+          transition: opacity 0.5s ease;
+          text-align: center;
+          padding: 50px;
+        }
