@@ -766,15 +766,16 @@ export default function ReportData() {
     const ticStatusOptions = [
         { value: "ALL", label: "ALL" },
         { value: "NEW", label: "NEW" },
-        // { value: "MODIFIED", label: "MODIFIED" },
         { value: "APPROVED", label: "APPROVED" },
         { value: "REJECTED", label: "REJECTED" },
         { value: "ASSIGNED", label: "ASSIGNED" },
+        { value: "PENDING_WITH_CLIENT", label: "Pending with Client" },
+        { value: "RESOLVED", label: "RESOLVED" },
+        { value: "CLOSED", label: "CLOSED" },
+        // { value: "MODIFIED", label: "MODIFIED" },
         // { value: "REQ APPROVAL", label: "REQ APPROVAL" },
         // { value: "REQ APPROVED", label: "REQ APPROVED" },
         // { value: "FILESUPLOAD", label: "FILESUPLOAD" },
-        { value: "RESOLVED", label: "RESOLVED" },
-        { value: "CLOSED", label: "CLOSED" },
     ];
 
     const versionStatusOptions = [
@@ -807,6 +808,7 @@ export default function ReportData() {
 
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
     const showExportBtn = sessionActionIds?.includes(32);
+    // console.log(showExportBtn)
 
     return (
         <Base1>
@@ -904,7 +906,7 @@ export default function ReportData() {
                                             <span className="d-inline-block">
                                                 <button
                                                     className={`btn custom-export-btn btn-sm d-flex align-items-center border border-success 
-                ${(reportData.length === 0 || !showExportBtn) ? "btn-blur opacity-50" : "btn-glass-shine"}`}
+                                                    ${(reportData.length === 0 || !showExportBtn) ? "btn-blur opacity-50" : "btn-glass-shine"}`}
                                                     type="button"
                                                     onClick={exportReportToExcel}
                                                     disabled={reportData.length === 0 || !showExportBtn}
@@ -1015,7 +1017,7 @@ export default function ReportData() {
                                         <span className="d-inline-block">
                                             <button
                                                 className={`btn custom-export-btn btn-sm d-flex align-items-center border border-success 
-                ${(reportData.length === 0 || !showExportBtn) ? "btn-blur opacity-50" : "btn-glass-shine"}`}
+                                                    ${(reportData.length === 0 || !showExportBtn) ? "btn-blur opacity-50" : "btn-glass-shine"}`}
                                                 type="button"
                                                 onClick={exportReportToExcel}
                                                 disabled={reportData.length === 0 || !showExportBtn}

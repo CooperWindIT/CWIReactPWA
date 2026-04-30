@@ -13,8 +13,6 @@ export default function AddAlert() {
     const [modulesData, setModulesData] = useState([]);
     const { Option } = Select;
     const [alertDates, setAlertDates] = useState([]); // holds generated alert dates
-    const [machineName, setMachineName] = useState('');
-    const [machineCode, setMachineCode] = useState('');
 
     const [formData, setFormData] = useState({
         OrgId: "",
@@ -330,8 +328,6 @@ export default function AddAlert() {
 
     useEffect(() => {
         setAlertDates([]);
-        // formData.StartDate = null;
-        // formData.EndDate = null;
     }, [formData.OcurrenceType]);
 
     return (
@@ -525,15 +521,6 @@ export default function AddAlert() {
                                     className="form-control form-control-sm"
                                     name="EndDate"
                                     min={formData.StartDate}
-                                    // max={
-                                    //     formData.OcurrenceType === "2"
-                                    //         ? new Date(addMonths(new Date(formData.StartDate), 2)).toISOString().split("T")[0]
-                                    //     : formData.OcurrenceType === "3"
-                                    //         ? new Date(addMonths(new Date(formData.StartDate), 3)).toISOString().split("T")[0]
-                                    //     : ["4", "5", "6", "7"].includes(formData.OcurrenceType)
-                                    //         ? new Date(addMonths(new Date(formData.StartDate), 24)).toISOString().split("T")[0]
-                                    //     : undefined
-                                    // }
                                     max={
                                         formData.StartDate && formData.OcurrenceType === "2"
                                             ? new Date(addMonths(new Date(formData.StartDate), 2))

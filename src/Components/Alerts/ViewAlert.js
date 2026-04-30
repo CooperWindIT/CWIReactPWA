@@ -127,14 +127,6 @@ export default function ViewAlert({ alertObj }) {
                     maxHeight: 'calc(100vh - 100px)'
                 }}>
                     <div className="row g-3">
-
-                        {/* Machine and Alert Title */}
-                        {/* <div className="col-12 col-md-6">
-                            <div className="p-2 border rounded bg-light">
-                                <h6 className="text-primary mb-1"><i className="fa-solid fa-cogs me-2"></i>Machine</h6>
-                                <p className="mb-0 fw-semibold">{alertObj?.MachineName || "N/A"}</p>
-                            </div>
-                        </div> */}
                         <div className="col-12 col-md-6">
                             <div className="p-2 border rounded bg-light">
                                 <h6 className="text-primary mb-1"><i className="fa-solid fa-bell me-2"></i>Alert Title</h6>

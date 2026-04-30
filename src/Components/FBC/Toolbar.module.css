@@ -1,0 +1,164 @@
+.shell {
+  position: absolute;
+  top: 12px;
+  left: 80px;
+  right: 12px;
+  z-index: 22;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.centerDock{
+  pointer-events: auto;
+}
+
+.centerDock {
+  display: flex;
+  justify-content: center;
+  flex: 1;
+}
+
+.toolRail {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
+  backdrop-filter: blur(10px);
+}
+
+.toolButton {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.toolButton:hover:not(:disabled) {
+  background: var(--surface-3);
+  transform: translateY(-1px);
+}
+
+.toolButton:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.toolButtonActive {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.toolButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.toolButton text {
+  font-size: 14px;
+}
+
+.toolIndex {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  font-size: 8px;
+  line-height: 1;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.sep {
+  width: 1px;
+  height: 24px;
+  background: var(--panel-border);
+  margin: 0 1px;
+}
+
+.fileNameInput {
+  height: 34px;
+  width: 148px;
+  padding: 0 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  outline: none;
+}
+
+.fileNameInput:focus {
+  border-color: var(--accent);
+}
+
+.actionTextButton,
+.saveButton {
+  height: 34px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+
+.saveButton svg {
+  width: 14px;
+  height: 14px;
+}
+
+.actionTextButton {
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.saveButton {
+  padding: 0 12px;
+  color: #1f6b2c;
+  background: #eefaf1;
+  border-color: #8ed39a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.actionTextButton:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--panel-border-strong);
+}
+
+.saveButton:hover {
+  background: #def4e3;
+}
+
+@media (max-width: 1180px) {
+  .shell {
+    left: 16px;
+    right: 16px;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .centerDock {
+    justify-content: flex-end;
+  }
+}

@@ -42,9 +42,12 @@ export default function DocVersion() {
     const [entityItem, setEntityItem] = useState([]);
     const [docItem, setDocItem] = useState([]);
     const [alertsList, setAlertsList] = useState([]);
+    const [alertsLoading, setAlertsLoading] = useState(false);
     const [selectedAlert, setSelectedAlert] = useState(null);
     const [selectedYear, setSelectedYear] = useState('0');
     const [selectedMonth, setSelectedMonth] = useState('0');
+    const [versionId, setVersionId] = useState(null);
+    const [selectedVersionNumber, setSelectedVersionNumber] = useState(null);
     const [dataLoading, setDataLoading] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [menuData, setMenuData] = useState([]);
@@ -94,7 +97,7 @@ export default function DocVersion() {
 
     const handleTabChange = (tabName) => {
         setActiveTab(tabName);
-        localStorage.setItem("docDetails_activeTab", tabName);
+        // localStorage.setItem("docDetails_activeTab", tabName);
     };
 
     const handleModuleClick = async (mod) => {
@@ -644,23 +647,36 @@ export default function DocVersion() {
     };
 
     const handlePublish = async (item) => {
-        const {
-            DocId,
-            Id,
-            VersionNumber,
-        } = item;
+        const { DocId, Id, VersionNumber } = item;
+
+        const hasOldVersion = (docVersions?.length || 0) > 1;
+        const oldVersion = hasOldVersion ? docVersions?.[1] : null;
+        const oldVersionId = oldVersion?.Id || 0;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const oldExpiryDate = oldVersion?.ExpiryDate ? new Date(oldVersion.ExpiryDate) : null;
+        if (oldExpiryDate) {
+            oldExpiryDate.setHours(0, 0, 0, 0);
+        }
+
+        const shouldWarnOldAlert =
+            !!oldVersionId && !!oldExpiryDate && oldExpiryDate >= today;
+
 
         // 1️⃣ Confirmation dialog with input
         const confirm = await Swal.fire({
             title: "Publish Document?",
             icon: "question",
-            // ✅ Increase width (default is 32rem)
-            width: '600px',
+            width: "600px",
             customClass: {
-                // ✅ Use a custom class for height control if needed
-                container: 'my-swal-height',
-                htmlContainer: 'p-1' // Reduces default padding to use space better
+                container: "my-swal-height",
+                htmlContainer: "p-1",
+                title: "swal-publish-title",
+                popup: "swal-publish-popup",
             },
+
             html: `
                 <div class="text-start">
                     <p class="mb-1 lh-1">
@@ -672,7 +688,7 @@ export default function DocVersion() {
                         <span class="text-dark">${VersionNumber}</span>
                     </p>
         
-                   <div class="d-flex align-items-center mb-4">
+                    <div class="d-flex align-items-center mb-4">
                         <label class="form-label fw-bold me-2 mb-0 text-nowrap">Document Number:</label>
                         <input 
                             id="docNumberInput" 
@@ -680,11 +696,29 @@ export default function DocVersion() {
                             placeholder="Enter document number"
                             style="height: 2.7rem;"
                         />
-                    </div>        
+                    </div>
+        
+                    ${shouldWarnOldAlert
+                    ? `
+                            <div class="alert alert-custom alert-light-warning d-flex align-items-center mb-3">
+                                <div class="d-flex flex-column">
+                                    <h6 class="text-warning fw-bold mb-1">
+                                        <i class="bi bi-bell me-1"></i> Alert Notice
+                                    </h6>
+                                    <span class="fs-7">
+                                       Your previous document version alerts will be automatically disabled after this document is published.
+                                    </span>
+                                </div>
+                            </div>
+                            `
+                    : ""
+                }
+        
                     <div class="alert alert-custom alert-light-danger d-flex align-items-center">
-                    
                         <div class="d-flex flex-column">
-                            <h6 class="text-danger fw-bold"><i class="bi bi-exclamation-triangle text-danger me-1"></i>Final Publication Warning</h6>
+                            <h6 class="text-danger fw-bold">
+                                <i class="bi bi-exclamation-triangle text-danger me-1"></i>Final Publication Warning
+                            </h6>
                             <span class="fs-7">
                                 Please review all details carefully. <strong>Once published, this version becomes read-only</strong> and cannot be edited.
                             </span>
@@ -723,6 +757,7 @@ export default function DocVersion() {
                 AssignedUserId: sessionUserData?.Id,
                 DocId: DocId,
                 DocNumber: docNumber,
+                OldVersionId: oldVersionId,
             }
         };
 
@@ -841,8 +876,9 @@ export default function DocVersion() {
     const fetchAlertsByDocId = async () => {
         const storedModule = JSON.parse(localStorage.getItem("ModuleData"));
         const moduleId = storedModule?.Id?.toString();
+        setAlertsLoading(true);
         try {
-            const response = await fetchWithAuth(`EDM/GetEDMAlertsMonth?OrgId=${sessionUserData?.OrgId}&ModuleId=${moduleId}&TableId=${docId}&month=${selectedMonth}&year=${selectedYear}`, {
+            const response = await fetchWithAuth(`EDM/GetEDMAlertsMonth?OrgId=${sessionUserData?.OrgId}&ModuleId=${moduleId}&TableId=${versionId}&month=${selectedMonth}&year=${selectedYear}`, {
                 method: "GET",
                 headers: { "Content-Type": "application/json" },
             });
@@ -855,68 +891,19 @@ export default function DocVersion() {
                 : [];
 
             setAlertsList(normalizedAlerts);
+            setAlertsLoading(false);
         } catch (error) {
             console.error("Failed to fetch alerts:", error);
             setAlertsList([]);
+            setAlertsLoading(false);
         }
     };
 
     useEffect(() => {
-        if (sessionUserData?.OrgId && docId && selectedYear && selectedMonth) {
+        if (sessionUserData?.OrgId && versionId && selectedYear && selectedMonth) {
             fetchAlertsByDocId();
         }
-    }, [sessionUserData, docId, selectedYear, selectedMonth]);
-
-    const handleDeleteAlert = async (item) => {
-
-        Swal.fire({
-            title: "Are you sure?",
-            text: "Do you want to delete alert?",
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: "#3085d6",
-            cancelButtonColor: "#d33",
-            confirmButtonText: `<i class="bi bi-hand-thumbs-up text-white me-1"></i>Yes, delete it!`,
-            cancelButtonText: `<i class="bi bi-x-lg text-white"></i> Cancel`,
-            confirmButtonColor: "#0d6efd",
-            cancelButtonColor: "#6c757d",
-
-        }).then(async (result) => {
-            if (result.isConfirmed) {
-                setDeleteLoading(true);
-                try {
-                    const payload = {
-                        AlertId: item.AlertId,
-                        UpdatedBy: sessionUserData?.Id,
-                    };
-
-                    const response = await fetchWithAuth(`PMMS/InActiveMachineAlerts`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify(payload),
-                    });
-                    const result = await response.json();
-                    setDeleteLoading(false);
-
-                    if (result.ResultData?.Status === 'Success') {
-                        fetchAlertsByDocId();
-                        setDeleteLoading(false);
-                        Swal.fire("Success!", "Alert has been deleted.", "success");
-                    } else {
-                        const errorData = await response.json();
-                        setDeleteLoading(false);
-                        Swal.fire("Error!", errorData.ResultData?.ResultMessage || "Failed to delete alert.", "error");
-                    }
-                } catch (error) {
-                    setDeleteLoading(false);
-                    console.error("Error during user delete:", error.message);
-                    Swal.fire("Error!", "An unexpected error occurred.", "error");
-                }
-            }
-        });
-    };
+    }, [sessionUserData, versionId, selectedYear, selectedMonth]);
 
     const handleAlertClick = (alert) => {
         setSelectedAlert(alert);
@@ -927,218 +914,6 @@ export default function DocVersion() {
             bsOffcanvas.show();
         }
     };
-
-    // const handlePreview = async (item) => {
-    //     setShowPreviewModal(true);
-    //     const storedModule = JSON.parse(localStorage.getItem("ModuleData"));
-    //     const moduleId = storedModule?.Id?.toString();
-
-    //     try {
-    //         // 1️⃣ Prepare log payload
-    //         const logPayload = {
-    //             TicketId: 0,
-    //             Status: item.VersionStatus || "",
-    //             Logs: `Document previewed: ${docDetails?.DocName} (v${item.VersionNumber})`,
-    //             LogDate: new Date().toISOString().slice(0, 19).replace("T", " "),
-    //             ChangedBy: sessionUserData?.Id,
-    //             ModuleId: moduleId,
-    //             EntityId: item.DocId,
-    //             EntityType: "Documents",
-    //         };
-
-    //         // 2️⃣ Call log service (non-blocking UX)
-    //         const response = await fetchWithAuth(`Portal/AddLogs`, {
-    //             method: "POST",
-    //             headers: { "Content-Type": "application/json" },
-    //             body: JSON.stringify(logPayload),
-    //         });
-
-    //         const result = await response.json();
-
-    //         if (
-    //             response.ok &&
-    //             result?.ResultData?.Status === "Success"
-    //         ) {
-    //             console.log("Preview log added successfully");
-    //         } else {
-    //             console.warn("Failed to log preview action");
-    //         }
-    //     } catch (error) {
-    //         console.error("Log API failed:", error);
-    //         // ❗ Do NOT stop preview
-    //     }
-
-    //     // 3️⃣ Always open preview
-    //     setPreviewFile(item.FilePath);
-
-    //     // const modalEl = document.getElementById("docPreviewModal");
-    //     // if (modalEl) {
-    //     //     const modal = new window.bootstrap.Modal(modalEl);
-    //     //     modal.show();
-    //     // }
-    // };
-
-    // const closePreviewModal = () => {
-    //     setShowPreviewModal(false);
-    //     setPreviewFile(null);
-    // };
-
-    // useEffect(() => {
-    //     if (showPreviewModal) {
-    //         document.body.style.overflow = "hidden";
-    //     } else {
-    //         document.body.style.overflow = "";
-    //     }
-
-    //     return () => {
-    //         document.body.style.overflow = "";
-    //     };
-    // }, [showPreviewModal]);
-
-    // const renderPreview = (filePath) => {
-    //     if (!filePath) return null;
-
-    //     const fileUrl = getFileUrl(filePath);
-    //     const extension = filePath.split(".").pop().toLowerCase();
-
-    //     /* ========================
-    //        1️⃣ PDF
-    //     ======================== */
-    //     if (extension === "pdf") {
-    //         return (
-    //             <iframe
-    //                 src={fileUrl}
-    //                 width="100%"
-    //                 height="100%"
-    //                 title="PDF Preview"
-    //             />
-    //         );
-    //     }
-
-    //     /* ========================
-    //        2️⃣ Images
-    //     ======================== */
-    //     if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension)) {
-    //         return (
-    //             <img
-    //                 src={fileUrl}
-    //                 alt="Preview"
-    //                 className="img-fluid mx-auto d-block"
-    //             />
-    //         );
-    //     }
-
-    //     /* ========================
-    //        3️⃣ Office Documents
-    //     ======================== */
-    //     if (["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(extension)) {
-    //         return (
-    //             <iframe
-    //                 src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`}
-    //                 width="100%"
-    //                 height="100%"
-    //                 frameBorder="0"
-    //                 title="Office Preview"
-    //             />
-    //         );
-    //     }
-
-    //     /* ========================
-    //        4️⃣ Text-based files
-    //     ======================== */
-    //     if ([
-    //         "txt",
-    //         "md",
-    //         "json",
-    //         "xml",
-    //         "csv",
-    //         "log",
-    //         "yaml",
-    //         "yml"
-    //     ].includes(extension)) {
-    //         return <TextFilePreview fileUrl={fileUrl} />;
-    //     }
-
-    //     /* ========================
-    //        5️⃣ Audio
-    //     ======================== */
-    //     if (["mp3", "wav", "ogg"].includes(extension)) {
-    //         return (
-    //             <audio controls style={{ width: "100%" }}>
-    //                 <source src={fileUrl} />
-    //                 Your browser does not support audio playback.
-    //             </audio>
-    //         );
-    //     }
-
-    //     /* ========================
-    //        6️⃣ Video
-    //     ======================== */
-    //     if (["mp4", "webm", "ogg"].includes(extension)) {
-    //         return (
-    //             <video controls width="100%" height="100%">
-    //                 <source src={fileUrl} />
-    //                 Your browser does not support video playback.
-    //             </video>
-    //         );
-    //     }
-
-    //     /* ========================
-    //        7️⃣ Fallback
-    //     ======================== */
-    //     return (
-    //         <div className="text-center text-muted py-5">
-    //             <i className="fa-solid fa-file fs-1 mb-3"></i>
-    //             <p className="mb-2">Preview not available for this file type</p>
-    //             <a
-    //                 href={fileUrl}
-    //                 target="_blank"
-    //                 rel="noopener noreferrer"
-    //                 className="btn btn-sm btn-outline-primary"
-    //             >
-    //                 Download File
-    //             </a>
-    //         </div>
-    //     );
-    // };
-
-    // const TextFilePreview = ({ fileUrl }) => {
-    //     const [content, setContent] = React.useState("");
-    //     const [loading, setLoading] = React.useState(true);
-
-    //     React.useEffect(() => {
-    //         fetch(fileUrl)
-    //             .then(res => res.text())
-    //             .then(text => {
-    //                 setContent(text);
-    //                 setLoading(false);
-    //             })
-    //             .catch(() => {
-    //                 setContent("Unable to load file preview.");
-    //                 setLoading(false);
-    //             });
-    //     }, [fileUrl]);
-
-    //     if (loading) {
-    //         return <div className="text-center">Loading preview...</div>;
-    //     }
-
-    //     return (
-    //         <pre
-    //             style={{
-    //                 whiteSpace: "pre-wrap",
-    //                 wordBreak: "break-word",
-    //                 background: "#f8f9fa",
-    //                 padding: "1rem",
-    //                 borderRadius: "6px",
-    //                 maxHeight: "100%",
-    //                 overflow: "auto"
-    //             }}
-    //         >
-    //             {content}
-    //         </pre>
-    //     );
-    // };
 
     const handleOpenPreview = (item) => {
         setPreviewModal({ show: true, item: item });
@@ -1165,19 +940,64 @@ export default function DocVersion() {
         { value: 12, label: "December" },
     ];
 
+    const handleDeleteDoc = async (item) => {
+        Swal.fire({
+            title: "Are you sure?",
+            html: `
+                <div>
+                    <div><strong>Document Name:</strong> ${item?.DocName || "-"}</div>
+                    <div class="mt-2 text-danger">Do you want to delete this document version?</div>
+                </div>
+            `,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#3085d6",
+            cancelButtonColor: "#d33",
+            confirmButtonText: '<i class="fa-solid fa-trash me-2"></i> Yes, delete it!',
+            cancelButtonText: '<i class="fa-solid fa-xmark me-2"></i> Cancel',
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const payload = {
+                        UpdatedBy: sessionUserData.Id,
+                        DocId: item.Id,
+                        OrgId: sessionUserData.OrgId,
+                        VersionId: item.Id,
+                    };
+
+                    const response = await fetchWithAuth(`EDM/InactiveDocVersion`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(payload),
+                    });
+                    const result = await response.json();
+
+                    if (result.ResultData?.Status === 'Success') {
+                        fetchDocVersions();
+                        Swal.fire("Success!", "Vesrion has been deleted.", "success");
+                    } else {
+                        const errorData = await response.json();
+                        Swal.fire("Error!", errorData.ResultData?.ResultMessage || "Failed to delete vesrion.", "error");
+                    }
+                } catch (error) {
+                    console.error("Error during vesrion delete:", error.message);
+                    Swal.fire("Error!", "An unexpected error occurred.", "error");
+                }
+            }
+        });
+    };
+
     const showApprove = sessionActionIds?.includes(4);
     const showReject = sessionActionIds?.includes(5);
     const showViewLogs = sessionActionIds?.includes(28);
-    // const showView = sessionActionIds?.includes(2);
-    // const showEdit = sessionActionIds?.includes(3);
-    // const showDownload = sessionActionIds?.includes(9);
-    // const showPublish = sessionActionIds?.includes(22);
-    // const showReqApproval = sessionActionIds?.includes(23);
-    // const showAddVersion = sessionActionIds?.includes(26);
-    // const showPreview = sessionActionIds?.includes(27);
+    const showDelete = sessionActionIds?.includes(11);
+    const showAlertTab = sessionActionIds?.includes(33);
 
     const getActions = (item) => {
         const status = item.VersionStatus?.toUpperCase() || "";
+        // console.log(status)
 
         return {
             canViewLogs: showViewLogs,
@@ -1187,12 +1007,19 @@ export default function DocVersion() {
             canReqApproval: (status === "DRAFT" || status === "REJECTED"),
             canApprove: showApprove && status === "PENDING APPROVAL",
             canReject: showReject && (status === "PENDING APPROVAL" || status === "APPROVED"),
-            canPublish: (status === "APPROVED") && (item.PublishedBy === sessionUserData?.Id)
+            canPublish: (status === "APPROVED") && (item.PublishedBy === sessionUserData?.Id),
+            canDelete: showDelete && status !== "APPROVED" && status !== "PUBLISHED",
         };
     };
 
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
-    const isAddDisabled = !(docVersions[0]?.VersionStatus === "PUBLISHED" && docDetails?.CanWrite);
+    const hasVersions = (docVersions?.length || 0) > 0;
+    const latestStatus = docVersions?.[0]?.VersionStatus;
+
+    const isAddDisabled = hasVersions
+        ? !(latestStatus === "PUBLISHED" && docDetails?.CanWrite)
+        : !docDetails?.CanWrite;
+
 
     return (
         <Base1>
@@ -1469,7 +1296,7 @@ export default function DocVersion() {
                         </div>
                     </div>
 
-                    <div className="col-auto text-end d-flex align-items-center justify-content-end gap-2">
+                    <div className="col-auto text-end d-flex align-items-center justify-content-end gap-2 p-2 bg-white rounded-4 shadow-sm">
                         <Tooltip
                             title={isAddDisabled ? "You can only add a new version once the current version is Published." : ""}
                             placement="top"
@@ -1588,20 +1415,53 @@ export default function DocVersion() {
                         </div>
                     </div>
 
-                    <div className="d-flex gap-3 mb-3 tab-header align-items-center">
-                        <span
-                            className={`tab-item ${activeTab === "versions" ? "active" : ""}`}
-                            onClick={() => handleTabChange("versions")}
-                        >
-                            <i className="bi bi-files me-1"></i> Versions
-                        </span>
+                    <div className="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3 mb-3">
+                        <div className="d-flex gap-3 tab-header align-items-center flex-wrap">
+                            <span
+                                className={`tab-item ${activeTab === "versions" ? "active" : ""}`}
+                                onClick={() => handleTabChange("versions")}
+                            >
+                                <i className="bi bi-files me-1"></i> Versions
+                            </span>
+
+                            {/* {showAlertTab && (
+                                <span
+                                    className={`tab-item ${activeTab === "alerts" ? "active" : ""}`}
+                                    onClick={() => handleTabChange("alerts")}
+                                >
+                                    <i className="bi bi-bell me-1"></i> Alerts
+                                </span>
+                            )} */}
+                        </div>
+
+                        <div className="d-flex gap-2 flex-wrap justify-content-md-end bg-white rounded-4 shadow-sm p-2">
+                            <Tooltip title="Alerts can be registered only for the current version automatically.">
+                                <button
+                                    className="btn btn-primary btn-sm"
+                                    data-bs-toggle="offcanvas"
+                                    data-bs-target="#offcanvasRightAlertAdd"
+                                >
+                                    <i className="bi bi-plus-circle me-1"></i>
+                                    Register Alert
+                                </button>
+                            </Tooltip>
+
+                            <Tooltip title="You are not able to add alert types, contact super admin">
+                                <span>
+                                    <button
+                                        className="btn btn-info btn-sm"
+                                        data-bs-toggle="offcanvas"
+                                        data-bs-target="#offcanvasRightAddMasterTypes"
+                                        disabled={true}
+                                    >
+                                        <i className="bi bi-gear me-1"></i>
+                                        Alert Types
+                                    </button>
+                                </span>
+                            </Tooltip>
+                        </div>
                     </div>
-                        {/* <span
-                            className={`tab-item ${activeTab === "alerts" ? "active" : ""}`}
-                            onClick={() => handleTabChange("alerts")}
-                        >
-                            <i className="bi bi-bell me-1"></i> Alerts
-                        </span> */}
+
                     {activeTab === "versions" && (
                         <div className="card tab-content">
                             <div className="card-body" style={{ maxHeight: "30rem", overflowY: "auto" }}>
@@ -1614,18 +1474,45 @@ export default function DocVersion() {
                                     )}
                                     style={{ background: "white" }}
                                 >
-                                    {Array.isArray(docVersions) && docVersions.map((item, index) => {
+                                    {Array.isArray(docVersions) && docVersions?.map((item, index) => {
                                         const statusColor =
                                             item.VersionStatus === "DRAFT" ? "warning" :
                                                 item.VersionStatus === "APPROVED" ? "primary" :
                                                     item.VersionStatus === "REJECTED" ? "danger" :
                                                         item.VersionStatus === "PUBLISHED" ? "success" : "info";
 
-                                        const actions = getActions(item);
+                                        const isLastRecord = index === 0;
+                                        const status = item.VersionStatus?.toUpperCase() || "";
+                                        const isManager = sessionUserData?.RoleId === 5;
+                                        const isCreator = sessionUserData?.Id === item.CreatedBy;
+                                        const isPublished = status === "PUBLISHED";
+
+                                        const hasOldVersionAccess = isManager || isCreator || !isPublished;
+                                        if (!hasOldVersionAccess) return null;
+
+
+                                        // const hasOldVersionAccess = !latestPublished || !isOldVersion || isManager || isCreator;
+
+                                        const baseActions = getActions(item);
+
+                                        const actions = hasOldVersionAccess
+                                            ? baseActions
+                                            : {
+                                                ...baseActions,
+                                                canPreview: false,
+                                                canDownload: false,
+                                                canEdit: false,
+                                                canReqApproval: false,
+                                                canApprove: false,
+                                                canReject: false,
+                                                canPublish: false,
+                                                canDelete: false,
+                                            };
+
                                         return (
                                             <Panel key={index}
                                                 header={
-                                                    <div className="d-flex flex-wrap align-items-center gap-2">
+                                                    <div className={`d-flex flex-wrap align-items-center gap-2 ${!hasOldVersionAccess ? "old-version-blur" : ""}`}>
                                                         <span className="fw-semibold">
                                                             Version {item.VersionNumber}
                                                         </span>
@@ -1652,15 +1539,35 @@ export default function DocVersion() {
                                                             <>
                                                                 <div className="vr h-15px mx-1 text-gray-600 mt-2"></div>
                                                                 <span className="text-muted fs-8 fw-bold">
-                                                                    Expiry Date: <span className="text-danger">{formatToDDMMYYYY(docDetails?.ExpiryDate) || '13-03-2026'}</span>
+                                                                    Expiry Date: <span className="text-danger">{formatToDDMMYYYY(item.ExpiryDate)}</span>
                                                                 </span>
                                                             </>
                                                         )}
+
+                                                        {!hasOldVersionAccess && (
+                                                            <span className="badge badge-light-danger border border-danger">
+                                                                No Access
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 }
+
                                                 // ✅ DESKTOP actions
                                                 extra={
                                                     <div className="d-none d-md-flex gap-2 flex-wrap">
+                                                        <span
+                                                            className="badge badge-light-info fs-7 fw-bold"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleTabChange("alerts");
+                                                                setVersionId(item.Id);
+                                                                setSelectedVersionNumber(item.VersionNumber);
+                                                            }}
+                                                            style={{ cursor: "pointer" }}
+
+                                                        >
+                                                            <i class="bi bi-bell me-2 text-info"></i>Alerts
+                                                        </span>
                                                         {actions.canViewLogs && (
                                                             <span
                                                                 className="badge badge-light-primary fs-7 fw-bold"
@@ -1673,7 +1580,7 @@ export default function DocVersion() {
                                                                 data-bs-target="#offcanvasRightEntityLogs"
                                                                 aria-controls="offcanvasRightEntityLogs"
                                                             >
-                                                                <i className="fa-regular fa-eye me-2"></i>View Logs
+                                                                <i className="fa-regular fa-eye me-2"></i>Logs
                                                             </span>
                                                         )}
                                                         {actions.canPreview && (
@@ -1711,7 +1618,7 @@ export default function DocVersion() {
                                                                 data-bs-target="#offcanvasRightEditDocVer"
                                                                 aria-controls="offcanvasRightEditDocVer"
                                                             >
-                                                                <i className="fa-regular fa-pen-to-square me-1"></i>Edit Version
+                                                                <i className="fa-regular fa-pen-to-square me-1"></i>Edit
                                                             </span>
                                                         )}
                                                         {actions.canReqApproval && (
@@ -1762,21 +1669,46 @@ export default function DocVersion() {
                                                                 <i className="fa-solid fa-upload me-1"></i>Publish
                                                             </span>
                                                         )}
+                                                        {actions.canDelete && isLastRecord && (
+                                                            <span
+                                                                className="badge badge-light-danger fs-7 fw-bold"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    item.VersionStatus !== "PUBLISHED" && handleDeleteDoc(item);
+                                                                }}
+                                                                style={{ cursor: "pointer" }}
+                                                            >
+                                                                <i class="fa-regular fa-trash-can me-1"></i>Delete Version
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 }
                                             >
                                                 {/* 📱 Mobile Actions */}
                                                 <div className="d-md-none mt-3">
                                                     <div className="row g-2">
+                                                        <div className="col-6">
+                                                            <button
+                                                                className="btn btn-light-info btn-sm w-100"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleTabChange("alerts");
+                                                                    setVersionId(item.Id);
+                                                                    setSelectedVersionNumber(item.VersionNumber);
+                                                                }}
+                                                            >
+                                                                <i class="bi bi-bell me-2 text-info"></i>Alerts
+                                                            </button>
+                                                        </div>
                                                         {actions.canViewLogs && (
                                                             <div className="col-6">
                                                                 <button
                                                                     className="btn btn-light-primary btn-sm w-100"
                                                                     data-bs-toggle="offcanvas"
                                                                     data-bs-target="#offcanvasRightEntityLogs"
-                                                                    onClick={(e) => {e.stopPropagation(); handleEntityLogs(item)}}
+                                                                    onClick={(e) => { e.stopPropagation(); handleEntityLogs(item) }}
                                                                 >
-                                                                    <i className="fa-regular fa-eye me-1"></i> Logs
+                                                                    <i className="fa-regular fa-eye"></i> Logs
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1785,9 +1717,9 @@ export default function DocVersion() {
                                                             <div className="col-6">
                                                                 <button
                                                                     className="btn btn-light-warning btn-sm w-100"
-                                                                    onClick={(e) => {e.stopPropagation(); handleOpenPreview(item)}}
+                                                                    onClick={(e) => { e.stopPropagation(); handleOpenPreview(item) }}
                                                                 >
-                                                                    <i className="fa-solid fa-expand me-1"></i> Preview
+                                                                    <i className="fa-solid fa-expand"></i> Preview
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1796,9 +1728,9 @@ export default function DocVersion() {
                                                             <div className="col-6">
                                                                 <button
                                                                     className="btn btn-light-dark btn-sm w-100"
-                                                                    onClick={(e) => {e.stopPropagation(); handleDownloadDoc(item)}}
+                                                                    onClick={(e) => { e.stopPropagation(); handleDownloadDoc(item) }}
                                                                 >
-                                                                    <i className="fa-solid fa-download me-1"></i> Download
+                                                                    <i className="fa-solid fa-download"></i> Download
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1814,7 +1746,7 @@ export default function DocVersion() {
                                                                         handleEditVersion(item);
                                                                     }}
                                                                 >
-                                                                    <i className="fa-regular fa-pen-to-square me-1"></i> Edit Version
+                                                                    <i className="fa-regular fa-pen-to-square"></i> Edit
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1823,9 +1755,9 @@ export default function DocVersion() {
                                                             <div className="col-6">
                                                                 <button
                                                                     className="btn btn-light-info btn-sm w-100"
-                                                                     onClick={(e) => {e.stopPropagation(); handleRequestApproval(item)}}
+                                                                    onClick={(e) => { e.stopPropagation(); handleRequestApproval(item) }}
                                                                 >
-                                                                    <i className="bi bi-send-exclamation me-1 text-info"></i> Req-Approval
+                                                                    <i className="bi bi-send-exclamation text-info"></i> Req-Approval
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1834,9 +1766,9 @@ export default function DocVersion() {
                                                             <div className="col-6">
                                                                 <button
                                                                     className="btn btn-light-success btn-sm w-100"
-                                                                     onClick={(e) => {e.stopPropagation(); handleApprove(item)}}
+                                                                    onClick={(e) => { e.stopPropagation(); handleApprove(item) }}
                                                                 >
-                                                                    <i className="fa-solid fa-check-double me-1"></i> Approve
+                                                                    <i className="fa-solid fa-check-double"></i> Approve
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1845,9 +1777,9 @@ export default function DocVersion() {
                                                             <div className="col-6">
                                                                 <button
                                                                     className="btn btn-light-danger btn-sm w-100"
-                                                                    onClick={(e) => {e.stopPropagation(); handleReject(item)}}
+                                                                    onClick={(e) => { e.stopPropagation(); handleReject(item) }}
                                                                 >
-                                                                    <i className="fa-solid fa-ban me-1"></i> Reject
+                                                                    <i className="fa-solid fa-ban"></i> Reject
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1855,9 +1787,23 @@ export default function DocVersion() {
                                                             <div className="col-6">
                                                                 <button
                                                                     className="btn btn-light-info btn-sm w-100"
-                                                                    onClick={(e) => {e.stopPropagation(); handlePublish(item)}}
+                                                                    onClick={(e) => { e.stopPropagation(); handlePublish(item) }}
                                                                 >
-                                                                    <i className="fa-solid fa-upload me-1"></i>Publish
+                                                                    <i className="fa-solid fa-upload"></i>Publish
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {actions.canDelete && isLastRecord && (
+                                                            <div className="col-6">
+                                                                <button
+                                                                    className="btn btn-light-danger btn-sm w-100"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        item.VersionStatus !== "PUBLISHED" && handleDeleteDoc(item);
+                                                                    }
+                                                                    }
+                                                                >
+                                                                    <i class="fa-regular fa-trash-can"></i>Delete Version
                                                                 </button>
                                                             </div>
                                                         )}
@@ -1865,7 +1811,16 @@ export default function DocVersion() {
                                                 </div>
 
                                                 {/* Pannel section */}
-                                                <p><i className="bi bi-chat-left-dots"></i> Comments: {item.Comments}</p>
+                                                <div className={!hasOldVersionAccess ? "old-version-blur position-relative" : ""}>
+                                                    {!hasOldVersionAccess && (
+                                                        <div className="old-version-overlay">
+                                                            <i className="fa-solid fa-lock me-2"></i>
+                                                            No access to older published versions
+                                                        </div>
+                                                    )}
+
+                                                    <p><i className="bi bi-chat-left-dots"></i> Comments: {item.Comments}</p>
+                                                </div>
                                             </Panel>
                                         );
                                     })}
@@ -1874,10 +1829,10 @@ export default function DocVersion() {
                         </div>
                     )}
 
-                    {activeTab === "alerts" && (
+                    {activeTab === "alerts" && showAlertTab && docVersions.length > 0 && (
                         <div className="card tab-content animate__animated animate__fadeIn">
                             <div className="card-body p-3 p-md-4">
-                                <div className="row g-3 align-items-center">
+                                <div className="row g-3 align-items-center justify-content-between">
                                     <div className="col-12 col-md-auto">
                                         <div className="d-flex gap-2">
                                             <Select
@@ -1922,31 +1877,31 @@ export default function DocVersion() {
                                             </Select>
                                         </div>
                                     </div>
-
-                                    <div className="col-12 col-md text-md-end">
-                                        <div className="d-flex gap-2 justify-content-md-end">
-                                            <button className="btn btn-primary btn-sm flex-fill flex-md-grow-0" data-bs-toggle="offcanvas" data-bs-target="#offcanvasRightAlertAdd">
-                                                <i className="bi bi-plus-circle"></i> Register Alert
-                                            </button>
-                                            <Tooltip title="You are not able to add alert types, contact super admin">
-    {/* Wrap in a div/span if the button is disabled to ensure the tooltip triggers */}
-    <span className="flex-fill flex-md-grow-0">
-        <button 
-            className="btn btn-info btn-sm w-100" 
-            data-bs-toggle="offcanvas" 
-            data-bs-target="#offcanvasRightAddMasterTypes" 
-            disabled={true}
-        >
-            <i className="bi bi-gear"></i> Types
-        </button>
-    </span>
-</Tooltip>
+                                    <div className="col-12 col-md-auto text-md-end">
+                                        <div className="d-inline-flex align-items-center gap-2 bg-light-primary text-primary rounded-pill px-3 py-2 fw-semibold shadow-sm">
+                                            <i className="bi bi-file-earmark-text text-primary"></i>
+                                            <span>
+                                                Version: <span className="fw-bold">{selectedVersionNumber || "N/A"}</span>
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="alert-list-container px-1 mt-4 overflow-hidden" style={{ maxHeight: "30rem", overflowY: "auto" }}>
+                                <div
+                                    className="alert-list-container px-1 mt-4 overflow-hidden"
+                                    style={{ maxHeight: "30rem", overflowY: "auto" }}
+                                >
                                     <div className="row g-2 m-0">
-                                        {Array.isArray(alertsList) && alertsList.length > 0 ? (
+                                        {alertsLoading ? (
+                                            <div className="col-12">
+                                                <div className="text-center bg-white rounded-3 py-10 shadow-sm border w-100">
+                                                    <div className="spinner-border text-primary mb-3" role="status">
+                                                        <span className="visually-hidden">Loading...</span>
+                                                    </div>
+                                                    <h5 className="text-gray-600 mb-1">Loading alerts...</h5>
+                                                    <p className="text-gray-400 fs-7 mb-0">Please wait while alerts are being fetched.</p>
+                                                </div>
+                                            </div>
+                                        ) : Array.isArray(alertsList) && alertsList.length > 0 ? (
                                             alertsList.map((item, index) => {
                                                 const severity = item.Severity || "LOW";
                                                 const severityMeta = {
@@ -1954,54 +1909,101 @@ export default function DocVersion() {
                                                     MEDIUM: { color: "#fd7e14", bg: "#fffaf0", icon: "bi-exclamation-triangle-fill" },
                                                     LOW: { color: "#198754", bg: "#f0fff4", icon: "bi-info-circle-fill" },
                                                 }[severity];
+                                                const isInactive = item.IsActive === false;
 
                                                 return (
                                                     <div className="col-12 col-md-6 d-flex" key={index}>
-                                                        <div className="modern-alert-card shadow-sm border rounded-3 overflow-hidden bg-white w-100">
+                                                        <div
+                                                            className={`modern-alert-card shadow-sm border rounded-3 overflow-hidden w-100 ${isInactive ? "bg-light border-secondary-subtle opacity-75" : "bg-white"
+                                                                }`}
+                                                        >
                                                             <div className="d-flex flex-column flex-md-row h-100">
-                                                                <div style={{ width: '6px', backgroundColor: severityMeta.color }} className="d-none d-md-block" />
-                                                                <div style={{ height: '4px', backgroundColor: severityMeta.color }} className="d-md-none" />
+                                                                <div
+                                                                    style={{ width: "6px", backgroundColor: isInactive ? "#adb5bd" : severityMeta.color }}
+                                                                    className="d-none d-md-block"
+                                                                />
+                                                                <div
+                                                                    style={{ height: "4px", backgroundColor: isInactive ? "#adb5bd" : severityMeta.color }}
+                                                                    className="d-md-none"
+                                                                />
 
                                                                 <div className="p-3 flex-grow-1 d-flex flex-column justify-content-between">
                                                                     <div>
                                                                         <div className="d-flex justify-content-between align-items-start mb-2">
                                                                             <div className="d-flex align-items-center gap-2 flex-wrap">
-                                                                                <i className={`bi ${severityMeta.icon} fs-5`} style={{ color: severityMeta.color }} />
-                                                                                <span className="fw-bold fs-6 text-dark text-truncate" title={item.AlertTitle} style={{ maxWidth: '200px' }}>
+                                                                                <i
+                                                                                    className={`bi ${severityMeta.icon} fs-5`}
+                                                                                    style={{ color: isInactive ? "#adb5bd" : severityMeta.color }}
+                                                                                />
+                                                                                <span
+                                                                                    className={`fw-bold fs-6 text-truncate ${isInactive ? "text-muted" : "text-dark"}`}
+                                                                                    title={item.AlertTitle}
+                                                                                    style={{ maxWidth: "200px" }}
+                                                                                >
                                                                                     {item.AlertTitle}
                                                                                 </span>
-                                                                                <span className="badge border border-success-subtle text-success fs-8 px-2 rounded-pill" style={{ backgroundColor: '#f0fff4', fontFamily: 'monospace' }}>
+
+                                                                                <span className={`badge fs-8 px-2 rounded-pill ${isInactive ? "bg-light text-muted border" : "border border-success-subtle text-success"}`}>
                                                                                     #{item.AutoIncNo || "N/A"}
                                                                                 </span>
-                                                                                <span className="badge bg-info-subtle text-info-emphasis border border-info fs-9 capitalize">
+
+                                                                                <span className={`badge fs-9 capitalize ${isInactive ? "bg-light text-muted border" : "bg-info-subtle text-info-emphasis border border-info"}`}>
                                                                                     <i className="bi bi-arrow-repeat me-1"></i>
                                                                                     {item.OcurrenceTypeNames || "N/A"}
                                                                                 </span>
+
+                                                                                {item.IsMaintenance === true && (
+                                                                                    <span className="badge bg-light-warning text-warning border border-warning-subtle fs-9 rounded-pill">
+                                                                                        <i className="bi bi-tools me-1 text-warning me-1"></i>
+                                                                                        Maintenance Alert
+                                                                                    </span>
+                                                                                )}
+
+                                                                                {isInactive && (
+                                                                                    <span className="badge bg-secondary text-white fs-9 rounded-pill">
+                                                                                        Inactive
+                                                                                    </span>
+                                                                                )}
                                                                             </div>
 
                                                                             <div className="d-flex gap-1 ms-2">
-                                                                                <button className="btn btn-icon btn-light-primary btn-sm" onClick={() => handleAlertClick(item)} title="View">
+                                                                                <button
+                                                                                    className="btn btn-icon btn-light-primary btn-sm"
+                                                                                    onClick={() => handleAlertClick(item)}
+                                                                                    title="View"
+                                                                                >
                                                                                     <i className="bi bi-eye"></i>
                                                                                 </button>
-                                                                                <button className="btn btn-icon btn-light-danger btn-sm" disabled={deleteLoading || item.IsTriggered} onClick={() => !item.IsTriggered && handleDeleteAlert(item)} title="Delete">
+
+                                                                                <button
+                                                                                    className="btn btn-icon btn-light-danger btn-sm"
+                                                                                    disabled={true}
+                                                                                    title="Delete is disabled for inactive alerts"
+                                                                                >
                                                                                     <i className="bi bi-trash3"></i>
                                                                                 </button>
                                                                             </div>
                                                                         </div>
 
-                                                                        <div className="text-gray-600 fs-7 lh-base border-top pt-2 mt-1">
-                                                                            <i className="bi bi-chat-dots text-primary me-1"></i> {item.Message || "No description available"}
+                                                                        <div className={`fs-7 lh-base border-top pt-2 mt-1 ${isInactive ? "text-muted" : "text-gray-600"}`}>
+                                                                            <i className={`bi bi-chat-dots me-1 ${isInactive ? "text-muted" : "text-primary"}`}></i>
+                                                                            {item.Message || "No description available"}
                                                                         </div>
                                                                     </div>
 
+
                                                                     <div className="d-flex align-items-center gap-2 mt-3 pt-2 border-top border-dashed text-muted fs-8">
                                                                         <div className="d-flex align-items-center text-truncate ms-1">
-                                                                            <i className="bi bi-person-circle me-1 text-primary"></i>
-                                                                            <span className="text-truncate">By: <span className="text-dark fw-medium">{item.Name || "System"}</span></span>
+                                                                            <i className={`bi bi-person-circle me-1 ${isInactive ? "text-muted" : "text-primary"}`}></i>
+                                                                            <span className="text-truncate">
+                                                                                By: <span className={isInactive ? "text-muted fw-medium" : "text-dark fw-medium"}>{item.Name || "System"}</span>
+                                                                            </span>
                                                                         </div>
-                                                                        <div className="vr" style={{ height: '12px' }}></div>
+
+                                                                        <div className="vr" style={{ height: "12px" }}></div>
+
                                                                         <div className="d-flex align-items-center">
-                                                                            <i className="bi bi-calendar-event me-1 text-primary"></i>
+                                                                            <i className={`bi bi-calendar-event me-1 ${isInactive ? "text-muted" : "text-primary"}`}></i>
                                                                             <span>{formatToDDMMYYYY(item.CreatedOn) || "N/A"}</span>
                                                                         </div>
                                                                     </div>
@@ -2012,7 +2014,6 @@ export default function DocVersion() {
                                                 );
                                             })
                                         ) : (
-                                            /* Empty State */
                                             <div className="col-12">
                                                 <div className="text-center bg-white rounded-3 py-10 shadow-sm border w-100">
                                                     <i className="bi bi-bell-slash fs-1 text-gray-300 d-block mb-3"></i>
@@ -2023,6 +2024,7 @@ export default function DocVersion() {
                                         )}
                                     </div>
                                 </div>
+
                             </div>
                         </div>
                     )}
@@ -2031,6 +2033,40 @@ export default function DocVersion() {
 
             <style>
                 {`
+                .swal-publish-popup {
+                    padding-top: 0.75rem !important;
+                    padding-bottom: 1rem !important;
+                }
+
+                .swal-publish-title {
+                    font-size: 22px !important;
+                    margin: 0.25rem 0 0.5rem !important;
+                    line-height: 1.2 !important;
+                    padding: 0 !important;
+                }
+
+                .old-version-blur {
+                    filter: blur(2px);
+                    opacity: 0.65;
+                    pointer-events: none;
+                    user-select: none;
+                }
+
+                .old-version-overlay {
+                    position: absolute;
+                    inset: 0;
+                    z-index: 5;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: rgba(255, 255, 255, 0.45);
+                    backdrop-filter: blur(1px);
+                    color: #d63384;
+                    font-weight: 700;
+                    font-size: 14px;
+                    pointer-events: none;
+                }
+
                 .tab-item {
                 display: flex;
                 align-items: center;
@@ -2157,17 +2193,17 @@ export default function DocVersion() {
 
                 /* Custom scrollbar for a cleaner look */
                 .alert-list-container {
-    overflow-x: hidden !important; /* Force hide horizontal scroll */
-}
+                    overflow-x: hidden !important; /* Force hide horizontal scroll */
+                }
 
-/* Optional: Make the vertical scrollbar look cleaner */
-.alert-list-container::-webkit-scrollbar {
-    width: 6px;
-}
-.alert-list-container::-webkit-scrollbar-thumb {
-    background-color: #e0e0e0;
-    border-radius: 10px;
-}
+                /* Optional: Make the vertical scrollbar look cleaner */
+                .alert-list-container::-webkit-scrollbar {
+                    width: 6px;
+                }
+                .alert-list-container::-webkit-scrollbar-thumb {
+                    background-color: #e0e0e0;
+                    border-radius: 10px;
+                }
                 /* Mobile specific font tweaks */
                 @media (max-width: 768px) {
                     .fs-9 { font-size: 0.7rem !important; }
@@ -2325,60 +2361,60 @@ export default function DocVersion() {
                             transform: rotate(10deg) scale(1.2); /* playful hover effect */
                         }
                 .tab-content {
-    animation: fadeSlide 0.3s ease-in-out;
-}
+                        animation: fadeSlide 0.3s ease-in-out;
+                    }
 
-@keyframes fadeSlide {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-    .tab-header {
-    border-bottom: 1px solid #e9ecef;
-}
+                    @keyframes fadeSlide {
+                        from {
+                            opacity: 0;
+                            transform: translateY(10px);
+                        }
+                        to {
+                            opacity: 1;
+                            transform: translateY(0);
+                        }
+                    }
+                        .tab-header {
+                        border-bottom: 1px solid #e9ecef;
+                    }
 
-.tab-item {
-    position: relative;
-    padding: 8px 14px;
-    font-weight: 600;
-    color: #6c757d;
-    cursor: pointer;
-    transition: color 0.25s ease;
-}
+                    .tab-item {
+                        position: relative;
+                        padding: 8px 14px;
+                        font-weight: 600;
+                        color: #6c757d;
+                        cursor: pointer;
+                        transition: color 0.25s ease;
+                    }
 
-/* underline animation */
-.tab-item::after {
-    content: "";
-    position: absolute;
-    left: 0;
-    bottom: -1px;
-    width: 0%;
-    height: 3px;
-    background-color: #0dcaf0; /* bootstrap info */
-    transition: width 0.3s ease;
-}
+                    /* underline animation */
+                    .tab-item::after {
+                        content: "";
+                        position: absolute;
+                        left: 0;
+                        bottom: -1px;
+                        width: 0%;
+                        height: 3px;
+                        background-color: #0dcaf0; /* bootstrap info */
+                        transition: width 0.3s ease;
+                    }
 
-.tab-item:hover {
-    color: #0dcaf0;
-}
+                    .tab-item:hover {
+                        color: #0dcaf0;
+                    }
 
-.tab-item.active {
-    color: #0dcaf0;
-}
+                    .tab-item.active {
+                        color: #0dcaf0;
+                    }
 
-/* animate underline */
-.tab-item.active::after {
-    width: 100%;
-}
-.tab-item:active {
-    transform: scale(0.97);
-}
-`}
+                    /* animate underline */
+                    .tab-item.active::after {
+                        width: 100%;
+                    }
+                    .tab-item:active {
+                        transform: scale(0.97);
+                    }
+                    `}
             </style>
 
             <UplaodDocument />
@@ -2386,7 +2422,7 @@ export default function DocVersion() {
             <EntityLogs entityObj={entityItem} />
             <AddDocVersion docObj={docItem} />
             <ViewAlert alertObj={selectedAlert} />
-            <AddAlert machineId={docId} versionId={docDetails?.VersionId} deptId={docDetails?.DeptId} entityType="Documents" />
+            <AddAlert machineId={docId} versionId={docVersions[0]?.Id} deptId={docDetails?.DeptId} entityType="Documents" />
             <RegisterMasterTypes typeCategory={3} />
             <DocumentPreview
                 isOpen={previewModal.show}

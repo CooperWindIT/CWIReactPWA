@@ -1,30 +1,72 @@
 /* ===============================
-   ORG CHART WRAPPER
+   CHILD COUNT BADGE
 ================================ */
-
-.org-tree-wrapper {
-    width: 100%;
-    height: 83vh;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 40px 20px 0 40px;
+.child-count-badge {
+    position: absolute;
+    bottom: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 11px;
+    padding: 2px 6px;
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    z-index: 2;
 }
 
-/* make tree width expand with nodes */
+/* ===============================
+   ORG CHART WRAPPER
+================================ */
+.org-tree-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    padding: 40px 20px 0 40px;
+    position: relative;
+}
+
 .org-tree-wrapper .react-organizational-chart {
     display: inline-block;
     min-width: max-content;
 }
 
+/* ===============================
+   CONTROLS
+================================ */
+.controls {
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1000;
+}
+
+/* ===============================
+   STICKY HEADING
+================================ */
+.sticky-heading {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #fff;
+    padding: 5px 0;
+}
+.sticky-heading h1 {
+    transition: transform 0.3s ease, font-size 0.3s ease;
+}
+.sticky-heading.scrolled h1 {
+    transform: scale(0.9);
+}
 
 /* ===============================
    TREE STRUCTURE
 ================================ */
-
 .react-organizational-chart ul {
     padding-top: 20px;
 }
-
 .react-organizational-chart li {
     padding: 0 20px;
     text-align: center;
@@ -32,144 +74,268 @@
     position: relative;
 }
 
-
 /* ===============================
    CONNECTOR LINE FIXES
 ================================ */
-
-/* remove lines for nodes without children */
 .react-organizational-chart li:not(:has(ul))::before,
 .react-organizational-chart li:not(:has(ul))::after,
-.react-organizational-chart li:not(:has(ul))>div::after {
+.react-organizational-chart li:not(:has(ul)) > div::after {
     display: none !important;
     border: none !important;
 }
-
-/* remove extra line for only-child */
 .react-organizational-chart li:only-child::before,
 .react-organizational-chart li:only-child::after {
     display: none !important;
 }
+.no-children-node + ul::before {
+    display: none !important;
+}
 
 /* ===============================
-   ZOOM BUTTON STYLE
+   ZOOM BUTTON
 ================================ */
-
 .zoom-btn {
     width: 45px;
     height: 45px;
-    border-radius: 50%;
+    border-radius: 30%;
     border: none;
-    background: #1976d2;
+    background-color: #071437;
     color: white;
     font-size: 20px;
     font-weight: bold;
     cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    transition: all .25s ease;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
+    transition: all 0.25s ease;
 }
-
 .zoom-btn:hover {
     transform: scale(1.1);
-    background: #0d5ec9;
+    background: #052376;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
 }
 
+/* ===============================
+   ORG CARD
+================================ */
+.org-card {
+    transition: box-shadow 0.3s ease, transform 0.2s ease;
+    cursor: pointer;
+}
+.org-card:hover {
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.35);
+    transform: translateY(-3px);
+}
+.avatar-wrapper {
+    position: absolute;
+    left: 50%;
+    top: -2px;
+    transform: translateX(-50%);
+    transition: transform 0.35s ease;
+}
+.org-card:hover .avatar-wrapper {
+    transform: translateX(-50%) scale(1.15);
+}
 
-/* position zoom buttons bottom left */
+/* ============================================================
+   DOUBLE-SIDED VERTICAL LAYOUT
+   [left-col (200px)] | [backbone 2px] | [right-col (200px)]
+   Sub-children are position:absolute → backbone never shifts.
+============================================================ */
 
-.org-controls {
-    position: fixed;
-    bottom: 25px;
-    left: 25px;
+.double-sided-wrapper {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 20px;
+    position: relative;
+}
+
+/* ── Backbone ── */
+.ds-backbone {
+    width: 2px;
+    background: #999;
+    align-self: stretch;
+    flex-shrink: 0;
+    z-index: 1;
+}
+
+/* ── Columns: fixed 200px so backbone never shifts ── */
+.ds-column {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 16px;
+    width: 200px;
+    flex-shrink: 0;
+}
+.ds-left  { align-items: flex-end;   }
+.ds-right { align-items: flex-start; }
+
+/* ── Each cell ── */
+.ds-cell {
+    display: flex;
+    align-items: center;
+    position: relative;      /* anchor for absolutely-positioned sub-children */
+    min-height: 120px;
+    width: 200px;
+}
+.ds-left  .ds-cell { justify-content: flex-end;   }
+.ds-right .ds-cell { justify-content: flex-start; }
+
+/* Empty balance cell */
+.ds-empty {
+    min-height: 120px;
+    width: 200px;
+    visibility: hidden;
 }
 
+/* Odd last node: center under backbone */
+.ds-cell-odd {
+    justify-content: center !important;
+}
+
+/* ── Node wrapper + horizontal stubs ── */
+.ds-node-wrap { position: relative; flex-shrink: 0; }
+
+/* Left stub: card right → backbone */
+.ds-left .ds-cell .ds-node-wrap::after {
+    content: '';
+    position: absolute;
+    right: -20px; top: 50%;
+    width: 20px; height: 2px;
+    background: #999;
+    transform: translateY(-50%);
+}
+/* Right stub: backbone → card left */
+.ds-right .ds-cell .ds-node-wrap::before {
+    content: '';
+    position: absolute;
+    left: -20px; top: 50%;
+    width: 20px; height: 2px;
+    background: #999;
+    transform: translateY(-50%);
+}
+
+/* ── Sub-children: absolutely positioned, expand outward ──
+   Using position:absolute means they never affect the flex layout,
+   so the backbone stays perfectly centered regardless of how many
+   sub-children are shown.
+── */
+.ds-sub-abs {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+}
+/* Right-column sub-children grow to the RIGHT of the card */
+.ds-sub-abs-right {
+    left: calc(180px + 20px);   /* card width(180) + stub(20) */
+}
+/* Left-column sub-children grow to the LEFT of the card */
+.ds-sub-abs-left {
+    right: calc(180px + 20px);  /* card width(180) + stub(20) */
+}
+
+/* ============================================================
+   SUB-CHILD GRID  (SubChildGrid component)
+   Works for 2, 3, 4, 5 … any number of sub-children.
+
+   right:  [bridge][backbone-col][cards-col]
+   left:   [cards-col][backbone-col][bridge]
+============================================================ */
+
+/* Outer wrapper */
+.scg-wrap {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    position: relative;
+    left: -20px;
+}
+
+/* ── Bridge line: connects parent card stub → scg backbone ── */
+.scg-bridge {
+    height: 2px;
+    background: #999;
+    flex-shrink: 0;
+    align-self: center;
+}
+
+/* ── Backbone column ──
+   Contains a vertical line + one stub-slot per row-group.
+   The vertical line is a child <div> with position:absolute
+   so its top/bottom can be set exactly to card centres.
+── */
+.scg-backbone {
+    display: flex;
+    flex-direction: column;
+    position: relative;      /* vertical line positions against this */
+    flex-shrink: 0;
+    align-self: stretch;
+}
+
+/* Vertical line (rendered as a <div> in JSX with top/bottom set inline) */
+.scg-v-line {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    background: #999;
+}
+
+/* One slot per row-group — height matches CARD_H (95px) */
+.scg-stub-slot {
+    display: flex;
+    align-items: center;     /* stub is vertically centred in the slot */
+    flex-shrink: 0;
+}
+
+/* Horizontal stub inside slot */
+.scg-h-stub {
+    height: 2px;
+    background: #999;
+}
+
+/* For LEFT side, stub must point to the RIGHT (towards the backbone on the right) */
+.scg-left .scg-h-stub {
+    margin-left: auto;
+}
+
+/* ── Cards column ── */
+.scg-cards {
+    display: flex;
+    flex-direction: column;
+}
+
+.scg-row {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    align-items: center;
+}
 
 /* ===============================
    HEADING STYLE
 ================================ */
-
 .org-heading {
     font-size: 32px;
     font-weight: 700;
     color: #0b4da2;
     letter-spacing: 1px;
-    animation: headingSlide .8s ease;
+    animation: headingSlide 0.8s ease;
 }
-
-
-/* heading animation */
-
 @keyframes headingSlide {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(-20px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
-
 
 /* ===============================
-   LIGHT BLUE BACKGROUND
+   PAGE BACKGROUND
 ================================ */
-
 .org-chart-page {
     background: linear-gradient(135deg,
-            rgba(30, 136, 229, 0.05),
-            rgba(30, 136, 229, 0.12));
+        rgba(30, 136, 229, 0.05),
+        rgba(30, 136, 229, 0.12));
     min-height: 100vh;
-}
-
-/* ===============================
-   vertical
-================================ */
-
-
-
-/* employee group container */
-
-.employee-group {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 40px;
-    max-width: 450px;
-    margin: 0 auto;
-}
-
-/* each employee */
-
-.employee-item {
-    width: 120px;
-    display: flex;
-    justify-content: center;
-}
-
-/* employee container box */
-
-.employee-container {
-    border: 2px dashed #c5d4ec;
-    background: #f8fbff;
-    padding: 25px;
-    border-radius: 10px;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 30px;
-    max-width: 420px;
-    margin: 0 auto;
-}
-
-/* employee item */
-
-.employee-box-item {
-    width: 100px;
-    display: flex;
-    justify-content: center;
 }

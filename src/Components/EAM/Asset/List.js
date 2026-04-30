@@ -743,62 +743,65 @@ export default function AssetsList() {
                             <li className="breadcrumb-item text-muted">Assets</li>
                         </ul>
                     </div>
-                    <div className="d-flex align-items-center gap-2 gap-lg-3">
+                    <div className="bg-white p-2 rounded-3 shadow-sm border d-flex flex-wrap align-items-center gap-2">
+
                         {showAddBtn && (
-                           <Link
+                            <Link
                                 to="/eam/inactive-assets"
-                                className="btn btn-sm btn-light-danger d-flex align-items-center gap-2 px-4 shadow-sm border border-danger border-opacity-25"
-                                style={{ borderRadius: '8px', transition: 'all 0.3s' }}
+                                className="btn btn-sm btn-light d-flex align-items-center px-3 py-2 border border-danger-subtle text-danger custom-btn"
+                                style={{ borderRadius: "10px" }}
                             >
-                                <i className="fa-solid fa-box-archive fs-7"></i>
-                                <span className="fw-bold d-none d-md-inline">Inactive Assets</span>
+                                <i className="fa-solid fa-box-archive text-danger"></i>
+                                <span className="fw-semibold d-none d-md-inline">Inactive Assets</span>
                             </Link>
                         )}
+
                         {showTypeBtn && (
                             <button
-                                className="btn btn-info btn-sm d-flex align-items-center gap-2 px-3 shadow-sm custom-btn"
+                                className="btn btn-sm btn-light d-flex align-items-center px-3 py-2 border border-info-subtle text-info custom-btn"
                                 type="button"
                                 data-bs-toggle="offcanvas"
                                 data-bs-target="#offcanvasRightAddMasterTypes"
-                                aria-controls="offcanvasRightAddMasterTypes"
                             >
-                                <i className="bi bi-building-add fs-5"></i>
-                                <span className="d-none d-md-inline">Asset Types</span>
+                                <i className="bi bi-building-add text-info"></i>
+                                <span className="fw-semibold d-none d-md-inline">Asset Types</span>
                             </button>
                         )}
-                        {showAddBtn && (
-                            <button
-                                className="btn btn-primary btn-sm d-flex align-items-center gap-2 px-3 shadow-sm custom-btn"
-                                type="button"
-                                data-bs-toggle="offcanvas"
-                                data-bs-target="#offcanvasRightAdd"
-                                aria-controls="offcanvasRightAdd"
-                            >
-                                <i className="bi bi-plus-circle fs-5"></i>
-                                <span className="d-none d-md-inline">Register Asset</span>
-                            </button>
-                        )}
-                        
-                        {/* <a
-                                className={`btn btn-info btn-sm d-none d-md-block `}
-                                data-bs-toggle="offcanvas"
-                                data-bs-target="#offcanvasRightMacBulkUploadExcel"
-                                aria-controls="offcanvasRightMacBulkUploadExcel"><i class="fa-solid fa-cloud-arrow-up"></i> <span className="d-none d-md-inline">Bulk Upload</span>
-                            </a>
-                         */}
+
                         {showQRDwn && (
                             <button
                                 type="button"
-                                className="btn btn-warning btn-sm d-flex align-items-center gap-2 px-3 shadow-sm custom-btn"
+                                className="btn btn-sm btn-light d-flex align-items-center px-3 py-2 border border-warning-subtle text-warning custom-btn"
                                 onClick={() => setIsModalOpen(true)}
                             >
-                                <i className="bi bi-qr-code-scan"></i> <span className="d-none d-md-inline">Generate QR Sheet</span>
+                                <i className="bi bi-qr-code-scan text-warning"></i>
+                                <span className="fw-semibold d-none d-md-inline">Generate QR</span>
+                            </button>
+                        )}
+
+                        {showAddBtn && (
+                            <button
+                                className="btn btn-sm btn-primary d-flex align-items-center px-3 py-2 shadow-sm custom-btn"
+                                type="button"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#offcanvasRightAdd"
+                            >
+                                <i className="bi bi-plus-circle"></i>
+                                <span className="fw-semibold d-none d-md-inline">Register Asset</span>
                             </button>
                         )}
 
                     </div>
                 </div>
             </div>
+
+            {/* <a
+                    className={`btn btn-info btn-sm d-none d-md-block `}
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvasRightMacBulkUploadExcel"
+                    aria-controls="offcanvasRightMacBulkUploadExcel"><i class="fa-solid fa-cloud-arrow-up"></i> <span className="d-none d-md-inline">Bulk Upload</span>
+                </a>
+            */}
 
             <div id="kt_app_content" className="app-content flex-column-fluid pt-2">
                 <div id="kt_app_content_container" className="app-container container-xxl">
@@ -987,15 +990,15 @@ export default function AssetsList() {
                             <table className="table align-middle table-hover gs-7 gy-4 mb-0 fs-6">
                                 <thead className="bg-light-primary">
                                     <tr className="text-start text-muted fw-bold fs-7 text-uppercase border-bottom-2 border-primary">
-                                        <th className="">S.No</th>
-                                        <th className="min-w-125px">Name</th>
-                                        <th className="min-w-125px">Code</th>
-                                        <th className="min-w-125px">Department</th>
+                                        <th className="min-w-100px">S.No</th>
+                                        <th className="min-w-150px">Name</th>
+                                        <th className="min-w-120px">Code</th>
+                                        <th className="min-w-150px">Department</th>
                                         <th className="min-w-125px">Asset Type</th>
-                                        <th className="min-w-125px text-center">Purchased On</th>
+                                        <th className="min-w-160px">Purchased On</th>
                                         <th className="min-w-100px text-center">Next Maint.</th>
-                                        <th className="min-w-100px">Status</th>
-                                        <th className="">Actions</th>
+                                        <th className="min-w-150px">Status</th>
+                                        <th className="min-w-125px text-center">Actions</th>
                                     </tr>
                                 </thead>
 
@@ -1397,7 +1400,7 @@ export default function AssetsList() {
                                         setIsModalOpen(false);
                                     }}
                                 >
-                                    <i className="bi bi-qr-code-scan me-2"></i>
+                                    <i className="bi bi-qr-code-scan"></i>
                                     Generate QR Sheet
                                 </button>
                             </span>

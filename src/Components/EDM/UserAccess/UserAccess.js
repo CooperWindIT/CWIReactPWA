@@ -477,154 +477,154 @@ export default function UserAccessDoc() {
                                             </div>
                                         )}
                                         {isNoUserSelected ? (
-        /* --- SHOW THIS ONLY WHEN NO USER IS SELECTED --- */
-        /* We use d-flex h-100 to center it perfectly in the viewable area */
-        <div className="h-100 d-flex flex-column align-items-center justify-content-center animate__animated animate__fadeIn">
-            <div className="text-center">
-                <div className="mb-4 opacity-20">
-                    <i className="fa-solid fa-users-gear" style={{ fontSize: '5rem' }}></i>
-                </div>
-                <div className="badge badge-light-danger fs-6 p-4 shadow-sm border border-danger rounded-pill">
-                    <i className="fa-solid fa-user-slash me-2"></i>
-                    Please select a user to manage permissions
-                </div>
-                <p className="text-gray-500 mt-3 fs-7">
-                    Select a team member from the left sidebar to begin.
-                </p>
-            </div>
-        </div>
-    ) : filteredDocTypes.length === 0 ? (
-        <div className="col-12 text-center py-5 my-5">
-        <div className="card shadow-none border-0 bg-light-primary p-5 rounded-4 d-inline-block w-100 max-w-500px">
-            <div className="card-body">
-                <div className="mb-4">
-                    <div className="d-inline-flex align-items-center justify-content-center bg-white rounded-circle shadow-sm" style={{ width: '80px', height: '80px' }}>
-                        <i className="fa-solid fa-file-circle-plus text-primary fs-1"></i>
-                    </div>
-                </div>
+                                            /* --- SHOW THIS ONLY WHEN NO USER IS SELECTED --- */
+                                            /* We use d-flex h-100 to center it perfectly in the viewable area */
+                                            <div className="h-100 d-flex flex-column align-items-center justify-content-center animate__animated animate__fadeIn">
+                                                <div className="text-center">
+                                                    <div className="mb-4 opacity-20">
+                                                        <i className="fa-solid fa-users-gear" style={{ fontSize: '5rem' }}></i>
+                                                    </div>
+                                                    <div className="badge badge-light-danger fs-6 p-4 shadow-sm border border-danger rounded-pill">
+                                                        <i className="fa-solid fa-user-slash me-2"></i>
+                                                        Please select a user to manage permissions
+                                                    </div>
+                                                    <p className="text-gray-500 mt-3 fs-7">
+                                                        Select a team member from the left sidebar to begin.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        ) : filteredDocTypes.length === 0 ? (
+                                            <div className="col-12 text-center py-5 my-5">
+                                                <div className="card shadow-none border-0 bg-light-primary p-5 rounded-4 d-inline-block w-100 max-w-500px">
+                                                    <div className="card-body">
+                                                        <div className="mb-4">
+                                                            <div className="d-inline-flex align-items-center justify-content-center bg-white rounded-circle shadow-sm" style={{ width: '80px', height: '80px' }}>
+                                                                <i className="fa-solid fa-file-circle-plus text-primary fs-1"></i>
+                                                            </div>
+                                                        </div>
 
-                <h3 className="fw-bolder text-dark mb-2">No Document Types Found</h3>
-                <p className="text-gray-600 fs-7 mb-5">
-                    Your document type list is currently empty. <br />
-                    Start by adding your first type to manage permissions effectively.
-                </p>
+                                                        <h3 className="fw-bolder text-dark mb-2">No Document Types Found</h3>
+                                                        <p className="text-gray-600 fs-7 mb-5">
+                                                            Your document type list is currently empty. <br />
+                                                            Start by adding your first type to manage permissions effectively.
+                                                        </p>
 
-                <button
-                    className="btn btn-primary px-8 py-3 shadow-lg border-0 hover-elevate-up transition-3ms"
-                    style={{
-                        background: 'linear-gradient(90deg, #0095E8 0%, #006AE6 100%)',
-                        borderRadius: '12px',
-                        fontWeight: '600',
-                        letterSpacing: '0.5px'
-                    }}
-                    data-bs-toggle="offcanvas"
-                    data-bs-target="#offcanvasRightAddMasterTypes"
-                    disabled={!showTypeBtn}
-                >
-                    <span className="d-flex align-items-center">
-                        <div className="bg-white bg-opacity-20 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style={{ width: '24px', height: '24px' }}>
-                            <i className="fa-solid fa-plus text-white fs-9"></i>
-                        </div>
-                        CREATE NEW DOCUMENT TYPE
-                    </span>
-                </button>
-            </div>
-        </div>
-    </div>
-    ) : (
-
-                                        <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4 transition-3ms"
-                                            style={{
-                                                filter: isNoUserSelected ? 'blur(2px)' : 'none',
-                                                pointerEvents: isNoUserSelected || docPermisLoading ? 'none' : 'auto',
-                                                opacity: isNoUserSelected ? 0.6 : 1
-                                            }}>
-                                            {filteredDocTypes.map((type, dIdx) => {
-                                                const permission = userDocPermissions?.find(p => p.MasterTypeId === type.Id);
-
-                                                return (
-                                                    <div className="col" key={type.Id || dIdx}>
-                                                        <div className="card h-100 border border-gray-200 shadow-none hover-shadow-sm transition-3ms">
-                                                            <div className="card-body p-4">
-                                                                <div className="mb-4">
-                                                                    <Tooltip title={type.TypeName} placement="topLeft" arrow color="#0095E8">
-                                                                        <span className="fw-bolder text-gray-700 fs-7 d-block text-truncate text-uppercase cursor-help">
-                                                                            <i className="fa-solid fa-file-lines me-2 text-gray-400 fs-9"></i>
-                                                                            {type.TypeName}
-                                                                        </span>
-                                                                    </Tooltip>
+                                                        <button
+                                                            className="btn btn-primary px-8 py-3 shadow-lg border-0 hover-elevate-up transition-3ms"
+                                                            style={{
+                                                                background: 'linear-gradient(90deg, #0095E8 0%, #006AE6 100%)',
+                                                                borderRadius: '12px',
+                                                                fontWeight: '600',
+                                                                letterSpacing: '0.5px'
+                                                            }}
+                                                            data-bs-toggle="offcanvas"
+                                                            data-bs-target="#offcanvasRightAddMasterTypes"
+                                                            disabled={!showTypeBtn}
+                                                        >
+                                                            <span className="d-flex align-items-center">
+                                                                <div className="bg-white bg-opacity-20 rounded-circle p-2 me-3 d-flex align-items-center justify-content-center" style={{ width: '24px', height: '24px' }}>
+                                                                    <i className="fa-solid fa-plus text-white fs-9"></i>
                                                                 </div>
+                                                                CREATE NEW DOCUMENT TYPE
+                                                            </span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
 
-                                                                {/* Permission Toggles Row */}
-                                                                <div className="d-flex justify-content-between align-items-center bg-light rounded px-2 py-3">
-                                                                    {[
-                                                                        { key: 'R', icon: 'fa-eye', field: 'CanRead' },
-                                                                        { key: 'W', icon: 'fa-pen-to-square', field: 'CanWrite' },
-                                                                        { key: 'P', icon: 'fa-upload', field: 'CanPublish' }, // 👈 Changed from F to P
-                                                                    ].map((perm) => {
-                                                                        let isChecked = false;
-                                                                        if (perm.key === 'R') isChecked = !!permission?.CanRead;
-                                                                        if (perm.key === 'W') isChecked = !!permission?.CanWrite;
-                                                                        if (perm.key === 'P') isChecked = !!permission?.CanPublish; // 👈 Check specific field
+                                            <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4 transition-3ms"
+                                                style={{
+                                                    filter: isNoUserSelected ? 'blur(2px)' : 'none',
+                                                    pointerEvents: isNoUserSelected || docPermisLoading ? 'none' : 'auto',
+                                                    opacity: isNoUserSelected ? 0.6 : 1
+                                                }}>
+                                                {filteredDocTypes.map((type, dIdx) => {
+                                                    const permission = userDocPermissions?.find(p => p.MasterTypeId === type.Id);
 
-                                                                        return (
-                                                                            <div key={perm.key} className="text-center">
-                                                                                <div className="fs-7 fw-bolder text-uppercase mb-2 d-flex align-items-center justify-content-center text-primary">
-                                                                                    <i className={`fa-solid ${perm.icon} me-1 fs-9 opacity-75`}></i>
-                                                                                    {perm.key}
+                                                    return (
+                                                        <div className="col" key={type.Id || dIdx}>
+                                                            <div className="card h-100 border border-gray-200 shadow-none hover-shadow-sm transition-3ms">
+                                                                <div className="card-body p-4">
+                                                                    <div className="mb-4">
+                                                                        <Tooltip title={type.TypeName} placement="topLeft" arrow color="#0095E8">
+                                                                            <span className="fw-bolder text-gray-700 fs-7 d-block text-truncate text-uppercase cursor-help">
+                                                                                <i className="fa-solid fa-file-lines me-2 text-gray-400 fs-9"></i>
+                                                                                {type.TypeName}
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    </div>
+
+                                                                    {/* Permission Toggles Row */}
+                                                                    <div className="d-flex justify-content-between align-items-center bg-light rounded px-2 py-3">
+                                                                        {[
+                                                                            { key: 'R', icon: 'fa-eye', field: 'CanRead' },
+                                                                            { key: 'W', icon: 'fa-pen-to-square', field: 'CanWrite' },
+                                                                            { key: 'P', icon: 'fa-upload', field: 'CanPublish' }, // 👈 Changed from F to P
+                                                                        ].map((perm) => {
+                                                                            let isChecked = false;
+                                                                            if (perm.key === 'R') isChecked = !!permission?.CanRead;
+                                                                            if (perm.key === 'W') isChecked = !!permission?.CanWrite;
+                                                                            if (perm.key === 'P') isChecked = !!permission?.CanPublish; // 👈 Check specific field
+
+                                                                            return (
+                                                                                <div key={perm.key} className="text-center">
+                                                                                    <div className="fs-7 fw-bolder text-uppercase mb-2 d-flex align-items-center justify-content-center text-primary">
+                                                                                        <i className={`fa-solid ${perm.icon} me-1 fs-9 opacity-75`}></i>
+                                                                                        {perm.key}
+                                                                                    </div>
+
+                                                                                    <div className="form-check form-check-custom justify-content-center bg-transparent">
+                                                                                        <Tooltip title={getTooltipText(perm.key)} placement="top">
+                                                                                            <input
+                                                                                                className="form-check-input h-20px w-20px cursor-pointer custom-primary-check"
+                                                                                                type="checkbox"
+                                                                                                style={{ backgroundColor: 'transparent', borderWidth: '2px' }}
+                                                                                                checked={isChecked}
+                                                                                                onChange={(e) => {
+                                                                                                    const checked = e.target.checked;
+
+                                                                                                    if (perm.key === 'R') {
+                                                                                                        handlePermissionChange(type.Id, 'CanRead', checked);
+                                                                                                        // If Read is OFF, Kill everything else
+                                                                                                        if (!checked) {
+                                                                                                            handlePermissionChange(type.Id, 'CanWrite', false);
+                                                                                                            handlePermissionChange(type.Id, 'CanPublish', false);
+                                                                                                        }
+                                                                                                    }
+                                                                                                    else if (perm.key === 'W') {
+                                                                                                        handlePermissionChange(type.Id, 'CanWrite', checked);
+                                                                                                        // If Write is ON, force Read ON
+                                                                                                        if (checked && !permission?.CanRead) {
+                                                                                                            handlePermissionChange(type.Id, 'CanRead', true);
+                                                                                                        }
+                                                                                                    }
+                                                                                                    else if (perm.key === 'P') {
+                                                                                                        // --- PUBLISH TOGGLE ---
+                                                                                                        handlePermissionChange(type.Id, 'CanPublish', checked);
+
+                                                                                                        // ✅ If user chooses P, enable R automatically
+                                                                                                        if (checked && !permission?.CanRead) {
+                                                                                                            handlePermissionChange(type.Id, 'CanRead', true);
+                                                                                                        }
+                                                                                                    }
+                                                                                                }}
+                                                                                            />
+                                                                                        </Tooltip>
+                                                                                    </div>
                                                                                 </div>
-
-                                                                                <div className="form-check form-check-custom justify-content-center bg-transparent">
-                                                                                    <Tooltip title={getTooltipText(perm.key)} placement="top">
-                                                                                        <input
-                                                                                            className="form-check-input h-20px w-20px cursor-pointer custom-primary-check"
-                                                                                            type="checkbox"
-                                                                                            style={{ backgroundColor: 'transparent', borderWidth: '2px' }}
-                                                                                            checked={isChecked}
-                                                                                            onChange={(e) => {
-                                                                                                const checked = e.target.checked;
-
-                                                                                                if (perm.key === 'R') {
-                                                                                                    handlePermissionChange(type.Id, 'CanRead', checked);
-                                                                                                    // If Read is OFF, Kill everything else
-                                                                                                    if (!checked) {
-                                                                                                        handlePermissionChange(type.Id, 'CanWrite', false);
-                                                                                                        handlePermissionChange(type.Id, 'CanPublish', false);
-                                                                                                    }
-                                                                                                }
-                                                                                                else if (perm.key === 'W') {
-                                                                                                    handlePermissionChange(type.Id, 'CanWrite', checked);
-                                                                                                    // If Write is ON, force Read ON
-                                                                                                    if (checked && !permission?.CanRead) {
-                                                                                                        handlePermissionChange(type.Id, 'CanRead', true);
-                                                                                                    }
-                                                                                                }
-                                                                                                else if (perm.key === 'P') {
-                                                                                                    // --- PUBLISH TOGGLE ---
-                                                                                                    handlePermissionChange(type.Id, 'CanPublish', checked);
-
-                                                                                                    // ✅ If user chooses P, enable R automatically
-                                                                                                    if (checked && !permission?.CanRead) {
-                                                                                                        handlePermissionChange(type.Id, 'CanRead', true);
-                                                                                                    }
-                                                                                                }
-                                                                                            }}
-                                                                                        />
-                                                                                    </Tooltip>
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    })}
+                                                                            );
+                                                                        })}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
+                                                    );
+                                                })}
+                                            </div>
 
-                                        
-                                    )}
+
+                                        )}
                                     </div>
                                 </div>
                             </div>

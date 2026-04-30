@@ -81,7 +81,7 @@ export default function InactiveAssetView({ inactiveAssetObj }) {
             <style>
                 {`@media (min-width: 768px) { #offcanvasRightInactiveView { width: 60% !important; } }`}
             </style>
-            
+
             <div className="offcanvas-header bg-light border-bottom">
                 <h5 className="offcanvas-title fw-bold text-primary">
                     Asset View: {assetData?.MachineCode}
@@ -106,6 +106,31 @@ export default function InactiveAssetView({ inactiveAssetObj }) {
                 <div className="tab-content" id="myTabContent">
                     {/* Tab: Info */}
                     <div className="tab-pane fade show active" id="tab_info" role="tabpanel">
+                        {assetData?.ImageUrls && (
+                            <div className="mb-4">
+                                <div className="fw-bold text-gray-700 mb-2">Asset Images</div>
+
+                                <div className="d-flex flex-wrap gap-2">
+                                    {assetData.ImageUrls
+                                        ?.split(",")               // convert to array
+                                        .filter(Boolean)           // remove empty
+                                        .map((img, index) => (
+                                            <div
+                                                key={index}
+                                                className="border rounded p-1 bg-white shadow-sm"
+                                                style={{ width: "70px", height: "70px" }}
+                                            >
+                                                <img
+                                                    src={`${BASE_IMAGE_API_GET}${img.trim()}`}
+                                                    alt={`asset-${index}`}
+                                                    className="w-100 h-100 rounded"
+                                                    style={{ objectFit: "cover", cursor: "pointer" }}
+                                                />
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
                         <div className="row g-3">
                             {details.map((detail, i) => (
                                 <div className="col-md-6 col-12" key={i}>
@@ -125,22 +150,75 @@ export default function InactiveAssetView({ inactiveAssetObj }) {
                     <div className="tab-pane fade" id="tab_parts" role="tabpanel">
                         <div className="table-responsive">
                             <table className="table table-row-dashed table-row-gray-300 align-middle gs-0 gy-4">
+
                                 <thead>
                                     <tr className="fw-bold text-muted bg-light">
-                                        <th className="ps-4 min-w-150px">Part Name</th>
-                                        <th className="min-w-100px text-center">Qty</th>
-                                        <th className="min-w-100px">Unit</th>
+                                        <th className="ps-4 min-w-250px">Part</th>
+                                        <th className="min-w-120px">Code</th>
+                                        <th className="min-w-120px">Model</th>
+                                        <th className="min-w-150px">Serial No</th>
+                                        <th className="min-w-120px">Installed</th>
+                                        <th className="min-w-120px text-center">Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {assetPartsData.length > 0 ? assetPartsData.map((part, index) => (
-                                        <tr key={index}>
-                                            <td className="ps-4 fw-bold">{part.PartName}</td>
-                                            <td className="text-center">{part.Quantity}</td>
-                                            <td>{part.UnitName || "Nos"}</td>
+                                    {assetPartsData?.length > 0 ? (
+                                        assetPartsData.map((part, index) => (
+                                            <tr key={index}>
+                                                <td className="ps-4">
+                                                    <div className="d-flex align-items-center gap-3">
+                                                        <div className="symbol symbol-50px">
+                                                            <img
+                                                                src={`${BASE_IMAGE_API_GET}${part.ImageUrl}`}
+                                                                alt={part.PartName}
+                                                                className="rounded-2"
+                                                                style={{ width: "40px", height: "40px", objectFit: "cover" }}
+                                                            />
+                                                        </div>
+                                                        <div className="d-flex flex-column">
+                                                            <span className="fw-bold text-gray-800">
+                                                                {part.PartName}
+                                                            </span>
+                                                            <span className="text-muted fs-7">
+                                                                {part.Remarks || "No remarks"}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span className="badge badge-light-primary fw-semibold">
+                                                        {part.PartCode || "-"}
+                                                    </span>
+                                                </td>
+                                                <td className="text-gray-700 fw-semibold">
+                                                    {part.PartModel || "-"}
+                                                </td>
+                                                <td className="text-gray-600">
+                                                    {part.SerialNumber || "-"}
+                                                </td>
+                                                <td className="text-gray-600">
+                                                    {part.InstallationDate
+                                                        ? new Date(part.InstallationDate).toLocaleDateString()
+                                                        : "-"}
+                                                </td>
+                                                <td className="text-center">
+                                                    <span
+                                                        className={`badge fw-semibold ${part.Status === "Operational"
+                                                            ? "badge-light-success"
+                                                            : "badge-light-warning"
+                                                            }`}
+                                                    >
+                                                        {part.Status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan="6" className="text-center py-5 text-muted">
+                                                No spare parts linked.
+                                            </td>
                                         </tr>
-                                    )) : (
-                                        <tr><td colSpan="3" className="text-center py-5">No spare parts linked.</td></tr>
                                     )}
                                 </tbody>
                             </table>

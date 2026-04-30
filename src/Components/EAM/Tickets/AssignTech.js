@@ -198,6 +198,7 @@ export default function AssignTechnician({ ticketObj }) {
                     TechnicianId: selectedTechnicianId,
                     TicketCode: ticketObj?.TicketCode,
                     MachineId: ticketObj?.MachineId,
+                    TicketCreated: ticketObj?.TicketCreated,
                 }
             }
 

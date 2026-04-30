@@ -1,0 +1,135 @@
+.panel {
+  position: absolute;
+  top: 84px;
+  left: 16px;
+  z-index: 21;
+  width: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.panel.open {
+  width: 248px;
+  pointer-events: auto;
+}
+
+.header,
+.content {
+  background: var(--panel-bg);
+}
+
+.header {
+  padding: 10px 14px 6px;
+  border: 1px solid var(--panel-border);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: var(--panel-shadow);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 0 14px 14px;
+  border: 1px solid var(--panel-border);
+  border-top: 0;
+  border-radius: 0 0 14px 14px;
+  box-shadow: var(--panel-shadow);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.label {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-size: 12px;
+  outline: none;
+  width: 100%;
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.swatch {
+  width: 28px;
+  height: 28px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  transition: transform 0.14s ease, border-color 0.14s ease;
+}
+
+.swatch:hover {
+  transform: translateY(-1px);
+}
+
+.swatchActive {
+  border-color: #696eff;
+}
+
+.swatchAutoStroke {
+  box-shadow: inset 0 0 0 1px var(--panel-border);
+}
+
+.swatchTransparent {
+  position: relative;
+  border-color: var(--panel-border);
+  background:
+    linear-gradient(45deg, #e7e7e7 25%, transparent 25%),
+    linear-gradient(-45deg, #e7e7e7 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e7e7e7 75%),
+    linear-gradient(-45deg, transparent 75%, #e7e7e7 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+}
+
+.deleteBtn {
+  height: 36px;
+  border: 1px solid rgba(209, 69, 69, 0.25);
+  border-radius: 10px;
+  background: rgba(209, 69, 69, 0.08);
+  color: #c43d3d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.deleteBtn svg {
+  width: 12px;
+  height: 12px;
+}

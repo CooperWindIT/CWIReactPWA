@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import PropTypes from "prop-types";
-import { Button, Input } from "antd";
+import { Button, Input, message } from "antd";
 
 const { TextArea } = Input;
 
@@ -9,8 +9,10 @@ export default function TicketResolveModal({ isOpen, onClose, onSubmit, item }) 
 
     const handleConfirm = () => {
         if (!logText.trim()) {
-            return; // You could show a small toast here
+            message.error("Resolution details are mandatory. Please enter the resolution.");
+            return;
         }
+
         onSubmit(item, logText);
         setLogText("");
     };
@@ -20,10 +22,10 @@ export default function TicketResolveModal({ isOpen, onClose, onSubmit, item }) 
     return (
         <div
             className="modal fade show"
-            style={{ 
-                display: "block", 
-                background: "rgba(0,0,0,0.5)", 
-                zIndex: 1100 // High z-index to stay above Offcanvas (1045)
+            style={{
+                display: "block",
+                background: "rgba(0,0,0,0.5)",
+                zIndex: 1100
             }}
             tabIndex="-1"
         >
@@ -63,7 +65,7 @@ export default function TicketResolveModal({ isOpen, onClose, onSubmit, item }) 
                                 value={logText}
                                 onChange={(e) => setLogText(e.target.value)}
                                 className="rounded-3"
-                                style={{ resize: 'none' }}
+                                style={{ resize: "none" }}
                             />
                             <div className="form-text fs-9 text-muted mt-2">
                                 Provide clear logs for the end-user to review.
@@ -72,18 +74,17 @@ export default function TicketResolveModal({ isOpen, onClose, onSubmit, item }) 
                     </div>
 
                     <div className="modal-footer border-top-0 pt-0">
-                        <Button 
-                            type="default" 
-                            className="px-4 fw-bold" 
+                        <Button
+                            type="default"
+                            className="px-4 fw-bold"
                             onClick={onClose}
                         >
                             Cancel
                         </Button>
-                        <Button 
-                            type="primary" 
+                        <Button
+                            type="primary"
                             className="bg-success border-success px-4 fw-bold"
                             onClick={handleConfirm}
-                            disabled={!logText.trim()}
                         >
                             Submit Resolution
                         </Button>

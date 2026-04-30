@@ -92,22 +92,22 @@ export default function EditDocument({ editObj }) {
         e.preventDefault();
         setEditSubmitLoading(true);
 
-        const missingFields = [];
+        // const missingFields = [];
         // if (!selectedContTypeId) missingFields.push("Document Type");
-        if (!formData?.DocName) missingFields.push("Document Name");
-        if (!formData?.Description) missingFields.push("Description");
+        // if (!formData?.DocName) missingFields.push("Document Name");
+        // if (!formData?.Description) missingFields.push("Description");
 
         // 2. If any are missing, stop and show alert
-        if (missingFields.length > 0) {
-            Swal.fire({
-                title: "Mandatory Fields Missing",
-                html: `Please provide: <b class="text-danger">${missingFields.join(", ")}</b>`,
-                icon: "warning",
-                confirmButtonColor: "#009ef7",
-            });
-            setEditSubmitLoading(false);
-            return;
-        }
+        // if (missingFields.length > 0) {
+        //     Swal.fire({
+        //         title: "Mandatory Fields Missing",
+        //         html: `Please provide: <b class="text-danger">${missingFields.join(", ")}</b>`,
+        //         icon: "warning",
+        //         confirmButtonColor: "#009ef7",
+        //     });
+        //     setEditSubmitLoading(false);
+        //     return;
+        // }
 
         const payload = {
             OrgId: sessionUserData?.OrgId,
@@ -185,257 +185,143 @@ export default function EditDocument({ editObj }) {
                     }
                 `}
             </style>
-            {/* <form autoComplete="off" onSubmit={handleEditSubmit}>
-                <div className="offcanvas-header d-flex justify-content-between align-items-center">
-                    <h5 id="offcanvasRightLabel" className="mb-0">Edit Document</h5>
+            <form autoComplete="off" onSubmit={handleEditSubmit} className="h-100 d-flex flex-column">
+                {/* --- Header Section --- */}
+                <div className="offcanvas-header bg-white border-bottom py-4 px-6 d-flex justify-content-between align-items-center shadow-sm">
                     <div className="d-flex align-items-center">
-                        <button
-                            className="btn btn-primary btn-sm me-2"
-                            type="submit"
-                            disabled={editSubmitLoading || isUnchanged || isInvalid}
-                        >
-                            <i className="bi bi-bookmark-check"></i>{editSubmitLoading ? "Submitting..." : "Submit"}
-                        </button>
-                        <button
-                            type="button"
-                            className="btn-close"
-                            data-bs-dismiss="offcanvas"
-                            aria-label="Close"
-                        ></button>
+                        <div className="symbol symbol-40px me-3">
+                            <div className="symbol-label bg-light-primary">
+                                <i className="bi bi-pencil-square text-primary fs-3"></i>
+                            </div>
+                        </div>
+                        <div>
+                            <h5 id="offcanvasRightLabel" className="mb-0 fw-bolder text-dark">Edit Document</h5>
+                            <small className="text-muted fs-8">Update your document details and permissions</small>
+                        </div>
                     </div>
+
+                    <button
+                        type="button"
+                        className="btn btn-icon btn-sm btn-active-light-primary ms-2"
+                        data-bs-dismiss="offcanvas"
+                        aria-label="Close"
+                    >
+                        <i className="bi bi-x fs-1"></i>
+                    </button>
                 </div>
-                <div className="offcanvas-body" style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    paddingBottom: '2rem',
-                    maxHeight: 'calc(100vh - 100px)'
-                }}>
-                    <div className="row">
-                        <div className="col-12 mb-2">
-                            <label className="form-label">
-                                Document Name<span className="text-danger">*</span>
+
+                {/* --- Body Section --- */}
+                <div className="offcanvas-body bg-light-section px-6 py-8" style={{ flex: 1, overflowY: 'auto' }}>
+                    <div className="row g-5">
+
+                        {/* Document Name */}
+                        <div className="col-12">
+                            <label className="form-label fw-bold fs-7 text-gray-700 mb-2">
+                                Document Name
                             </label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                placeholder="Enter doc name"
-                                value={formData?.DocName}
-                                style={{ height: '2.8rem' }}
-                                onChange={(e) =>
-                                    setFormData((prev) => ({
-                                        ...prev,
-                                        DocName: e.target.value,
-                                    }))
-                                }
-                            />
+                            <div className="position-relative">
+                                <i className="bi bi-file-earmark-text position-absolute top-50 translate-middle-y ms-4 text-muted"></i>
+                                <input
+                                    type="text"
+                                    className="form-control form-control-transparent ps-12 fs-7 border-dashed border-gray-300 bg-light"
+                                    placeholder="e.g. Annual Financial Report"
+                                    value={formData?.DocName}
+                                    style={{ height: '3.2rem' }}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, DocName: e.target.value }))}
+                                    disabled
+                                />
+                            </div>
                         </div>
-                        <div className="col-12 col-md-6 mb-2">
-                            <label className="form-label">
-                                Department
+
+                        {/* Department (Read Only) */}
+                        <div className="col-12 col-md-6">
+                            <label className="form-label fw-bold fs-7 text-gray-700 mb-2">Department</label>
+                            <div className="position-relative">
+                                <i className="bi bi-building position-absolute top-50 translate-middle-y ms-4 text-gray-400"></i>
+                                <input
+                                    type="text"
+                                    className="form-control form-control-transparent ps-12 fs-7 border-dashed border-gray-300 bg-light"
+                                    value={editObj?.DeptName}
+                                    style={{ height: '3.2rem' }}
+                                    readOnly
+                                    disabled
+                                />
+                            </div>
+                        </div>
+
+                        {/* Document Type */}
+                        <div className="col-12 col-md-6">
+                            <label className="form-label fw-bold fs-7 text-gray-700 mb-2 d-flex align-items-center">
+                                Document Type <span className="text-danger ms-1">*</span>
+                                <Tooltip title="Only types with 'Write' permissions are shown." placement="top">
+                                    <i className="bi bi-info-circle-fill ms-2 text-primary opacity-75 cursor-help fs-9"></i>
+                                </Tooltip>
                             </label>
-                            <input
-                                type="text"
-                                className="form-control"
-                                value={editObj?.DeptName}
-                                style={{ height: '2.8rem' }}
-                                readOnly
-                                disabled={true}
-                            />
-                        </div>
-                        <div className="col-12 col-md-6 mb-2">
-                        <label className="form-label d-flex align-items-center">
-        Document Type<span className="text-danger ms-1">*</span>
-        <Tooltip 
-            title="Only document types where you have 'Write' permissions are displayed here."
-            placement="top"
-        >
-            <i className="bi bi-info-circle ms-2 text-primary cursor-help fs-8"></i>
-        </Tooltip>
-    </label>
                             <Select
                                 showSearch
                                 placeholder="Select document type"
-                                className="w-100"
+                                className="form-control-solid w-100 custom-ant-select"
                                 value={formData?.ContentTypeId || undefined}
-                                style={{ height: '2.8rem' }}
-                                onChange={(value) =>
-                                    setFormData((prev) => ({
-                                        ...prev,
-                                        ContentTypeId: value,
-                                    }))
-                                }
+                                style={{ height: '3.2rem' }}
+                                onChange={(value) => setFormData((prev) => ({ ...prev, ContentTypeId: value }))}
                                 optionFilterProp="children"
-                                filterOption={(input, option) =>
-                                    option.children.toLowerCase().includes(input.toLowerCase())
-                                }
+                                filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
                             >
-                                {Array.isArray(contentTypesData) &&
-                                    contentTypesData
-                                        // 1. Filter first: Only show types the user has permission to write to
-                                        .filter((docType) => docType.CanWrite === true)
-                                        // 2. Map the permitted items
-                                        .map((docType) => (
-                                            <Option key={docType.MasterTypeId} value={docType.MasterTypeId}>
-                                                {docType.TypeName}
-                                            </Option>
-                                        ))
+                                {Array.isArray(contentTypesData) && contentTypesData
+                                    .filter((docType) => docType.CanWrite === true)
+                                    .map((docType) => (
+                                        <Option key={docType.MasterTypeId} value={docType.MasterTypeId}>
+                                            {docType.TypeName}
+                                        </Option>
+                                    ))
                                 }
                             </Select>
                         </div>
 
-                        <div>
-                            <label className="form-label">Description<span className="text-danger">*</span></label>
+                        {/* Description */}
+                        <div className="col-12">
+                            <label className="form-label fw-bold fs-7 text-gray-700 mb-2">
+                                Description
+                            </label>
                             <textarea
-                                className="form-control"
+                                className="form-control fs-7 p-4"
+                                placeholder="Briefly describe the purpose of this document..."
                                 value={formData.Description}
-                                onChange={(e) =>
-                                    setFormData((prev) => ({
-                                        ...prev,
-                                        Description: e.target.value,
-                                    }))
-                                }
-                                rows={4}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, Description: e.target.value }))}
+                                rows={5}
+                                style={{ borderRadius: '8px' }}
                             />
                         </div>
+
                     </div>
                 </div>
-            </form> */}
-            <form autoComplete="off" onSubmit={handleEditSubmit} className="h-100 d-flex flex-column">
-    {/* --- Header Section --- */}
-    <div className="offcanvas-header bg-white border-bottom py-4 px-6 d-flex justify-content-between align-items-center shadow-sm">
-        <div className="d-flex align-items-center">
-            <div className="symbol symbol-40px me-3">
-                <div className="symbol-label bg-light-primary">
-                    <i className="bi bi-pencil-square text-primary fs-3"></i>
+
+                {/* --- Footer / Sticky Action Button --- */}
+                <div className="offcanvas-footer border-top p-6 bg-white shadow-lg-up">
+                    <div className="d-flex gap-3">
+                        <button
+                            type="button"
+                            className="btn btn-light fw-bold flex-equal"
+                            data-bs-dismiss="offcanvas"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            className="btn btn-primary fw-bold flex-equal"
+                            type="submit"
+                            disabled={editSubmitLoading || isUnchanged || isInvalid}
+                        >
+                            {!editSubmitLoading ? (
+                                <span className="d-flex align-items-center justify-content-center">
+                                    <i className="bi bi-check-circle-fill me-2 fs-5"></i> Save Changes
+                                </span>
+                            ) : (
+                                <span className="spinner-border spinner-border-sm align-middle ms-2"></span>
+                            )}
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <div>
-                <h5 id="offcanvasRightLabel" className="mb-0 fw-bolder text-dark">Edit Document</h5>
-                <small className="text-muted fs-8">Update your document details and permissions</small>
-            </div>
-        </div>
-        
-        <button
-            type="button"
-            className="btn btn-icon btn-sm btn-active-light-primary ms-2"
-            data-bs-dismiss="offcanvas"
-            aria-label="Close"
-        >
-            <i className="bi bi-x fs-1"></i>
-        </button>
-    </div>
-
-    {/* --- Body Section --- */}
-    <div className="offcanvas-body bg-light-section px-6 py-8" style={{ flex: 1, overflowY: 'auto' }}>
-        <div className="row g-5">
-            
-            {/* Document Name */}
-            <div className="col-12">
-                <label className="form-label fw-bold fs-7 text-gray-700 mb-2">
-                    Document Name <span className="text-danger">*</span>
-                </label>
-                <div className="position-relative">
-                    <i className="bi bi-file-earmark-text position-absolute top-50 translate-middle-y ms-4 text-muted"></i>
-                    <input
-                        type="text"
-                        className="form-control ps-12 fs-7"
-                        placeholder="e.g. Annual Financial Report"
-                        value={formData?.DocName}
-                        style={{ height: '3.2rem' }}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, DocName: e.target.value }))}
-                    />
-                </div>
-            </div>
-
-            {/* Department (Read Only) */}
-            <div className="col-12 col-md-6">
-                <label className="form-label fw-bold fs-7 text-gray-700 mb-2">Department</label>
-                <div className="position-relative">
-                    <i className="bi bi-building position-absolute top-50 translate-middle-y ms-4 text-gray-400"></i>
-                    <input
-                        type="text"
-                        className="form-control form-control-transparent ps-12 fs-7 border-dashed border-gray-300 bg-light"
-                        value={editObj?.DeptName}
-                        style={{ height: '3.2rem' }}
-                        readOnly
-                        disabled
-                    />
-                </div>
-            </div>
-
-            {/* Document Type */}
-            <div className="col-12 col-md-6">
-                <label className="form-label fw-bold fs-7 text-gray-700 mb-2 d-flex align-items-center">
-                    Document Type <span className="text-danger ms-1">*</span>
-                    <Tooltip title="Only types with 'Write' permissions are shown." placement="top">
-                        <i className="bi bi-info-circle-fill ms-2 text-primary opacity-75 cursor-help fs-9"></i>
-                    </Tooltip>
-                </label>
-                <Select
-                    showSearch
-                    placeholder="Select document type"
-                    className="form-control-solid w-100 custom-ant-select"
-                    value={formData?.ContentTypeId || undefined}
-                    style={{ height: '3.2rem' }}
-                    onChange={(value) => setFormData((prev) => ({ ...prev, ContentTypeId: value }))}
-                    optionFilterProp="children"
-                    filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
-                >
-                    {Array.isArray(contentTypesData) && contentTypesData
-                        .filter((docType) => docType.CanWrite === true)
-                        .map((docType) => (
-                            <Option key={docType.MasterTypeId} value={docType.MasterTypeId}>
-                                {docType.TypeName}
-                            </Option>
-                        ))
-                    }
-                </Select>
-            </div>
-
-            {/* Description */}
-            <div className="col-12">
-                <label className="form-label fw-bold fs-7 text-gray-700 mb-2">
-                    Description <span className="text-danger">*</span>
-                </label>
-                <textarea
-                    className="form-control fs-7 p-4"
-                    placeholder="Briefly describe the purpose of this document..."
-                    value={formData.Description}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, Description: e.target.value }))}
-                    rows={5}
-                    style={{ borderRadius: '8px' }}
-                />
-            </div>
-
-        </div>
-    </div>
-
-    {/* --- Footer / Sticky Action Button --- */}
-    <div className="offcanvas-footer border-top p-6 bg-white shadow-lg-up">
-        <div className="d-flex gap-3">
-            <button
-                type="button"
-                className="btn btn-light fw-bold flex-equal"
-                data-bs-dismiss="offcanvas"
-            >
-                Cancel
-            </button>
-            <button
-                className="btn btn-primary fw-bold flex-equal"
-                type="submit"
-                disabled={editSubmitLoading || isUnchanged || isInvalid}
-            >
-                {!editSubmitLoading ? (
-                    <span className="d-flex align-items-center justify-content-center">
-                        <i className="bi bi-check-circle-fill me-2 fs-5"></i> Save Changes
-                    </span>
-                ) : (
-                    <span className="spinner-border spinner-border-sm align-middle ms-2"></span>
-                )}
-            </button>
-        </div>
-    </div>
-</form>
+            </form>
         </div>
     );
 }

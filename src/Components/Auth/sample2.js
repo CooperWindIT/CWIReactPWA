@@ -184,12 +184,22 @@ export default function SampleScreen2() {
                         </div>
 
                         {sessionUserData?.Name && (
-                            <div className="text-center mb-4">
-                                <p>
-                                    Welcome, <span className="animated-username">{sessionUserData.Name}</span>!
-                                    Explore the modules available to you below:
-                                </p>
+                            <div className="d-flex justify-content-center mb-4">
+                                <div className="premium-welcome-box text-center px-4 py-3">
+                                    <div className="small text-uppercase fw-semibold text-muted mb-1 d-flex align-items-center justify-content-center gap-2">
+                                        <i className="bi bi-person-circle text-primary"></i>
+                                        Welcome Back
+                                    </div>
 
+                                    <div className="fs-4 fw-bold text-dark">
+                                        Hello, <span className="animated-username">{sessionUserData.Name}</span>
+                                    </div>
+
+                                    <div className="text-muted mt-2 d-flex align-items-center justify-content-center gap-2">
+                                        {/* <i className="bi bi-grid-1x2-fill text-primary"></i> */}
+                                        <span>Explore the modules available to you below</span>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
@@ -283,17 +293,40 @@ export default function SampleScreen2() {
                         font-weight: 500;
                     }
 
+                        .premium-welcome-box {
+                        min-width: 320px;
+                        max-width: 620px;
+                        border-radius: 22px;
+                        background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(245,249,255,0.96));
+                        border: 1px solid rgba(13, 110, 253, 0.12);
+                        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+                        backdrop-filter: blur(10px);
+                    }
+
+                    .premium-welcome-icon {
+                        width: 54px;
+                        height: 54px;
+                        border-radius: 50%;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        background: linear-gradient(135deg, #e7f1ff, #f4f9ff);
+                        color: #0d6efd;
+                        font-size: 1.35rem;
+                        box-shadow: 0 8px 20px rgba(13, 110, 253, 0.12);
+                    }
+
                     .animated-username {
-                        background: linear-gradient(270deg, #ff6a00, #ffcc00, #00bfff, #ff6a00);
-                        background-size: 600% 600%;
+                        background: linear-gradient(270deg, #0d6efd, #36c2ff, #6f42c1, #0d6efd);
+                        background-size: 500% 500%;
                         -webkit-background-clip: text;
                         -webkit-text-fill-color: transparent;
                         animation: gradientMove 6s ease infinite;
-                        font-weight: 700;
+                        font-weight: 800;
                         display: inline-block;
-                        }
+                    }
 
-                        @keyframes gradientMove {
+                    @keyframes gradientMove {
                         0% {
                             background-position: 0% 50%;
                         }
@@ -303,7 +336,7 @@ export default function SampleScreen2() {
                         100% {
                             background-position: 0% 50%;
                         }
-                        }
+                    }
                 .service-card.external-brand {
                     border: 1px solid rgba(0, 86, 179, 0.1);
                     transition: all 0.3s ease;

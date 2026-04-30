@@ -20,6 +20,7 @@ export default function ManageCLAadhar({ conObj }) {
     const [loading, setLoading] = useState(false);
     const [excelData, setExcelData] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
+    const [statusFilter, setStatusFilter] = useState("ALL");
 
     useEffect(() => {
         if (conObj?.Id) {
@@ -162,29 +163,6 @@ export default function ManageCLAadhar({ conObj }) {
         }
     };
 
-    // const fetchContractors = async () => {
-    //     try {
-    //         const response = await fetchWithAuth(`contractor/getContractors?OrgId=${sessionUserData.OrgId}&ShiftTypeId=0`, {
-    //             method: "GET",
-    //             headers: { "Content-Type": "application/json" },
-    //         });
-    //         if (response.ok) {
-    //             const data = await response.json();
-    //             setContactorsData(data.ResultData);
-    //         } else {
-    //             console.error('Failed to fetch attendance data:', response.statusText);
-    //         }
-    //     } catch (error) {
-    //         console.error('Error fetching attendance data:', error.message);
-    //     }
-    // };
-
-    // useEffect(() => {
-    //     if (sessionUserData.OrgId) {
-    //         fetchContractors();
-    //     }
-    // }, [sessionUserData]);
-
     const fetchContractorCLs = async () => {
         setContClsLoading(true);
         if (sessionUserData.OrgId) {
@@ -245,9 +223,20 @@ export default function ManageCLAadhar({ conObj }) {
     const stripAadhar = (num = "") => num.replace(/\s/g, "");
 
     const filteredContCls = contCls.filter((item) => {
-        const nameMatch = item.Name?.toLowerCase().includes(searchTerm.toLowerCase());
+        const search = searchTerm.toLowerCase().trim();
+
+        const nameMatch = item.Name?.toLowerCase().includes(search);
         const aadharMatch = item.AadharNo?.includes(stripAadhar(searchTerm));
-        return nameMatch || aadharMatch;
+        const matchesSearch = !search || nameMatch || aadharMatch;
+
+        const matchesStatus =
+            statusFilter === "ALL"
+                ? true
+                : statusFilter === "ACTIVE"
+                    ? item.IsActive
+                    : !item.IsActive;
+
+        return matchesSearch && matchesStatus;
     });
 
     const handleSaveRow = async (row) => {
@@ -477,6 +466,8 @@ export default function ManageCLAadhar({ conObj }) {
         }
     };
 
+    const activeCount = contCls.filter((item) => item.IsActive).length;
+    const inactiveCount = contCls.filter((item) => !item.IsActive).length;
 
     return (
         <div
@@ -516,12 +507,13 @@ export default function ManageCLAadhar({ conObj }) {
                     }
                 `}
             </style>
+
             <form autoComplete="off">
                 <div className="offcanvas-header d-flex justify-content-between align-items-center mb-3">
                     <h5 id="offcanvasRightLabel" className="mb-0">Manage CL's</h5>
                     <div className="d-flex align-items-center">
                         <button
-                            className="btn btn-light-primary border border-primary btn-sm"
+                            className="btn btn-light-primary border border-primary btn-sm shadow-sm"
                             type="button"
                             onClick={handleOpen}
                             style={{ whiteSpace: "nowrap" }}
@@ -566,6 +558,39 @@ export default function ManageCLAadhar({ conObj }) {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     style={{ outline: 'none', boxShadow: 'none' }}
                                 />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="row mb-3">
+                        <div className="col-12">
+                            <div className="d-inline-flex flex-wrap gap-2 bg-white shadow-sm rounded-3 p-2">
+                                <button
+                                    type="button"
+                                    className={`btn btn-sm ${statusFilter === "ALL" ? "btn-primary" : "btn-light-primary"}`}
+                                    onClick={() => setStatusFilter("ALL")}
+                                >
+                                    <i className="fa-solid fa-table-cells-large me-2"></i>
+                                    All ({contCls.length})
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`btn btn-sm ${statusFilter === "ACTIVE" ? "btn-success" : "btn-light-success"}`}
+                                    onClick={() => setStatusFilter("ACTIVE")}
+                                >
+                                    <i className="fa-solid fa-circle-check me-2"></i>
+                                    Active ({activeCount})
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className={`btn btn-sm ${statusFilter === "INACTIVE" ? "btn-danger" : "btn-light-danger"}`}
+                                    onClick={() => setStatusFilter("INACTIVE")}
+                                >
+                                    <i className="fa-solid fa-circle-xmark me-2"></i>
+                                    Inactive ({inactiveCount})
+                                </button>
                             </div>
                         </div>
                     </div>

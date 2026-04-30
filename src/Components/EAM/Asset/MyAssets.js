@@ -18,6 +18,7 @@ export default function MyAssetsList() {
     const [navigationPath, setNavigationPath] = useState("");
     const [sessionActionIds, setSessionActionIds] = useState([]);
     const [targetAsset, setTargetAsset] = useState({ id: 0, name: "", deptId: 0 });
+    const [isEditTicketModalOpen, setIsEditTicketModalOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
     const [recordsPerPage, setRecordsPerPage] = useState(10);
@@ -306,6 +307,7 @@ export default function MyAssetsList() {
                                                                 Raise Ticket <i className="bi bi-ticket-perforated ms-1 text-primary"></i>
                                                             </span>
 
+
                                                             <Link to={`/eam/asset-info/${item.OrgId}/${item.MachineId}`} className="text-decoration-none">
                                                                 <span className="badge badge-light-info cursor-pointer">
                                                                     View more <i className="fa-solid fa-arrow-right-long ms-1 pulse-arrow"></i>
@@ -527,6 +529,7 @@ export default function MyAssetsList() {
                 assetID={targetAsset.id}
                 assetName={targetAsset.name}
                 deptId={targetAsset.deptId}
+                isOpen={isEditTicketModalOpen}
             />
         </Base1>
     )

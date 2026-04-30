@@ -1114,9 +1114,38 @@ export default function EAMTicketView() {
         setTicketData(item);
     };
 
+    // const steps = ticketDetails?.DirectAssign
+    // ? ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "TECH_FIXED", "RESOLVED", "CLOSED"]
+    // : ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "RESOLVED", "CLOSED"];
 
-    const steps = ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "RESOLVED", "CLOSED"];
-    const activeStepIndex = steps.indexOf(ticketDetails?.Status);
+    // const activeStepIndex =
+    //     ticketDetails?.Status === "PENDING_WITH_CLIENT"
+    //         ? steps.indexOf("APPROVED")
+    //         : steps.indexOf(ticketDetails?.Status);
+
+    const normalizeStep = (value) => String(value || "").trim().toUpperCase();
+
+    const steps = ticketDetails?.DirectAssign
+        ? ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "TECH_FIXED", "RESOLVED", "CLOSED"]
+        : ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "RESOLVED", "CLOSED"];
+
+    const currentStatusForStepper =
+        ticketDetails?.Status === "PENDING_WITH_CLIENT"
+            ? "NEW"
+            : ticketDetails?.Status;
+
+    const activeStepIndex = steps.indexOf(normalizeStep(currentStatusForStepper));
+
+    const enabledStepSet = new Set(
+        (ticketLogs || [])
+            .map((item) => normalizeStep(item.Label))
+            .filter(Boolean)
+    );
+
+    // also keep current visible in stepper
+    if (currentStatusForStepper) {
+        enabledStepSet.add(normalizeStep(currentStatusForStepper));
+    }
 
     const permissionsByStatus = {
         edit: ["CLOSED"],
@@ -1144,18 +1173,75 @@ export default function EAMTicketView() {
         permissionsByStatus.approve.includes(ticketDetails?.Status) &&
         !ticketDetails?.DirectAssign;
     const canReject = showRejectBtn && permissionsByStatus.reject.includes(ticketDetails?.Status);
-    // const canAssignTech = permissionsByStatus.assignTech.includes(ticketDetails?.Status);
     const canAssignTech = (showAssignTechBtn) && (
-        // Case 1: Status is NEW and DirectAssign is true
         (ticketDetails?.Status === 'NEW' && ticketDetails?.DirectAssign === true) ||
-
-        // Case 2: Status is APPROVED (DirectAssign is ignored)
         (ticketDetails?.Status === 'APPROVED') ||
-
-        // Case 3: Fallback for any other statuses defined in your permissions array
         (!['NEW', 'APPROVED'].includes(ticketDetails?.Status) && permissionsByStatus.assignTech.includes(ticketDetails?.Status))
     );
     const canClose = showCloseBtn && permissionsByStatus.close.includes(ticketDetails?.Status);
+
+    const allowedStatuses = [
+        "ASSIGNED",
+        "RETURNED",
+        "ADDITIONAL REQUIREMENT APPROVED",
+        "TECH_FIXED",
+    ];
+
+    const isSubmitDisabled =
+        !allowedStatuses.includes(ticketDetails?.Status) ||
+        closingLoading ||
+        !showResolveBtn;
+
+    const handleReAssignTech = async () => {
+        const result = await Swal.fire({
+            title: "Re-Assign Technician?",
+            text: "Are you sure you want to re-assign this ticket to another technician?",
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: '<i class="bi bi-check-circle text-white me-2"></i>Yes, Re-Assign',
+            cancelButtonText: '<i class="bi bi-x-circle text-white me-2"></i>No, Cancel',
+            confirmButtonColor: "#009ef7",
+            cancelButtonColor: "#6c757d",
+            reverseButtons: true,
+        });
+
+        if (!result.isConfirmed) return;
+
+        const payload = {
+            OrgId: sessionUserData?.OrgId,
+            Priority: 1,
+            TicketStatus: "RE_ASSIGNED",
+            TicketId: ticketDetails?.TicketId,
+            UserId: sessionUserData?.Id,
+            JsonData: {
+                TicketId: ticketDetails?.Id,
+                MachineId: ticketDetails?.MachineId,
+            },
+        };
+
+        try {
+            Swal.showLoading();
+
+            const res = await fetchWithAuth(`PMMS/TicketsWorkFlow`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json();
+            const responseCode = data?.data?.result?.[0]?.ResponseCode;
+
+            if (data?.success && responseCode === 3005) {
+                fetchTicketDetails();
+                Swal.fire("Success", "Ticket reassigned successfully.", "success");
+            } else {
+                Swal.fire("Error", "Failed to reassign technician.", "error");
+            }
+        } catch (error) {
+            Swal.fire("Error", "Server error", "error");
+        }
+    };
+
 
     return (
         <Base1>
@@ -1174,7 +1260,6 @@ export default function EAMTicketView() {
                             <div className="mt-4">
                                 {/* Header */}
                                 <div className="card-title w-100">
-                                    {/* Mobile/Tablet Layout */}
                                     <div className="d-flex d-lg-none justify-content-between align-items-center flex-wrap mb-2">
                                         <div className="d-flex align-items-center gap-2">
                                             <h5 className="mb-0">
@@ -1198,7 +1283,6 @@ export default function EAMTicketView() {
                                         </Link>
                                     </div>
 
-                                    {/* Machine Name on its own line for mobile/tablet, centered */}
                                     <div className="text-center d-lg-none mb-2">
                                         <h1
                                             className="mb-0"
@@ -1215,7 +1299,6 @@ export default function EAMTicketView() {
                                         </h1>
                                     </div>
 
-                                    {/* Desktop Layout */}
                                     <div className="d-none d-lg-flex justify-content-between align-items-center flex-wrap gap-3">
                                         <div className="d-flex align-items-center gap-2">
                                             <h3 className="mb-0">
@@ -1257,98 +1340,136 @@ export default function EAMTicketView() {
                                         </div>
                                     </div>
                                 </div>
+                                <div className="d-flex flex-column flex-lg-row justify-content-between align-items-start align-items-lg-center w-100 mt-3 gap-3">
+                                    {ticketDetails?.Status === "PENDING_WITH_CLIENT" && (
+                                        <div className="order-1 order-lg-1 w-100">
+                                            <span className="badge badge-light-warning text-dark fw-bold px-4 py-3 rounded-pill shadow-sm d-inline-flex align-items-center border border-warning">
+                                                <i class="fa-solid fa-triangle-exclamation text-warning fa-beat-fade me-2"></i>
+                                                Action Pending From Client
+                                            </span>
+                                        </div>
+                                    )}
 
-                                {/* Action Items */}
-                                <div className="d-flex justify-content-end w-100 mt-3">
-                                    <div className="d-flex align-items-center flex-wrap gap-3 mt-4 mt-lg-0">
-                                        <div className="btn-group shadow-sm bg-white rounded-pill p-1 border">
-                                            <button
-                                                className={`btn btn-sm btn-light-info border-0 rounded-pill px-4 fw-bold mx-1`}
-                                                data-bs-toggle="offcanvas"
-                                                data-bs-target="#offcanvasRightEdit"
-                                                aria-controls="offcanvasRightEdit"
-                                                onClick={() => canEdit && handleEdit(ticketDetails)}
-                                                disabled={!canEdit}
-                                            >
-                                                <i className="fa-regular fa-pen-to-square"></i><span className="d-none d-md-inline">Edit</span>
-                                            </button>
-                                            <button
-                                                className="btn btn-sm btn-light-primary border-0 rounded-pill px-4 fw-bold mx-1"
-                                                data-bs-toggle="offcanvas"
-                                                data-bs-target="#offcanvasRightAssignTech"
-                                                aria-controls="offcanvasRightAssignTech"
-                                                onClick={() => (canAssignTech) && handleAssignTech(ticketDetails)}
-                                                disabled={!canAssignTech}
-                                            >
-                                                <i className="bi bi-person-gear fs-5"></i><span className="d-none d-md-inline">Assign Tech</span>
-                                            </button>
-                                            <button
-                                                className={`btn btn-sm btn-light-success border-0 rounded-pill px-4 fw-bold mx-1 ${!canApprove ? "d-none" : "d-block"}`}
-                                                title={ticketDetails?.DirectAssign ? "Cannot approve: This is a Direct Assignment" : ""}
-                                                onClick={() => handleApproveClick(ticketDetails)}
-                                                disabled={!canApprove}
-                                                style={{
-                                                    cursor: canApprove ? 'pointer' : 'not-allowed',
-                                                    opacity: canApprove ? 1 : 0.5,
-                                                    transition: 'all 0.3s ease'
-                                                }}
-                                            >
-                                                <i className="bi bi-check2-all"></i><span className="d-none d-md-inline">Approve</span>
-                                            </button>
-                                            <button
-                                                className={`btn btn-sm btn-light-warning border-0 rounded-pill px-4 fw-bold mx-1`}
-                                                onClick={() => canReject && handleReject(ticketDetails)}
-                                                disabled={!canReject}
-                                            >
-                                                <i className="fa-solid fa-ban"></i><span className="d-none d-md-inline">Reject</span>
-                                            </button>
+                                    <div className="order-2 order-lg-2 d-flex justify-content-end w-100">
+                                        <div className="d-flex align-items-center flex-wrap gap-3 mt-0">
+                                            <div className="btn-group shadow-sm bg-white rounded-pill p-1 border flex-wrap">
+                                                <button
+                                                    className="btn btn-sm btn-light-info border-0 rounded-pill px-4 fw-bold mx-1"
+                                                    data-bs-toggle="offcanvas"
+                                                    data-bs-target="#offcanvasRightEdit"
+                                                    aria-controls="offcanvasRightEdit"
+                                                    onClick={() => canEdit && handleEdit(ticketDetails)}
+                                                    disabled={!canEdit}
+                                                >
+                                                    <i className="fa-regular fa-pen-to-square me-1"></i>
+                                                    <span className="d-none d-md-inline">Edit</span>
+                                                </button>
 
-                                            <button
-                                                className="btn btn-sm btn-light-success border-0 rounded-pill px-4 fw-bold mx-1"
-                                                data-bs-toggle="offcanvas"
-                                                data-bs-target="#offcanvasRightCloseTic"
-                                                aria-controls="offcanvasRightCloseTic"
-                                                onClick={() => canClose && handleCloseTicket(ticketDetails)}
-                                                disabled={!canClose}
-                                            >
-                                                <i className="bi bi-clipboard2-check"></i><span className="d-none d-md-inline">Close</span>
-                                            </button>
-                                            <button
-                                                className={`btn btn-sm btn-light-danger border-0 rounded-pill px-4 fw-bold mx-1`}
-                                                onClick={() => canDelete && handleDeleteTicket(ticketDetails)}
-                                                disabled={!canDelete}
-                                            >
-                                                <i className="fa-regular fa-trash-can"></i><span className="d-none d-md-inline">Delete</span>
-                                            </button>
+                                                {ticketDetails?.Status !== "PENDING_WITH_CLIENT" && (
+                                                    <button
+                                                        className="btn btn-sm btn-light-primary border-0 rounded-pill px-4 fw-bold mx-1"
+                                                        data-bs-toggle="offcanvas"
+                                                        data-bs-target="#offcanvasRightAssignTech"
+                                                        aria-controls="offcanvasRightAssignTech"
+                                                        onClick={() => canAssignTech && handleAssignTech(ticketDetails)}
+                                                        disabled={!canAssignTech}
+                                                    >
+                                                        <i className="bi bi-person-gear fs-5 me-1"></i>
+                                                        <span className="d-none d-md-inline">Assign Tech</span>
+                                                    </button>
+                                                )}
+
+                                                {ticketDetails?.Status === "PENDING_WITH_CLIENT" && (
+                                                    <button
+                                                        className="btn btn-sm btn-light-primary border-0 rounded-pill px-4 fw-bold mx-1"
+                                                        onClick={handleReAssignTech}
+                                                    >
+                                                        <i className="bi bi-person-gear fs-5 me-1"></i>
+                                                        <span className="d-none d-md-inline">Re-Assign Tech</span>
+                                                    </button>
+                                                )}
+
+                                                <button
+                                                    className={`btn btn-sm btn-light-success border-0 rounded-pill px-4 fw-bold mx-1 ${!canApprove ? "d-none" : "d-block"}`}
+                                                    title={ticketDetails?.DirectAssign ? "Cannot approve: This is a Direct Assignment" : ""}
+                                                    onClick={() => handleApproveClick(ticketDetails)}
+                                                    disabled={!canApprove}
+                                                    style={{
+                                                        cursor: canApprove ? "pointer" : "not-allowed",
+                                                        opacity: canApprove ? 1 : 0.5,
+                                                        transition: "all 0.3s ease"
+                                                    }}
+                                                >
+                                                    <i className="bi bi-check2-all me-1"></i>
+                                                    <span className="d-none d-md-inline">Approve</span>
+                                                </button>
+
+                                                <button
+                                                    className="btn btn-sm btn-light-warning border-0 rounded-pill px-4 fw-bold mx-1"
+                                                    onClick={() => canReject && handleReject(ticketDetails)}
+                                                    disabled={!canReject}
+                                                >
+                                                    <i className="fa-solid fa-ban me-1"></i>
+                                                    <span className="d-none d-md-inline">Reject</span>
+                                                </button>
+
+                                                <button
+                                                    className="btn btn-sm btn-light-success border-0 rounded-pill px-4 fw-bold mx-1"
+                                                    data-bs-toggle="offcanvas"
+                                                    data-bs-target="#offcanvasRightCloseTic"
+                                                    aria-controls="offcanvasRightCloseTic"
+                                                    onClick={() => canClose && handleCloseTicket(ticketDetails)}
+                                                    disabled={!canClose}
+                                                >
+                                                    <i className="bi bi-clipboard2-check me-1"></i>
+                                                    <span className="d-none d-md-inline">Close</span>
+                                                </button>
+
+                                                <button
+                                                    className="btn btn-sm btn-light-danger border-0 rounded-pill px-4 fw-bold mx-1"
+                                                    onClick={() => canDelete && handleDeleteTicket(ticketDetails)}
+                                                    disabled={!canDelete}
+                                                >
+                                                    <i className="fa-regular fa-trash-can me-1"></i>
+                                                    <span className="d-none d-md-inline">Delete</span>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
+
                                 {/* Steps */}
                                 <div className="step-container d-flex justify-content-between align-items-center w-100 my-4 pt-2">
                                     {steps.map((step, index) => {
-                                        const isFilled = index <= activeStepIndex;
-                                        const isActive = index === activeStepIndex;
+                                        const normalizedStep = normalizeStep(step);
+                                        const isEnabled = enabledStepSet.has(normalizedStep);
+                                        const isFilled = isEnabled && index <= activeStepIndex;
+                                        const isActive = isEnabled && index === activeStepIndex;
+                                        const isMasked = !isEnabled;
 
                                         return (
                                             <div key={step} className="text-center flex-fill position-relative">
-                                                {/* Circle */}
                                                 <div
-                                                    className={`step-circle-horizontal mx-auto 
-                                                    ${isFilled ? "filled" : ""} 
-                                                    ${isActive ? "active" : ""}`}
+                                                    className={`step-circle-horizontal mx-auto
+                        ${isFilled ? "filled" : ""}
+                        ${isActive ? "active" : ""}
+                        ${isMasked ? "opacity-50 bg-light text-muted border" : ""}
+                    `}
                                                 >
-                                                    {index + 1}
+                                                    {isMasked ? <i className="bi bi-x-lg"></i> : index + 1}
                                                 </div>
 
-                                                {/* Line connecting to next step */}
                                                 {index !== steps.length - 1 && (
                                                     <div
-                                                        className={`step-line-horizontal ${index < activeStepIndex ? "filled" : ""}`}
+                                                        className={`step-line-horizontal ${isEnabled && index < activeStepIndex ? "filled" : ""
+                                                            } ${isMasked ? "opacity-25" : ""}`}
                                                     ></div>
                                                 )}
 
-                                                <div className="step-label mt-2 fw-semibold">{step}</div>
+                                                <div className={`step-label mt-2 fw-semibold ${isMasked ? "text-muted" : ""}`}>
+                                                    {step}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -1394,8 +1515,8 @@ export default function EAMTicketView() {
                                                                     </span>
                                                                 </td>
 
-                                                                <td className="fw-semibold text-info text-center">
-                                                                    <div className="d-inline-flex align-items-center justify-content-center w-100">
+                                                                <td className="fw-semibold text-info text-start">
+                                                                    <div className="d-inline-flex align-items-start justify-content-start w-100">
                                                                         <i className="bi bi-person-circle me-2 flex-shrink-0"></i>
                                                                         {item.Col3 && item.Col3.length > 5 ? (
                                                                             <Tooltip title={item.Col3} placement="top">
@@ -2099,20 +2220,13 @@ export default function EAMTicketView() {
                                             <div className="text-center">
                                                 <button
                                                     type="button"
-                                                    className={`btn btn-primary btn-sm px-5 d-flex ms-auto ${!["ASSIGNED", "RETURNED", "ADDITIONAL REQUIREMENT APPROVED"].includes(ticketDetails?.Status) ||
-                                                        closingLoading ||
-                                                        !showResolveBtn
-                                                        ? "cursor-not-allowed opacity-75"
-                                                        : ""
+                                                    className={`btn btn-primary btn-sm px-5 d-flex ms-auto ${isSubmitDisabled ? "cursor-not-allowed opacity-75" : ""
                                                         }`}
                                                     onClick={handleResolvedTicket}
-                                                    disabled={
-                                                        !["ASSIGNED", "RETURNED", "ADDITIONAL REQUIREMENT APPROVED"].includes(ticketDetails?.Status) ||
-                                                        closingLoading ||
-                                                        !showResolveBtn
-                                                    }
+                                                    disabled={isSubmitDisabled}
                                                 >
-                                                    <i className="bi bi-check2-all mt-1"></i>{closingLoading ? "Submitting..." : "Submit"}
+                                                    <i className="bi bi-check2-all mt-1 me-2"></i>
+                                                    {closingLoading ? "Submitting..." : "Submit"}
                                                 </button>
                                             </div>
                                         </div>

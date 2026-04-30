@@ -1,26 +1,47 @@
-// api.js
-
 import { BASE_API } from "../Components/Config/Config";
 
 export const refreshAccessToken = async () => {
-    const refreshToken = sessionStorage.getItem("refreshToken");
+    try {
+        const refreshToken = sessionStorage.getItem("refreshToken");
 
-    const response = await fetch(`${BASE_API}Public/refreshToken`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ "refreshToken": refreshToken }),
-    });
+        if (!refreshToken) {
+            sessionStorage.clear();
+            localStorage.clear();
+            window.location.href = "/";
+            return null;
+        }
 
-    if (!response.ok) {
+        const response = await fetch(`${BASE_API}Public/refreshToken`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+        });
+
+        if (!response.ok) {
+            sessionStorage.clear();
+            localStorage.clear();
+            window.location.href = "/";
+            return null;
+        }
+
+        const result = await response.json();
+        const newAccessToken = result?.data?.accessToken;
+
+        if (!newAccessToken) {
+            sessionStorage.clear();
+            localStorage.clear();
+            window.location.href = "/";
+            return null;
+        }
+
+        sessionStorage.setItem("accessToken", newAccessToken);
+        return newAccessToken;
+    } catch (error) {
         sessionStorage.clear();
         localStorage.clear();
-        window.location.href = "/"; // force logout
+        window.location.href = "/";
         return null;
     }
-
-    const result = await response.json();
-    sessionStorage.setItem("accessToken", result.data.accessToken);
-    return result.data.accessToken;
 };
 
 export const fetchWithAuth = async (url, options = {}) => {
@@ -34,10 +55,9 @@ export const fetchWithAuth = async (url, options = {}) => {
         },
     });
 
-    // If token expired, try refreshing once
     if (res.status === 401) {
         token = await refreshAccessToken();
-        if (!token) return res; // refresh failed
+        if (!token) return res;
 
         return fetch(BASE_API + url, {
             ...options,
@@ -47,33 +67,33 @@ export const fetchWithAuth = async (url, options = {}) => {
             },
         });
     }
+
     return res;
 };
 
 export const fetchWithAuthExternal = async (baseUrl, url, options = {}) => {
     let token = sessionStorage.getItem("accessToken");
-  
+
     const res = await fetch(baseUrl + url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        Authorization: `Bearer ${token}`,
-      },
-    });
-  
-    if (res.status === 401) {
-      token = await refreshAccessToken();
-      if (!token) return res;
-  
-      return fetch(baseUrl + url, {
         ...options,
         headers: {
-          ...options.headers,
-          Authorization: `Bearer ${token}`,
+            ...options.headers,
+            Authorization: `Bearer ${token}`,
         },
-      });
+    });
+
+    if (res.status === 401) {
+        token = await refreshAccessToken();
+        if (!token) return res;
+
+        return fetch(baseUrl + url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                Authorization: `Bearer ${token}`,
+            },
+        });
     }
-  
+
     return res;
-  };
-  
+};

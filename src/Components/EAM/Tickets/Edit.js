@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from "react";
 import Swal from 'sweetalert2';
-import { BASE_IMAGE_API_GET, BASE_IMAGE_UPLOAD_API } from "../../Config/Config";
+import { BASE_IMAGE_API_GET, BASE_IMG_DOC_DELETE, BASE_IMG_UPLOAD } from "../../Config/Config";
 import PropTypes from 'prop-types'
 import { fetchWithAuth } from "../../../utils/api";
 
-export default function EditTicket({ editObj }) {
+export default function EditTicket({ editTicketId, onClose }) {
 
     const [sessionUserData, setsessionUserData] = useState({});
     const [addSubmitLoading, setAddSubmitLoading] = useState(false);
     const [issues, setIssues] = useState([]);
     const [previewImage, setPreviewImage] = useState(null);
+    const [ticketDetails, setTicketDetails] = useState({});
 
     const [formData, setFormData] = useState({
         OrgId: "",
@@ -38,32 +39,56 @@ export default function EditTicket({ editObj }) {
     }, []);
 
     useEffect(() => {
-        if (editObj) {
+        if (ticketDetails) {
             setFormData({
-                TicketId: editObj.Id,
-                MachineId: editObj.MachineId || "",
-                TicketCode: editObj.TicketCode || "",
-                IssueType: editObj.IssueType || "",
-                Priority: editObj.Priority,
+                TicketId: ticketDetails.Id,
+                MachineId: ticketDetails.MachineId || "",
+                TicketCode: ticketDetails.TicketCode || "",
+                IssueType: ticketDetails.IssueType || "",
+                Priority: ticketDetails.Priority,
                 UpdatedBy: sessionUserData.Id,
-                MachineStatus: editObj?.MachineStatus,
-                ImageUrl: editObj?.ImageUrl,
-                DueDate: editObj?.DueDate,
+                MachineStatus: ticketDetails?.MachineStatus,
+                ImageUrl: ticketDetails?.ImageUrl,
+                DueDate: ticketDetails?.DueDate,
             });
         }
-    }, [editObj, sessionUserData.Id]);
+    }, [ticketDetails, sessionUserData.Id]);
 
     useEffect(() => {
-        if (editObj?.Description) {
-            const parts = editObj.Description.split("||").map(i => i.trim()).filter(Boolean);
+        if (ticketDetails?.Description) {
+            const parts = ticketDetails.Description.split("||").map(i => i.trim()).filter(Boolean);
             setFormData(prev => ({
                 ...prev,
                 Description: parts[0] || "", // main issue
             }));
             setIssues(parts.slice(1)); // additional issues only
         }
-    }, [editObj]);
+    }, [ticketDetails]);
 
+    const fetchticketDetails = async () => {
+        try {
+            const response = await fetchWithAuth(`PMMS/GetTicketsBYId?TicketId=${editTicketId}&OrgId=${sessionUserData?.OrgId}`, {
+                method: "GET",
+                headers: { "Content-Type": "application/json" },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                setTicketDetails(data.ResultData[0]);
+            } else {
+                setTicketDetails([]);
+                console.error('Failed to fetch mcn tickets data:', response.statusText);
+            }
+        } catch (error) {
+            setTicketDetails([]);
+            console.error('Error fetching mcn tickets data:', error.message);
+        }
+    };
+
+    useEffect(() => {
+        if (editTicketId && sessionUserData?.OrgId) {
+            fetchticketDetails();
+        }
+    }, [editTicketId, sessionUserData?.OrgId]);
 
     const handleInputChange = (eOrValue, nameFromSelect = null) => {
         if (nameFromSelect) {
@@ -114,12 +139,12 @@ export default function EditTicket({ editObj }) {
         formDataPayload.append("UserId", sessionUserData.Id);
         formDataPayload.append("TicketId", formData.TicketId);
         formDataPayload.append("ImageUrl", formData.ImageUrl);
-        // formDataPayload.append("CurrentStatus", editObj?.Status);
+        // formDataPayload.append("CurrentStatus", ticketDetails?.Status);
 
-        const combinedDescription = [
-            formData.Description, // main description
-            ...issues.filter(Boolean) // extra ones
-        ].join(" || ");
+        // const combinedDescription = [
+        //     formData.Description, // main description
+        //     ...issues.filter(Boolean) // extra ones
+        // ].join(" || ");
 
         const jsonData = {
             MachineId: formData.MachineId,
@@ -127,8 +152,8 @@ export default function EditTicket({ editObj }) {
             MachineStatus: formData.MachineStatus,
             ImageUrl: formData.ImageUrl,
             DueDate: formData.DueDate,
-            Description: combinedDescription,
-            CurrentStatus: editObj?.Status,
+            Description: formData.Description,
+            CurrentStatus: ticketDetails?.Status,
         };
 
         formDataPayload.append("JsonData", JSON.stringify(jsonData));
@@ -183,7 +208,7 @@ export default function EditTicket({ editObj }) {
 
         if (confirmDelete.isConfirmed) {
             try {
-                const res = await fetch(`${BASE_IMAGE_UPLOAD_API}Fileupload/delete`, {
+                const res = await fetch(`${BASE_IMG_DOC_DELETE}`, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ type: "image", filename }),
@@ -230,7 +255,7 @@ export default function EditTicket({ editObj }) {
             const uploadData = new FormData();
             uploadData.append("ImageUrl", file);
 
-            const res = await fetch(`${BASE_IMAGE_UPLOAD_API}Fileupload/image`, {
+            const res = await fetch(`${BASE_IMG_UPLOAD}`, {
                 method: "POST",
                 body: uploadData,
             });
@@ -254,252 +279,215 @@ export default function EditTicket({ editObj }) {
         }
     };
 
-
-
     return (
-        <div
-            className="offcanvas offcanvas-end"
-            tabIndex="-1"
-            id="offcanvasRightEdit"
-            aria-labelledby="offcanvasRightLabel"
-            style={{ width: "90%" }}
-        >
-            <style>
-                {`
-                    @media (min-width: 768px) { /* Medium devices and up (md) */
-                        #offcanvasRightEdit {
-                            width: 50% !important;
-                        }import { PropTypes } from 'prop-types';
-
-                    }
-                `}
-            </style>
-            <form autoComplete="off" onSubmit={handleSubmit}>
-                <div className="offcanvas-header d-flex justify-content-between align-items-center">
-                    <h5 id="offcanvasRightLabel" className="mb-0">Edit Ticket <span className="text-bold text-primary">({editObj?.TicketCode})</span></h5>
-                    <div className="d-flex align-items-center">
-                        <button className="btn btn-primary btn-sm me-2" type="submit" disabled={addSubmitLoading}>
-                        <i className="bi bi-bookmark-check"></i>{addSubmitLoading ? "Submitting..." : "Submit"}
-                        </button>
-                        <button
-                            type="button"
-                            className="btn-close"
-                            data-bs-dismiss="offcanvas"
-                            aria-label="Close"
-                        ></button>
-                    </div>
-                </div>
-                <div className="offcanvas-body" style={{ marginTop: "-2rem", maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
-                    <div className="row">
-                        <div className="col-12 col-md-6 mb-2">
-                            <label className="form-label">Asset Name</label>
-                            <input
-                                type="text"
-                                name="MachineName"
-                                className="form-control cursor-not-allowed"
-                                placeholder="Enter asset name"
-                                value={editObj?.MachineName}
-                                onChange={handleInputChange}
-                                autoComplete="off"
-                                readOnly
-                                required
-                            />
-                        </div>
-                        <div className="col-12 col-md-6 mb-2">
-                            <label className="form-label">Issue Type<span className="text-danger">*</span></label>
-                            <input
-                                type="text"
-                                name="IssueType"
-                                className="form-control"
-                                value={formData.IssueType}
-                                onChange={handleInputChange}
-                                placeholder="Issue Type"
-                                autoComplete="off"
-                                reaquired
-                            />
-                        </div>
-                        <div className="col-6 mb-2">
-                            <label className="form-label">Due Date<span className="text-danger">*</span></label>
-                            <input
-                                type="date"
-                                className="form-control"
-                                value={formData.DueDate ? formData.DueDate.split("T")[0] : ""}
-                                onChange={handleInputChange}
-                                readOnly
-                            />
-                        </div>
-                        <div className="col-6 mb-2">
-                            <label className="form-label">Priority<span className="text-danger">*</span></label>
-                            <select
-                                className="form-select"
-                                name="Priority"
-                                value={formData.Priority}
-                                onChange={handleInputChange}
-                                required
-                                disabled={true}
-                            >
-                                <option>Choose Priority</option>
-                                <option value="3">Low</option>
-                                <option value="2">Medium</option>
-                                <option value="1">High</option>
-                            </select>
-                        </div>
-                        <div className="col-6 mb-2">
-                            <label className="form-label">Status<span className="text-danger">*</span></label>
-                            <select
-                                className="form-select"
-                                name="MachineStatus"
-                                value={formData.MachineStatus}
-                                onChange={handleInputChange}
-                                disabled
-                                required
-                            >
-                                <option>Choose Status</option>
-                                <option value="OUTOFSERVICE">Out of service</option>
-                                <option value="ACTIVE">ACTIVE</option>
-                            </select>
-                        </div>
-                        <div className="col-6 mb-2">
-                            <label className="form-label cursor-pointer">
-                                Upload Image <span className="text-danger">*</span>
-                                {/* <span className="text-info ms-1" title="Please delete the existing image before uploading a new one.">
-                                    <i className="fa-solid fa-circle-info fa-bounce"></i>
-                                </span> */}
-                            </label>
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleFileChange}
-                                className="form-control"
-                            />
-                        </div>
-                        <div>
-                            <label className="form-label">
-                                Description <span className="text-danger">*</span>
-                            </label>
-                            <textarea
-                                type="text"
-                                name="Description"
-                                className="form-control"
-                                placeholder="Enter description"
-                                value={
-                                    [formData.Description, ...issues.map((issue, i) => `Issue ${i + 1}: ${issue}`)]
-                                        .join('\n')
-                                }
-                                onChange={handleInputChange}
-                                autoComplete="off"
-                                rows={5}
-                                readOnly
-                            />
-                        </div>
-                        <hr className="text-primary my-4"/>
-                        <div className="col-12 mb-2">
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                                <label className="form-label mb-0">Additional Issues</label>
-                                <button
-                                    type="button"
-                                    className="btn btn-light-info btn-sm border border-info"
-                                    onClick={() => setIssues([...issues, ""])}
-                                >
-                                    + Add Another Issue
-                                </button>
-                            </div>
-
-                            {issues?.map((issue, index) => (
-                                <div key={index} className="d-flex align-items-center mb-2">
-                                    <input
-                                        type="text"
-                                        className="form-control me-2"
-                                        value={issue}
-                                        placeholder={`Issue ${index + 1}`}
-                                        style={{ height: '2.8rem' }}
-                                        onChange={(e) => {
-                                            const newIssues = [...issues];
-                                            newIssues[index] = e.target.value;
-                                            setIssues(newIssues);
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="btn btn-danger btn-sm"
-                                        onClick={() => setIssues(issues.filter((_, i) => i !== index))}
-                                    >
-                                        <i className="fa-regular fa-trash-can ms-2"></i>
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                        {formData?.ImageUrl && (
-                            <div className="col-12 mt-3 text-center d-flex flex-column align-items-center">
-                                <label className="form-label">Uploaded Images</label>
-
-                                <div className="d-flex flex-wrap justify-content-center gap-3 mt-2">
-                                    {formData.ImageUrl.split(",").map((url, index) => (
-                                        <div
-                                            key={index}
-                                            className="position-relative"
-                                            style={{
-                                                width: "120px",
-                                                height: "120px",
-                                                borderRadius: "8px",
-                                                overflow: "hidden",
-                                                boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                                            }}
-                                        >
-                                            <img
-                                                src={`${BASE_IMAGE_API_GET}${url.trim()}`}
-                                                alt={`Uploaded ${index + 1}`}
-                                                className="img-fluid"
-                                                style={{
-                                                    width: "100%",
-                                                    height: "100%",
-                                                    objectFit: "cover",
-                                                }}
-                                            />
-
-                                            {/* View (Eye) Icon */}
-                                            {/* 👁 Preview (Eye) Icon */}
-                                            <button
-                                                type="button"
-                                                className="btn btn-sm btn-light-primary border border-primary position-absolute top-0 end-0 m-1 rounded-circle d-flex justify-content-center align-items-center"
-                                                style={{ width: "28px", height: "28px", padding: 0 }}
-                                                onClick={() => setPreviewImage(`${BASE_IMAGE_API_GET}${url.trim()}`)}
-                                            >
-                                                <i className="fa fa-eye text-primary ms-2"></i>
-                                            </button>
-
-                                            {/* ❌ Delete (X) Icon */}
-                                            <button
-                                                type="button"
-                                                className="btn btn-sm btn-light-danger border border-danger position-absolute top-0 start-0 m-1 rounded-circle d-flex justify-content-center align-items-center"
-                                                style={{ width: "28px", height: "28px", padding: 0 }}
-                                                onClick={() => handleRemoveOldImage(url.trim())}
-                                            >
-                                                <i className="fa fa-times text-danger ms-2"></i>
-                                            </button>
-
+        <>
+            {onClose && (
+                <div
+                    className="modal fade show"
+                    style={{ display: "block", background: "rgba(0,0,0,0.5)" }}
+                    tabIndex="-1"
+                >
+                    <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                        <div className="modal-content premium-ticket-modal">
+                            <form autoComplete="off" onSubmit={handleSubmit} className="d-flex flex-column h-100">
+                                <div className="modal-header premium-ticket-modal-header border-0">
+                                    <div className="d-flex align-items-center gap-3">
+                                        <div className="premium-ticket-modal-icon">
+                                            <i className="fa-solid fa-pen-to-square"></i>
                                         </div>
-                                    ))}
+
+                                        <div>
+                                            <h5 id="editTicketModalLabel" className="mb-0 fw-bold text-dark">
+                                                Edit Ticket
+                                            </h5>
+                                            <div className="small text-muted mt-1">
+                                                Ticket Code:
+                                                <span className="premium-ticket-code-mini ms-2">
+                                                    {ticketDetails?.TicketCode}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="d-flex align-items-center">
+                                        <button className="btn premium-submit-btn btn-sm me-2" type="submit" disabled={addSubmitLoading}>
+                                            <i className="bi bi-bookmark-check me-1"></i>
+                                            {addSubmitLoading ? "Submitting..." : "Submit"}
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            className="btn-close"
+                                            data-bs-dismiss="modal"
+                                            aria-label="Close"
+                                            onClick={onClose}
+                                            disabled={addSubmitLoading}
+                                        ></button>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
+
+                                <div
+                                    className="modal-body premium-ticket-modal-body"
+                                    style={{
+                                        maxHeight: "75vh",
+                                        overflowY: "auto",
+                                        overflowX: "hidden",
+                                    }}
+                                >
+                                    <div className="premium-form-card">
+                                        <div className="premium-form-section-title">Ticket Information</div>
+
+                                        <div className="row">
+                                            <div className="col-12 col-md-6 mb-3">
+                                                <label className="form-label">Asset Name</label>
+                                                <input
+                                                    type="text"
+                                                    name="MachineName"
+                                                    className="form-control form-control-sm premium-input cursor-not-allowed"
+                                                    value={ticketDetails?.MachineName}
+                                                    onChange={handleInputChange}
+                                                    autoComplete="off"
+                                                    readOnly
+                                                    required
+                                                />
+                                            </div>
+
+                                            <div className="col-12 col-md-6 mb-3">
+                                                <label className="form-label">Issue Type<span className="text-danger">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    name="IssueType"
+                                                    className="form-control form-control-sm premium-input"
+                                                    value={formData.IssueType}
+                                                    onChange={handleInputChange}
+                                                    placeholder="Issue Type"
+                                                    autoComplete="off"
+                                                />
+                                            </div>
+
+                                            <div className="col-12 col-md-6 mb-3">
+                                                <label className="form-label">Due Date<span className="text-danger">*</span></label>
+                                                <input
+                                                    type="date"
+                                                    className="form-control form-control-sm premium-input"
+                                                    value={formData.DueDate ? formData.DueDate.split("T")[0] : ""}
+                                                    onChange={handleInputChange}
+                                                    readOnly
+                                                />
+                                            </div>
+
+                                            <div className="col-12 col-md-6 mb-3">
+                                                <label className="form-label">Priority<span className="text-danger">*</span></label>
+                                                <select
+                                                    className="form-select form-select-sm premium-input"
+                                                    name="Priority"
+                                                    value={formData.Priority}
+                                                    onChange={handleInputChange}
+                                                    required
+                                                    disabled
+                                                >
+                                                    <option>Choose Priority</option>
+                                                    <option value="3">Low</option>
+                                                    <option value="2">Medium</option>
+                                                    <option value="1">High</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="col-12 col-md-6 mb-3">
+                                                <label className="form-label">Status<span className="text-danger">*</span></label>
+                                                <select
+                                                    className="form-select form-select-sm premium-input"
+                                                    name="MachineStatus"
+                                                    value={formData.MachineStatus}
+                                                    onChange={handleInputChange}
+                                                    disabled
+                                                    required
+                                                >
+                                                    <option>Choose Status</option>
+                                                    <option value="OUTOFSERVICE">Out of service</option>
+                                                    <option value="ACTIVE">ACTIVE</option>
+                                                </select>
+                                            </div>
+
+                                            <div className="col-12 col-md-6 mb-3">
+                                                <label className="form-label">Upload Image</label>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={handleFileChange}
+                                                    className="form-control form-control-sm premium-input"
+                                                />
+                                            </div>
+
+                                            <div className="col-12 mb-3">
+                                                <label className="form-label">
+                                                    Description <span className="text-danger">*</span>
+                                                </label>
+                                                <textarea
+                                                    name="Description"
+                                                    className="form-control form-control-sm premium-input"
+                                                    placeholder="Enter description"
+                                                    value={formData.Description}
+                                                    onChange={handleInputChange}
+                                                    autoComplete="off"
+                                                    rows={5}
+                                                // readOnly
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {formData?.ImageUrl && (
+                                        <div className="premium-form-card mt-4">
+                                            <div className="premium-form-section-title">Uploaded Images</div>
+
+                                            <div className="d-flex flex-wrap gap-3 mt-3">
+                                                {formData.ImageUrl.split(",").map((url, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className="premium-image-tile position-relative"
+                                                    >
+                                                        <img
+                                                            src={`${BASE_IMAGE_API_GET}${url.trim()}`}
+                                                            alt={`Uploaded ${index + 1}`}
+                                                            className="img-fluid"
+                                                        />
+
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm premium-image-btn premium-image-btn-view position-absolute top-0 end-0 m-2 rounded-circle"
+                                                            onClick={() => setPreviewImage(`${BASE_IMAGE_API_GET}${url.trim()}`)}
+                                                        >
+                                                            <i className="fa fa-eye"></i>
+                                                        </button>
+
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-sm premium-image-btn premium-image-btn-delete position-absolute top-0 start-0 m-2 rounded-circle"
+                                                            onClick={() => handleRemoveOldImage(url.trim())}
+                                                        >
+                                                            <i className="fa fa-times"></i>
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </form>
+                        </div>
                     </div>
+
                 </div>
-            </form>
-            {/* Image Preview Modal */}
+            )}
+
             {previewImage && (
                 <div
                     className="modal fade show"
-                    style={{
-                        display: "block",
-                        backgroundColor: "rgba(0,0,0,0.6)",
-                    }}
+                    style={{ display: "block", backgroundColor: "rgba(0,0,0,0.6)" }}
                     onClick={() => setPreviewImage(null)}
                 >
-                    <div
-                        className="modal-dialog modal-dialog-centered"
-                        onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-content">
                             <div className="modal-body text-center">
                                 <img
@@ -510,10 +498,7 @@ export default function EditTicket({ editObj }) {
                                 />
                             </div>
                             <div className="modal-footer justify-content-center">
-                                <button
-                                    className="btn btn-secondary btn-sm"
-                                    onClick={() => setPreviewImage(null)}
-                                >
+                                <button className="btn btn-secondary btn-sm" onClick={() => setPreviewImage(null)}>
                                     Close
                                 </button>
                             </div>
@@ -521,10 +506,138 @@ export default function EditTicket({ editObj }) {
                     </div>
                 </div>
             )}
-        </div>
+
+            <style>
+                {`
+                    .premium-ticket-modal {
+    border: 0;
+    border-radius: 24px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #ffffff, #f9fbff);
+    box-shadow: 0 30px 70px rgba(15, 23, 42, 0.16);
+}
+
+.premium-ticket-modal-header {
+    padding: 20px 24px;
+    background:
+        radial-gradient(circle at top right, rgba(59, 130, 246, 0.10), transparent 28%),
+        linear-gradient(145deg, #ffffff, #f6faff);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.premium-ticket-modal-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(145deg, #2563eb, #0f766e);
+    color: #fff;
+    font-size: 18px;
+    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.20);
+}
+
+.premium-ticket-code-mini {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: linear-gradient(145deg, #eef4ff, #dbeafe);
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.premium-submit-btn {
+    border: none !important;
+    border-radius: 12px !important;
+    background: linear-gradient(145deg, #2563eb, #0f766e) !important;
+    color: #fff !important;
+    padding: 8px 14px !important;
+    font-weight: 700 !important;
+    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.16);
+}
+
+.premium-ticket-modal-body {
+    padding: 22px 24px 24px;
+    background: linear-gradient(180deg, #f9fbff 0%, #f4f8fd 100%);
+}
+
+.premium-form-card {
+    background: rgba(255, 255, 255, 0.88);
+    border: 1px solid rgba(15, 23, 42, 0.06);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.premium-form-section-title {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #334155;
+    margin-bottom: 16px;
+}
+
+.premium-input {
+    border-radius: 12px !important;
+    border: 1px solid #dbe4f0 !important;
+    background: #fdfefe !important;
+    min-height: 40px;
+    box-shadow: none !important;
+}
+
+.premium-input:focus {
+    border-color: #93c5fd !important;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.10) !important;
+}
+
+.premium-image-tile {
+    width: 130px;
+    height: 130px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.10);
+}
+
+.premium-image-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.premium-image-btn {
+    width: 30px;
+    height: 30px;
+    padding: 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none !important;
+}
+
+.premium-image-btn-view {
+    background: #eff6ff !important;
+    color: #2563eb !important;
+}
+
+.premium-image-btn-delete {
+    background: #fff1f2 !important;
+    color: #dc2626 !important;
+}
+
+                `}
+            </style>
+        </>
     );
+
 }
 
 EditTicket.propTypes = {
-    editObj: PropTypes.object.isRequired,
+    editTicketId: PropTypes.number.isRequired,
+    onClose: PropTypes.func.isRequired,
 };

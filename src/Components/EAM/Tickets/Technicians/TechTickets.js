@@ -56,7 +56,7 @@ export default function TechTicketsList() {
             const userData = JSON.parse(userDataString);
             setSessionUserData(userData);
         } else {
-            navigate("/");
+            // navigate("/");
         }
     }, [navigate]);
 
@@ -219,6 +219,12 @@ export default function TechTicketsList() {
                     icon: "bi-check-all",
                     label: "Tech Fixed"
                 };
+            case "pending_with_client":
+                return {
+                    className: "status-pending",
+                    icon: "bi-hourglass",
+                    label: "Pending With Client"
+                };
             default:
                 return {
                     className: "status-default",
@@ -361,10 +367,141 @@ export default function TechTicketsList() {
             console.error("Fetch Error:", err);
             Swal.fire("Error", "Something went wrong while connecting to the server", "error");
         }
+    }; 
+    
+    const formatDuration = (totalSeconds) => {
+        const seconds = Math.max(0, totalSeconds);
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        return `${hrs}h ${mins}m`;
     };
-
+    
+    const getAgingLabel = (item) => {
+        if (!item?.CreatedOnTime) return "N/A";
+    
+        const priorityHoursMap = {
+            High: 2,
+            Medium: 5,
+            Low: 8,
+        };
+    
+        const slaHours = priorityHoursMap[item?.Priority];
+        if (!slaHours) return "N/A";
+    
+        // ✅ FIX: Strip the 'Z' so JS treats it as LOCAL time, not UTC
+        const rawTime = String(item.CreatedOnTime).trim().replace("Z", "");
+        const created = new Date(rawTime);
+        const now = new Date();
+    
+        if (isNaN(created.getTime())) return "N/A";
+    
+        const totalElapsedSeconds = Math.max(
+            0,
+            Math.floor((now.getTime() - created.getTime()) / 1000)
+        );
+    
+        const pausedSeconds = Math.max(0, Number(item?.TotalPauseSeconds) || 0);
+    
+        const effectiveElapsedSeconds = Math.max(
+            0,
+            totalElapsedSeconds - pausedSeconds
+        );
+    
+        const slaSeconds = slaHours * 3600;
+        const remainingSeconds = slaSeconds - effectiveElapsedSeconds;
+    
+        if (item?.Status === "TECH_FIXED") {
+            return `Stopped at ${formatDuration(effectiveElapsedSeconds)}`;
+        }
+    
+        if (item?.Status === "PENDING_WITH_CLIENT") {
+            return remainingSeconds < 0
+                ? `Paused | ${formatDuration(Math.abs(remainingSeconds))} overdue`
+                : `Paused | ${formatDuration(remainingSeconds)} left`;
+        }
+    
+        return remainingSeconds < 0
+            ? `${formatDuration(Math.abs(remainingSeconds))} overdue`
+            : `${formatDuration(remainingSeconds)} left`;
+    };
+    
+    const getAgingStatus = (item) => {
+        const label = getAgingLabel(item);
+        if (!label || label === "N/A") return { label, type: "neutral" };
+        if (label.startsWith("Stopped")) return { label, type: "stopped" };
+        if (label.includes("overdue")) return { label, type: "overdue" };
+        return { label, type: "left" };
+    };
+    
+    const AgingBadge = ({ item }) => {
+        const { label, type } = getAgingStatus(item);
+    
+        const styles = {
+            left: {
+                background: "var(--color-background-success)",
+                color: "var(--color-text-success)",
+                border: "0.5px solid var(--color-border-success)",
+                dot: "#1D9E75",
+            },
+            overdue: {
+                background: "var(--color-background-danger)",
+                color: "var(--color-text-danger)",
+                border: "0.5px solid var(--color-border-danger)",
+                dot: "#E24B4A",
+            },
+            stopped: {
+                background: "var(--color-background-secondary)",
+                color: "var(--color-text-secondary)",
+                border: "0.5px solid var(--color-border-secondary)",
+                dot: "#888780",
+            },
+            neutral: {
+                background: "var(--color-background-secondary)",
+                color: "var(--color-text-secondary)",
+                border: "0.5px solid var(--color-border-tertiary)",
+                dot: "#B4B2A9",
+            },
+        };
+    
+        const s = styles[type];
+    
+        return (
+            <span style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "3px 8px",
+                borderRadius: "999px",
+                fontSize: "12px",
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+                background: s.background,
+                color: s.color,
+                border: s.border,
+            }}>
+                <span style={{
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    background: s.dot,
+                    flexShrink: 0,
+                    ...(type === "overdue" && {
+                        animation: "pulse 1.5s ease-in-out infinite",
+                    }),
+                }} />
+                {label}
+                <style>{`
+                    @keyframes pulse {
+                        0%, 100% { opacity: 1; transform: scale(1); }
+                        50% { opacity: 0.4; transform: scale(0.7); }
+                    }
+                `}</style>
+            </span>
+        );
+    };
+    
     return (
-        <>
+        <div className="tech-tickets-page">
             <div id="kt_app_header" className="app-header text-white shadow-sm fixed-top" data-kt-sticky="true" style={{ backgroundColor: '#90e0ef' }}
                 data-kt-sticky-activate="{default: true, lg: true}" data-kt-sticky-name="app-header-minimize" data-kt-sticky-offset="{default: '200px', lg: '0'}" data-kt-sticky-animation="false">
                 <div className="app-container container-fluid d-flex align-items-stretch justify-content-between" id="kt_app_header_container">
@@ -472,7 +609,7 @@ export default function TechTicketsList() {
                                         />
                                     </div>
                                 </div>
-                                <div className="col-12 col-md-4 mb-3">
+                                {/* <div className="col-12 col-md-4 mb-3">
                                     <label className="filter-label">Raised User</label>
                                     <Select
                                         placeholder="Select user by name or email"
@@ -492,7 +629,7 @@ export default function TechTicketsList() {
                                             label: `${item.ItemValue} (${item.DisplayValue})`
                                         }))}
                                     />
-                                </div>
+                                </div> */}
                                 <div className="col-12 col-md-2">
                                     <button
                                         className="btn btn-primary modern-btn w-100"
@@ -570,7 +707,7 @@ export default function TechTicketsList() {
                                                 <th className="min-w-145px text-center">Raised By</th>
                                                 <th className="min-w-100px text-center">Priority</th>
                                                 <th className="min-w-100px text-center">Status</th>
-                                                <th className="min-w-100px text-center">Due Date</th>
+                                                <th className="min-w-100px text-center">Due</th>
                                                 <th className="min-w-120px">Aging</th>
                                             </tr>
                                         </thead>
@@ -622,9 +759,9 @@ export default function TechTicketsList() {
                                                         <td className="text-center">
                                                             {(() => {
                                                                 const priorityConfig = {
-                                                                    High: { class: "badge-light-danger", label: "High" },
-                                                                    Medium: { class: "badge-light-warning", label: "Medium" },
-                                                                    Low: { class: "badge-light-primary", label: "Low" },
+                                                                    High: { class: "ticket-priority-high", label: "High" },
+                                                                    Medium: { class: "ticket-priority-medium", label: "Medium" },
+                                                                    Low: { class: "ticket-priority-low", label: "Low" },
                                                                 };
 
                                                                 const config = priorityConfig[item.Priority] || {
@@ -632,69 +769,51 @@ export default function TechTicketsList() {
                                                                     label: "N/A"
                                                                 };
 
-                                                                return <span className={`badge ${config.class}`}>{config.label}</span>;
+                                                                return <span className={`badge ticket-priority ${config.class}`}>{config.label}</span>;
                                                             })()}
                                                         </td>
                                                         <td className="text-center align-middle">
                                                             {(() => {
                                                                 const config = getStatusBadgeConfig(item.Status);
                                                                 return (
-                                                                    <div className={`status-badge-wrapper ${config.className}`}>
-                                                                        <i className={`bi ${config.icon} status-icon`}></i>
+                                                                    <div className={`status-badge-wrapper rounded ${config.className}`}>
+                                                                        <i className={`bi ${config.icon} status-icon me-1`}></i>
                                                                         <span className="status-text">{config.label}</span>
                                                                         <span className="status-pulse"></span>
                                                                     </div>
                                                                 );
                                                             })()}
                                                         </td>
-                                                        <td className="text-danger text-center">{formatToDDMMYYYY(item.DueDate)}</td>
-                                                        <td>{item.Aging || 'N/A'}</td>
-                                                        {/* <td>
-                                                            <Popover
-                                                                placement="bottomLeft"
-                                                                trigger="hover"
-                                                                overlayClassName="custom-popover"
-                                                                content={
-                                                                    <div className="d-flex flex-column gap-2 p-1" style={{ width: '9rem' }}>
-                                                                        <div
-                                                                            className="action-badge bg-light-primary text-primary"
-                                                                            data-bs-toggle="offcanvas"
-                                                                            data-bs-target="#offcanvasRightViewMore"
-                                                                            onClick={() => handleViewClick(item)}
-                                                                        >
-                                                                            <i className="bi bi-eye text-primary"></i>
-                                                                            <span>View Detail</span>
-                                                                        </div>
-                                                                        <div
-                                                                            className="action-badge bg-light-info text-info"
-                                                                            data-bs-toggle="offcanvas"
-                                                                            data-bs-target="#offcanvasRightComponents"
-                                                                            onClick={() => handleCommentClick(item)}
-                                                                        >
-                                                                            <i className="bi bi-chat-dots text-info"></i>
-                                                                            <span>Comments</span>
-                                                                        </div>
-                                                                        {(() => {
-                                                                            const isActionable = ["ASSIGNED", "MODIFIED"].includes(item.Status?.toUpperCase());
-                                                                            return (
-                                                                                <div
-                                                                                    onClick={() => isActionable && handleIsFixedClick(item)}
-                                                                                    className={`action-badge ${isActionable ? 'bg-light-success text-success' : 'bg-light-secondary text-muted disabled-badge'}`}
-                                                                                    title={!isActionable ? "Status must be Assigned/Modified" : ""}
-                                                                                >
-                                                                                    <i className={`bi bi-person-gear text-success ${isActionable ? 'animate-pulse' : ''}`}></i>
-                                                                                    <span>Is Fixed</span>
-                                                                                </div>
-                                                                            );
-                                                                        })()}
-                                                                    </div>
-                                                                }
-                                                            >
-                                                                <button className="btn btn-icon btn-light-primary btn-sm rounded-circle hover-rotate">
-                                                                    <i className="fa-solid fa-ellipsis-vertical"></i>
-                                                                </button>
-                                                            </Popover>
-                                                        </td> */}
+                                                        {/* DUE */}
+                                                        <td className="text-center">
+                                                            {(() => {
+                                                                const dueConfig = {
+                                                                    High: { text: "1 hr - High", className: "badge-light-danger" },
+                                                                    Medium: { text: "5 hrs - Medium", className: "badge-light-warning" },
+                                                                    Low: { text: "8 hrs - Low", className: "badge-light-primary" },
+                                                                };
+
+                                                                const config = dueConfig[item.Priority] || {
+                                                                    text: "-",
+                                                                    className: "badge-light-secondary",
+                                                                };
+
+                                                                return (
+                                                                    <span className={`badge ${config.className}`}>
+                                                                        {config.text}
+                                                                    </span>
+                                                                );
+                                                            })()}
+                                                        </td>
+
+                                                        {/* AGING */}
+                                                        <td>
+    <Tooltip title={getAgingLabel(item)}>
+        <span style={{ display: "inline-block" }}>
+            <AgingBadge item={item} />
+        </span>
+    </Tooltip>
+</td>
                                                     </tr>
                                                 ))
                                             ) : (
@@ -828,39 +947,36 @@ export default function TechTicketsList() {
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
 
                 <style>
                     {`
                     .hover-link {
-    transition: all 0.2s ease;
-}
+                            transition: all 0.2s ease;
+                        }
 
-.hover-link:hover {
-    color: #004dc7 !important; /* Slightly darker blue */
-    text-decoration: none;
-    background-color: #f0f7ff;
-    padding: 2px 4px;
-    border-radius: 4px;
-}
-                    /* Badge Wrapper */
-                    .status-badge-wrapper {
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 6px;
-                        padding: 4px 12px;
-                        border-radius: 50px;
-                        font-size: 11px;
-                        font-weight: 700;
-                        text-transform: uppercase;
-                        letter-spacing: 0.5px;
-                        position: relative;
-                        overflow: hidden;
-                        transition: all 0.3s ease;
-                        border: 1px solid transparent;
-                    }
+                        .hover-link:hover {
+                            color: #004dc7 !important; /* Slightly darker blue */
+                            text-decoration: none;
+                            background-color: #f0f7ff;
+                            padding: 2px 4px;
+                            border-radius: 4px;
+                        }
+                                        .ticket-priority-high {
+                        background: #fff5f8;
+                        color: #f1416c;
+                        }
+
+                        .ticket-priority-medium {
+                        background: #fff8dd;
+                        color: #f6c000;
+                        }
+
+                        .ticket-priority-low {
+                        background: #eef6ff;
+                        color: #0095ff;
+                        }
 
                     /* Assigned Style (Blue) */
                     .status-assigned {
@@ -874,6 +990,11 @@ export default function TechTicketsList() {
                         background-color: #e8fff3;
                         color: #198754;
                         border-color: #c3e6cb;
+                    }
+                    .status-pending {
+                        background-color: #fff8dd;
+                        color: #ffc107;
+                        border-color: #ffe69c;
                     }
 
                     /* Default Style (Gray) */
@@ -899,44 +1020,47 @@ export default function TechTicketsList() {
 
                     .status-assigned .status-pulse { background-color: #007bff; animation: pulse-blue 2s infinite; }
                     .status-fixed .status-pulse { background-color: #198754; animation: pulse-green 2s infinite; }
+                    .status-pending .status-pulse {
+                        background-color: #ffc107;
+                        animation: pulse-warning 2s infinite;
+                        }
 
-                    /* Animations */
-                    @keyframes pulse-blue {
-                        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7); }
-                        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 123, 255, 0); }
-                        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 123, 255, 0); }
-                    }
+                       @keyframes pulse-warning {
+                            0% {
+                                box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+                            }
+                            70% {
+                                box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+                            }
+                            100% {
+                                box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+                            }
+                        }
 
-                    @keyframes pulse-green {
-                        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
-                        70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(25, 135, 84, 0); }
-                        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
-                    }
+                        @keyframes pulse-green {
+                            0% {
+                                box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
+                            }
+                            70% {
+                                box-shadow: 0 0 0 10px rgba(25, 135, 84, 0);
+                            }
+                            100% {
+                                box-shadow: 0 0 0 0 rgba(25, 135, 84, 0);
+                            }
+                        }
 
-                    /* Subtle Hover Effect */
-                    .status-badge-wrapper:hover {
-                        transform: translateY(-1px);
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.05);
-                    }
-                    /* Unique Action Badges inside Popover */
-                    .action-badge {
-                        display: flex;
-                        align-items: center;
-                        gap: 12px;
-                        padding: 10px 14px;
-                        border-radius: 10px;
-                        font-size: 0.85rem;
-                        font-weight: 600;
-                        cursor: pointer;
-                        transition: background 0.2s ease;
-                    }
-
-                    /* Background Soft Colors */
-                    .bg-light-primary { background-color: #f1f8ff; color: #0095ff; }
-                    .bg-light-info { background-color: #f0fdf4; color: #17a2b8; }
-                    .bg-light-success { background-color: #f6ffed; color: #52c41a; }
-                    .bg-light-secondary { background-color: #f8f9fa; color: #6c757d; }
-
+                        @keyframes pulse-blue {
+                            0% {
+                                box-shadow: 0 0 0 0 rgba(13, 110, 253, 0.7);
+                            }
+                            70% {
+                                box-shadow: 0 0 0 10px rgba(13, 110, 253, 0);
+                            }
+                            100% {
+                                box-shadow: 0 0 0 0 rgba(13, 110, 253, 0);
+                            }
+                        }
+                  
                     /* Desktop-specific hide: Make sure your table has this class */
                     @media (max-width: 767px) {
                         .table-responsive.d-none.d-md-block {
@@ -1049,52 +1173,7 @@ export default function TechTicketsList() {
                         border-radius: 12px;
                         font-weight: 600;
                     }
-                    /* Container for each menu item */
-                    .action-badge {
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        padding: 8px 12px;
-                        border-radius: 8px;
-                        font-size: 0.85rem;
-                        font-weight: 500;
-                        cursor: pointer;
-                        transition: all 0.2s ease-in-out;
-                        border: 1px solid transparent;
-                    }
-
-                    /* Hover Effects: Lift and Brighten */
-                    .action-badge:hover {
-                        transform: translateX(5px); /* Subtle slide to the right */
-                        filter: brightness(0.95);
-                        border-color: rgba(0,0,0,0.05);
-                        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-                    }
-
-                    /* Specific Badge Colors */
-                    .bg-light-primary { background-color: #e1f0ff !important; }
-                    .bg-light-info { background-color: #e0f7fa !important; }
-                    .bg-light-success { background-color: #cff4fc !important; } /* Soft Mint */
-                    .bg-light-secondary { background-color: #f5f5f5 !important; }
-
-                    /* Disabled State */
-                    .disabled-badge {
-                        cursor: not-allowed !important;
-                        filter: grayscale(1);
-                        opacity: 0.6;
-                    }
-
-                    /* Animation for the 'Fixed' icon to draw attention if enabled */
-                    .animate-pulse {
-                        animation: pulse-green 2s infinite;
-                    }
-
-                    @keyframes pulse-green {
-                        0% { transform: scale(1); }
-                        50% { transform: scale(1.1); }
-                        100% { transform: scale(1); }
-                    }
-
+                   
                     /* Rotate the 3-dot button on hover */
                     .hover-rotate:hover i {
                         transform: rotate(90deg);
@@ -1178,6 +1257,6 @@ export default function TechTicketsList() {
 
             <TicketViewDetails ticObj={viewData} />
             <TicketViewComments ticObj={commentData} />
-        </>
+        </div>
     )
 }

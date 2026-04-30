@@ -31,8 +31,18 @@ import AssetViewMore from './Components/EAM/Asset/ViewMore';
 import TechTicketsList from './Components/EAM/Tickets/Technicians/TechTickets';
 
 import UserAccessDoc from './Components/EDM/UserAccess/UserAccess';
-import OrgChart from './Components/orgCharts/OrgChartPage1';
+// import OrgChart from './Components/orgCharts/OrgChartPage1';
 import InactiveAssetsList from './Components/EAM/Asset/InactiveAssets';
+import Help1 from './Components/FAQs/help1';
+import TechHelp1 from './Components/FAQs/techHelp';
+import FullOrgChartstatic from './Components/orgCharts/fullOrgchartstatic';
+import ReminderScreen from './Components/FAQs/reminder';
+import SampleRM from './Components/RM/sample';
+import ItemMasterDetails from './Components/RM/sampleView';
+import SampleRM1 from './Components/RM/sample1';
+import InActiveDocsList from './Components/EDM/Documents/InactiveDocsList';
+// import OrganizationFlowChart from './Components/orgCharts/NewOrgChart';
+import FlowBuilderC from './Components/FBC/flowbuilder2';
 
 function App() {
   return (
@@ -85,9 +95,26 @@ function App() {
               <Route path="/edm/documents" element={<DocumentList />} />
               <Route path="/edm/doc-version/:docId" element={<DocVersion />} />
               <Route path="/edm/user-access" element={<UserAccessDoc />} />
+              <Route path="/edm/inactive-docs" element={<InActiveDocsList />} />
 
               {/* Organization charts */}
-              <Route path="/org-chart" element={<OrgChart />} />
+              {/* <Route path="/org-chart" element={<OrgChart />} /> */}
+
+              {/* FAQs */}
+              <Route path="/faq" element={<Help1 />} />
+              <Route path="/tech-faqs" element={<TechHelp1 />} />
+              <Route path="/organization-chart" element={<FullOrgChartstatic />} />
+              <Route path="/remi" element={<ReminderScreen />} />
+              {/* <Route path="/org" element={<OrganizationFlowChart />} /> */}
+
+              {/* Repository Management */}
+              <Route path="/rm-list" element={<SampleRM />} />
+              <Route path="/item-master/:id" element={<ItemMasterDetails />} />
+              <Route path="/rm/upload-documents" element={<SampleRM1 />} />
+
+              {/* Flow Builder */}
+              <Route path="/fb" element={<FlowBuilderC />} />
+
             </Routes>
           }
         />

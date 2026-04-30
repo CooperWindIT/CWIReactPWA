@@ -17,7 +17,7 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
     const [modulesData, setModulesData] = useState([]);
     const [alertDates, setAlertDates] = useState([]); // holds generated alert dates
     const [masterName, setMasterName] = useState('');
-    const [machineIsMaint, setMachineIsMaint] = useState(null);
+    const [machineIsMaint, setMachineIsMaint] = useState(false);
     const [machineIsMaintCheck, setMachineIsMaintCheck] = useState(null);
     const [sessionModuleId, setSessionModuleId] = useState(null);
     const { Option } = Select;
@@ -65,6 +65,7 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
     useEffect(() => {
         if (machineId && machineId !== 0 && documentsData?.length > 0 && sessionModuleId == 15) {
             const selectedMachine = documentsData.find(mcn => mcn.ItemId == machineId);
+            setMachineIsMaint(true)
 
             if (selectedMachine) {
                 setMasterName(selectedMachine.ItemValue || '');
@@ -271,7 +272,6 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
                     Message: `${moduleLabels[sessionModuleId] || ""} Name: ${masterName}, ${formData?.Message}`,
                     OcurrenceType: formData?.OcurrenceType,
                     ToUsers: sessionUserData?.Email,
-                    // ToUsers: formData?.ToUsers,
                     StartDate: formData?.StartDate,
                     EndDate: formData?.EndDate,
                     PocId: sessionUserData?.ManagerId,
@@ -476,6 +476,25 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
         }
     }, [machineIsMaint]);
 
+    const filteredAlertTypes =
+        Number(sessionModuleId) === 15
+            ? alertTypesData?.filter(item =>
+                machineIsMaint === true
+                    ? item.DirectAssign === true
+                    : item.DirectAssign === false
+            )
+            : alertTypesData;
+
+    const directAssignType = alertTypesData?.find(
+        (item) => item.DirectAssign === true
+    );
+
+    useEffect(() => {
+        if (sessionModuleId == 15 && machineIsMaint && directAssignType) {
+            handleSelectChange("AlertTypeId", directAssignType.Id);
+        }
+    }, [sessionModuleId, machineIsMaint, directAssignType]);
+
     return (
         <div
             ref={offcanvasRef}
@@ -561,27 +580,27 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
                     paddingBottom: '2rem',
                     maxHeight: 'calc(100vh - 100px)'
                 }}>
-                    {sessionModuleId != 15 && (
-                        <div className="d-flex justify-content-end align-items-center gap-2 mb-2">
-                            <div className="d-flex align-items-center">
-                                <span className="ms-2 fw-semibold">Is Maintenance</span>
-                                <Tooltip
-                                    title="This maintenance option is to create a maintenance alert for assets. Choose this only if creating an alert specifically for maintenance."
-                                    placement="top"
-                                    overlayStyle={{ maxWidth: '290px' }} // Keeps the tooltip from becoming too wide
-                                >
-                                    <i className="bi bi-info-circle ms-2 text-primary cursor-help fa-beat-fade" style={{ fontSize: '1rem' }}></i>
-                                </Tooltip>
-                            </div>
-                            <Switch
-                                checkedChildren="YES"
-                                unCheckedChildren="NO"
-                                onChange={(checked) => setMachineIsMaint(checked)}
-                                disabled={machineIsMaintCheck}
-                                checked={machineIsMaint}
-                            />
+                    {/* {sessionModuleId != 15 && ( */}
+                    <div className="d-flex justify-content-end align-items-center gap-2 mb-2">
+                        <div className="d-flex align-items-center">
+                            <span className="ms-2 fw-semibold">Is {sessionModuleId != 15 ? "Maintenance" : "Expiry"}</span>
+                            <Tooltip
+                                title="This maintenance option is to create a maintenance alert for assets. Choose this only if creating an alert specifically for maintenance."
+                                placement="top"
+                                overlayStyle={{ maxWidth: '290px' }} // Keeps the tooltip from becoming too wide
+                            >
+                                <i className="bi bi-info-circle ms-2 text-primary cursor-help fa-beat-fade" style={{ fontSize: '1rem' }}></i>
+                            </Tooltip>
                         </div>
-                    )}
+                        <Switch
+                            checkedChildren="YES"
+                            unCheckedChildren="NO"
+                            onChange={(checked) => setMachineIsMaint(checked)}
+                            disabled={machineIsMaintCheck}
+                            checked={machineIsMaint}
+                        />
+                    </div>
+                    {/* )} */}
 
                     <div className="row">
                         <div className="col-12 col-md-6 mb-2 position-relative">
@@ -602,80 +621,56 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
                             <Select
                                 placeholder="Select Type"
                                 showSearch
-                                allowClear
+                                allowClear={sessionModuleId != 15}
+                                disabled={sessionModuleId == 15 && machineIsMaint}
                                 filterOption={(input, option) =>
                                     option?.children?.toLowerCase().includes(input.toLowerCase())
                                 }
                                 style={{ height: '2.8rem', width: '100%' }}
-                                value={formData.AlertTypeId || undefined}
+
+                                value={
+                                    sessionModuleId == 15 && machineIsMaint
+                                        ? directAssignType?.Id   // only force for maintenance
+                                        : formData.AlertTypeId
+                                }
+
                                 onChange={(value) => handleSelectChange("AlertTypeId", value)}
                             >
-                                {Array.isArray(alertTypesData) &&
-                                    alertTypesData.map((item) => (
-                                        <Option key={item.Id} value={item.Id}>
-                                            {item.TypeName}
-                                        </Option>
-                                    ))}
+                                {filteredAlertTypes?.map((item) => (
+                                    <Option key={item.Id} value={item.Id}>
+                                        {item.TypeName}
+                                    </Option>
+                                ))}
                             </Select>
                         </div>
                         <div className="col-12 col-md-6 mb-2">
-    <label className="form-label d-flex align-items-center">
-        Occurrence Type<span className="text-danger me-1">*</span>
-        <Tooltip title="Select how often this event or maintenance task should repeat.">
-            <i className="bi bi-info-circle text-primary" style={{ cursor: 'help', fontSize: '0.9rem' }}></i>
-        </Tooltip>
-    </label>
+                            <label className="form-label d-flex align-items-center">
+                                Occurrence Type<span className="text-danger me-1">*</span>
+                                <Tooltip title="Select how often this event or maintenance task should repeat.">
+                                    <i className="bi bi-info-circle text-primary" style={{ cursor: 'help', fontSize: '0.9rem' }}></i>
+                                </Tooltip>
+                            </label>
 
-    <Select
-        placeholder="Choose occurrence type"
-        value={formData.OcurrenceType || undefined}
-        onChange={(value) =>
-            handleInputChange({ target: { name: "OcurrenceType", value } })
-        }
-        style={{ height: "2.8rem", width: "100%" }}
-        allowClear
-        showSearch
-        optionFilterProp="children"
-        disabled={machineIsMaint}
-    >
-        <Option value="1">Once</Option>
-        <Option value="2">Weekly</Option>
-        <Option value="3">Monthly</Option>
-        <Option value="4">Quarterly</Option>
-        <Option value="5">Half-Yearly</Option>
-        <Option value="6">Yearly</Option>
-    </Select>
-</div>
-
-                        {/* <div className="col-12 col-md-6 mb-2">
-                            <label className="form-label">To Users<span className="text-danger">*</span></label>
                             <Select
-                                mode="multiple"
-                                placeholder="Select Users"
-                                showSearch
-                                allowClear
-                                value={formData.ToUsers ? formData.ToUsers.split(",") : []}
+                                placeholder="Choose occurrence type"
+                                value={formData.OcurrenceType || undefined}
                                 onChange={(value) =>
-                                    handleSelectChange("ToUsers", value.join(","))
+                                    handleInputChange({ target: { name: "OcurrenceType", value } })
                                 }
-                                style={{ width: "100%", height: '2.8rem' }}
-                                maxTagCount="responsive"
-                                filterOption={(input, option) => {
-                                    const searchText = input.toLowerCase();
-                                    const label = String(option?.label || "").toLowerCase();
-                                    const value = String(option?.value || "").toLowerCase();
-
-                                    return label.includes(searchText) || value.includes(searchText);
-                                }}
-                                options={Array.isArray(usersData)
-                                    ? usersData.map(item => ({
-                                        value: item.DisplayValue, // email
-                                        label: `${item.ItemValue} (${item.DisplayValue})`, // name + email
-                                    }))
-                                    : []}
-                            />
-                        </div> */}
-
+                                style={{ height: "2.8rem", width: "100%" }}
+                                allowClear
+                                showSearch
+                                optionFilterProp="children"
+                                disabled={machineIsMaint}
+                            >
+                                <Option value="1">Once</Option>
+                                <Option value="2">Weekly</Option>
+                                <Option value="3">Monthly</Option>
+                                <Option value="4">Quarterly</Option>
+                                <Option value="5">Half-Yearly</Option>
+                                <Option value="6">Yearly</Option>
+                            </Select>
+                        </div>
                         <div className="col-12 col-md-6 mb-2">
                             <label className="form-label d-flex align-items-center gap-1">
                                 POC for Closure

@@ -16,6 +16,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
     const [sessionModuleId, setSessionModuleId] = useState(null);
     const [sessionActionIds, setSessionActionIds] = useState([]);
     const [dataLoading, setDataLoading] = useState(false);
+    const [typeSearchQuery, setTypeSearchQuery] = useState("");
 
     const { Option } = Select;
 
@@ -29,28 +30,28 @@ export default function RegisterMasterTypes({ typeCategory }) {
             setSessionModuleId(moduleId);
         }
     }, []);
-    
+
     useEffect(() => {
         try {
             const rawMenu = sessionStorage.getItem("menuData");
             const parsedMenu = JSON.parse(rawMenu || "[]");
-            
+
             // Ensure we have a valid number for comparison
-            const modId = Number(sessionModuleId); 
+            const modId = Number(sessionModuleId);
             let targetName = '';
-    
+
             if (modId === 14) {
                 targetName = 'Assets';
             } else if (modId === 15) {
                 targetName = 'Documents';
             }
-    
+
             if (targetName) {
                 // Use .trim() and .toLowerCase() for a safer match
-                const checkMenu = parsedMenu.find(item => 
+                const checkMenu = parsedMenu.find(item =>
                     item.MenuName?.trim().toLowerCase() === targetName.toLowerCase()
                 );
-    
+
                 if (checkMenu?.ActionsIds) {
                     const actionIdArray = checkMenu.ActionsIds.split(",").map(Number);
                     setSessionActionIds(actionIdArray);
@@ -115,14 +116,14 @@ export default function RegisterMasterTypes({ typeCategory }) {
                     headers: { "Content-Type": "application/json" },
                 }
             );
-            
+
             if (!response.ok) throw new Error("Network response was not ok");
-            
+
             const data = await response.json();
-            
+
             setAssetTypesData(data.ResultData || []);
             setDataLoading(false);
-            
+
         } catch (error) {
             console.error("Failed to fetch DDL data:", error);
             setAssetTypesData([]);
@@ -130,19 +131,10 @@ export default function RegisterMasterTypes({ typeCategory }) {
         }
     }, [sessionUserData, selectedAddDeptId, sessionModuleId, typeCategory]);
 
-    // useEffect(() => {
-    //     if (selectedAddDeptId) {
-    //         fetchMasterTypes();
-    //     }
-    // }, [selectedAddDeptId]);
-
     useEffect(() => {
-        // Only fetch if we have the required OrgId to avoid 400 errors
         if (sessionUserData?.OrgId) {
             fetchMasterTypes();
         }
-        // We include typeCategory so it re-fetches when switching 
-        // between Alert (3) and Document (2) types
     }, [fetchMasterTypes, sessionUserData?.OrgId, typeCategory]);
 
     useEffect(() => {
@@ -185,9 +177,9 @@ export default function RegisterMasterTypes({ typeCategory }) {
             TypeName: typeName,
             OrgId: sessionUserData.OrgId,
             CreatedBy: sessionUserData?.Id,
-            DeptId: (typeCategory === 2 || (typeCategory === 3 && sessionModuleId == 15)) 
-            ? 0 
-            : selectedAddDeptId,
+            DeptId: (typeCategory === 2 || (typeCategory === 3 && sessionModuleId == 15))
+                ? 0
+                : selectedAddDeptId,
             ModuleId: sessionModuleId,
             DirectAssign: isPeripheral ? 1 : 0,
         }
@@ -294,6 +286,10 @@ export default function RegisterMasterTypes({ typeCategory }) {
         });
     };
 
+    const filteredTypes = assetTypesData?.filter(type =>
+        type.TypeName?.toLowerCase().includes(typeSearchQuery.toLowerCase())
+    ) || [];
+
     const typeLabelMap = {
         1: "Asset",
         2: "Document",
@@ -320,7 +316,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
                 `}
             </style>
             <div>
-                <div className="offcanvas-header d-flex justify-content-between align-items-center">
+                <div className="offcanvas-header d-flex justify-content-between align-items-center mb-2">
                     <h5 id="offcanvasRightLabel" className="mb-0">{typeLabelMap[typeCategory] || "Type"} Types</h5>
                     <div className="d-flex align-items-center">
                         <button
@@ -332,154 +328,225 @@ export default function RegisterMasterTypes({ typeCategory }) {
                     </div>
                 </div>
                 <div className="offcanvas-body" style={{ marginTop: "-2rem", maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
-                    <div>
-                        <div className="row g-3 align-items-end mb-3">
-                            {/* Department Select */}
-                            {!(typeCategory === 2 || (typeCategory === 3 && sessionModuleId == 15)) && (
-                                <div className="col-12 col-md-4">
-                                    <label className="form-label fw-bold text-gray-700">Select Department<spn className="text-danger fw-bold">*</spn></label>
-                                    <Select
-                                        placeholder="Select Department"
-                                        showSearch
-                                        filterOption={(input, option) =>
-                                            option?.children?.toLowerCase().includes(input.toLowerCase())
-                                        }
-                                        style={{ height: '2.8rem', width: '100%' }}
-                                        className="w-100"
-                                        value={selectedAddDeptId || undefined}
-                                        onChange={(value) => setSelectedAddDeptId(value)}
-                                        disabled={addTypeLoading || sessionUserData?.RoleID === 3}
-                                    >
-                                        {deptsData?.map((dep) => {
-                                        const isUserDept = dep.ItemId === sessionUserData?.DeptId;
+                    <div className="card">
+                        <div className="p-5">
+                            <div className="row g-3 align-items-end mb-3">
+                                {/* Department Select */}
+                                {!(typeCategory === 2 || (typeCategory === 3 && sessionModuleId == 15)) && (
+                                    <div className="col-12 col-md-4">
+                                        <label className="form-label fw-bold text-gray-700">Select Department<spn className="text-danger fw-bold">*</spn></label>
+                                        <Select
+                                            placeholder="Select Department"
+                                            showSearch
+                                            filterOption={(input, option) =>
+                                                option?.children?.toLowerCase().includes(input.toLowerCase())
+                                            }
+                                            style={{ height: '2.8rem', width: '100%' }}
+                                            className="w-100"
+                                            value={selectedAddDeptId || undefined}
+                                            onChange={(value) => setSelectedAddDeptId(value)}
+                                            disabled={addTypeLoading || sessionUserData?.RoleID === 3}
+                                        >
+                                            {deptsData?.map((dep) => {
+                                                const isUserDept = dep.ItemId === sessionUserData?.DeptId;
 
-                                        return (
-                                            <Option key={dep.ItemId} value={dep.ItemId}>
-                                                <div className="d-flex justify-content-between align-items-center w-100">
-                                                    <span className={isUserDept ? "fw-bolder text-primary" : ""}>
-                                                        {dep.ItemValue}
-                                                    </span>
-                                                    {isUserDept && (
-                                                        <span
-                                                            className="badge badge-light-primary fw-bold"
-                                                            style={{ fontSize: '10px', padding: '2px 6px' }}
-                                                        >
-                                                            MY DEPT
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </Option>
-                                        );
-                                    })}
-                                    </Select>
+                                                return (
+                                                    <Option key={dep.ItemId} value={dep.ItemId}>
+                                                        <div className="d-flex justify-content-between align-items-center w-100">
+                                                            <span className={isUserDept ? "fw-bolder text-primary" : ""}>
+                                                                {dep.ItemValue}
+                                                            </span>
+                                                            {isUserDept && (
+                                                                <span
+                                                                    className="badge badge-light-primary fw-bold"
+                                                                    style={{ fontSize: '10px', padding: '2px 6px' }}
+                                                                >
+                                                                    MY DEPT
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </Option>
+                                                );
+                                            })}
+                                        </Select>
+                                    </div>
+                                )}
+
+                                {/* Type Name Input */}
+                                <div className="col-12 col-md-5">
+                                    <label className="form-label fw-bold text-gray-700">
+                                        {typeLabelMap[typeCategory] || "Type"} Type Name<spn className="text-danger fw-bold">*</spn>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        className="form-control form-control-solid shadow-sm border border-dark"
+                                        placeholder="Enter type name"
+                                        style={{ height: '2.8rem' }}
+                                        value={typeName}
+                                        onChange={(e) => setTypeName(e.target.value)}
+                                        disabled={addTypeLoading}
+                                        required
+                                    />
                                 </div>
-                            )}
 
-                            {/* Type Name Input */}
-                            <div className="col-12 col-md-5">
-                                <label className="form-label fw-bold text-gray-700">
-                                    {typeLabelMap[typeCategory] || "Type"} Type Name<spn className="text-danger fw-bold">*</spn>
-                                </label>
-                                <input
-                                    type="text"
-                                    className="form-control form-control-solid"
-                                    placeholder="Enter type name"
-                                    style={{ height: '2.8rem' }}
-                                    value={typeName}
-                                    onChange={(e) => setTypeName(e.target.value)}
-                                    disabled={addTypeLoading}
-                                    required
-                                />
-                            </div>
-
-                            {sessionModuleId === '14' && typeCategory === 1 && (
-                                <div className="col-12 col-md-3">
-                                    <div className="d-flex align-items-center mb-2" style={{ height: '2.8rem' }}>
-                                        <div className="form-check form-switch form-check-custom form-check-solid">
-                                            <input
-                                                className="form-check-input h-25px w-45px cursor-pointer"
-                                                type="checkbox"
-                                                id="peripheralCheck"
-                                                checked={isPeripheral}
-                                                onChange={(e) => setIsPeripheral(e.target.checked)}
-                                                disabled={addTypeLoading}
-                                            />
-                                            <label className="form-check-label fw-bold text-gray-700 ms-3 d-flex align-items-center" htmlFor="peripheralCheck">
-                                                Direct Assign?
-                                                <Tooltip
-                                                    title="Assets of this type will be directly assigned to technicians automatically upon ticket approval."
-                                                    placement="top"
-                                                    color="#3E97FF"
-                                                >
-                                                    <span className="ms-2 text-muted opacity-75 cursor-help">
-                                                        <i className="bi bi-info-circle fs-7 text-primary"></i>
-                                                    </span>
-                                                </Tooltip>
-                                            </label>
+                                {sessionModuleId === '14' && typeCategory === 1 && (
+                                    <div className="col-12 col-md-3">
+                                        <div className="d-flex align-items-center mb-2" style={{ height: '2.8rem' }}>
+                                            <div className="form-check form-switch form-check-custom form-check-solid">
+                                                <input
+                                                    className="form-check-input h-25px w-45px cursor-pointer"
+                                                    type="checkbox"
+                                                    id="peripheralCheck"
+                                                    checked={isPeripheral}
+                                                    onChange={(e) => setIsPeripheral(e.target.checked)}
+                                                    disabled={addTypeLoading}
+                                                />
+                                                <label className="form-check-label fw-bold text-gray-700 ms-3 d-flex align-items-center" htmlFor="peripheralCheck">
+                                                    Direct Assign?
+                                                    <Tooltip
+                                                        title="Assets of this type will be directly assigned to technicians automatically upon ticket approval."
+                                                        placement="top"
+                                                        color="#3E97FF"
+                                                    >
+                                                        <span className="ms-2 text-muted opacity-75 cursor-help">
+                                                            <i className="bi bi-info-circle fs-7 text-primary"></i>
+                                                        </span>
+                                                    </Tooltip>
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
+                                )}
+                            </div>
 
-                        <div className="modal-footer">
-                            <button
-                                type="button"
-                                className="btn btn-secondary btn-sm me-2"
-                                onClick={handleClear}
-                                disabled={addTypeLoading}
-                            >
-                                <i className="fa-solid fa-broom"></i>Clear
-                            </button>
-                            <button
-                                type="button"
-                                className="btn btn-primary btn-sm"
-                                onClick={handleAddTypeSubmit}
-                                disabled={addTypeLoading}
-                            >
-                                <i className="bi bi-bookmark-check"></i>{addTypeLoading ? 'Submitting...' : 'Submit'}
-                            </button>
+                            <div className="modal-footer">
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm me-2"
+                                    onClick={handleClear}
+                                    disabled={addTypeLoading}
+                                >
+                                    <i className="fa-solid fa-broom"></i>Clear
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={handleAddTypeSubmit}
+                                    disabled={addTypeLoading}
+                                >
+                                    <i className="bi bi-bookmark-check"></i>{addTypeLoading ? 'Submitting...' : 'Submit'}
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    {/* <hr className="text-primary" /> */}
+                    <div className="card border-0 shadow-sm mt-4" style={{ borderRadius: '12px' }}>
+                        <div className="card-body p-4">
+                            <div className="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mb-4">
+                                <h5 className="fw-bold mb-0" style={{ color: "#1e293b" }}>
+                                    Existing {typeLabelMap[typeCategory]} Types
+                                    <span className="badge bg-light-primary text-primary ms-2 fs-9 px-2">
+                                        {filteredTypes.length} Total
+                                    </span>
+                                </h5>
 
-                    <div>
-                        {dataLoading && (
-                            <div className="text-center">
-                                <p className="text-center">Loading...</p>
+                                <div className="position-relative w-100 w-md-250px">
+                                    <i className="bi bi-search position-absolute top-50 translate-middle-y ms-3 text-muted"></i>
+                                    <input
+                                        type="text"
+                                        className="form-control form-control-solid ps-10 border-0 bg-light"
+                                        placeholder="Search types..."
+                                        style={{ borderRadius: '8px', fontSize: '0.85rem' }}
+                                        value={typeSearchQuery}
+                                        onChange={(e) => setTypeSearchQuery(e.target.value)}
+                                    />
+                                    {typeSearchQuery && (
+                                        <button
+                                            className="btn btn-flush position-absolute top-50 end-0 translate-middle-y me-2 p-0 border-0 bg-transparent"
+                                            onClick={() => setTypeSearchQuery("")}
+                                            type="button"
+                                        >
+                                            <i className="bi bi-x-circle-fill text-muted fs-7"></i>
+                                        </button>
+                                    )}
+                                </div>
                             </div>
-                        )}
-                        <h5 className="text-center">Existing {typeLabelMap[typeCategory]} Types</h5>
-                        <div className="table-responsive" style={{ overflowX: "hidden" }}>
-                            <table className="table table-bordered mt-3 table-stripped table-hover ">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Type Name</th>
-                                        <th className="text-center">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {assetTypesData && assetTypesData?.map((type, indx) => (
-                                        <tr key={indx}>
-                                            <td>{indx + 1}</td>
-                                            <td>{type.TypeName}</td>
-                                            <td
-                                                className="text-center"
-                                                style={{
-                                                    cursor: 'pointer',
-                                                    pointerEvents: !isDeleteDisabled ? 'none' : 'auto',
-                                                    opacity: !isDeleteDisabled ? 0.4 : 1
-                                                }}
-                                                onClick={() => handleDeleteMasterType(type)}
-                                            >
-                                                <i className={`fa-regular fa-trash-can ${!isDeleteDisabled ? 'text-muted' : 'text-danger'}`}></i>
-                                            </td>
+
+                            {dataLoading && (
+                                <div className="d-flex justify-content-center py-5">
+                                    <div className="spinner-border spinner-border-sm text-primary" role="status"></div>
+                                    <span className="ms-3 text-muted fs-7">Updating list...</span>
+                                </div>
+                            )}
+
+                            <div className="table-responsive" style={{ overflowX: 'hidden' }}>
+                                <table className="table align-middle table-row-dashed fs-7 gy-2">
+                                    <thead>
+                                        <tr className="text-start text-gray-400 fw-bold fs-8 text-uppercase gs-0">
+                                            <th className="w-50px text-center">#</th>
+                                            <th className="min-w-150px">Type Name</th>
+                                            <th className="text-center pe-4">Actions</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody className="fw-semibold text-gray-600">
+                                        {filteredTypes.length > 0 ? (
+                                            filteredTypes.map((type, indx) => {
+                                                const isExpiryAlertType = type.DirectAssign === true;
+
+                                                return (
+                                                    <tr
+                                                        key={type.Id || indx}
+                                                        className={`transition-3ms ${isExpiryAlertType ? "bg-light-warning" : "hover-bg-light"}`}
+                                                    >
+                                                        <td className="text-gray-400 text-center">{indx + 1}</td>
+
+                                                        <td>
+                                                            <div className="d-flex align-items-center gap-2">
+                                                                <span
+                                                                    className="text-gray-800 fw-bold d-inline-block text-truncate"
+                                                                    style={{ maxWidth: "150px" }}
+                                                                    title={type.TypeName}
+                                                                >
+                                                                    {type.TypeName}
+                                                                </span>
+
+                                                                {isExpiryAlertType && (
+                                                                    <span className="badge badge-light-warning text-warning border border-warning-subtle">
+                                                                        <i className="bi bi-bell-fill text-warning me-1"></i>
+                                                                        Expiry Alert Type
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+
+                                                        <td className="text-center">
+                                                            <button
+                                                                className="btn btn-icon btn-light-danger btn-sm border-0 shadow-sm rounded-circle"
+                                                                style={{
+                                                                    width: "32px",
+                                                                    height: "32px",
+                                                                    cursor: !isDeleteDisabled ? "not-allowed" : "pointer",
+                                                                    opacity: !isDeleteDisabled ? 0.4 : 1
+                                                                }}
+                                                                onClick={() => isDeleteDisabled && handleDeleteMasterType(type)}
+                                                                disabled={!isDeleteDisabled}
+                                                            >
+                                                                <i className="bi bi-trash3 fs-6"></i>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="3" className="text-center py-10">
+                                                    <div className="text-muted fs-7">No types found matching your search.</div>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>

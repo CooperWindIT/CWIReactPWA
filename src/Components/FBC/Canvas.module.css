@@ -1,0 +1,61 @@
+.wrap {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  z-index: 1;
+  /* background: var(--canvas-bg); */
+}
+
+.canvasShell {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.fixedLogoLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.fixedLogo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 60%;
+  height: 60%;
+  transform: translate(-50%, -50%);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  opacity: 0.08;
+}
+
+.viewport {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.canvas {
+  /* position: absolute; */
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  position: relative;
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  /* background-color: var(--canvas-bg); */
+  background-image:
+    linear-gradient(to right, rgba(120, 120, 120, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(120, 120, 120, 0.08) 1px, transparent 1px),
+    linear-gradient(to right, rgba(120, 120, 120, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(120, 120, 120, 0.04) 1px, transparent 1px);
+  background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px;
+  pointer-events: none;
+  z-index: 1;
+}

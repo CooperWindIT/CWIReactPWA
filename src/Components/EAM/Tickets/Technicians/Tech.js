@@ -695,11 +695,11 @@ export default function TechnicianList() {
                                 }}
                                 disabled={dataLoading}
                             >
-                                {assetTypesData?.map((assTyp) => (
-                                    <Option key={assTyp.Id} value={assTyp.Id}>
-                                        {assTyp.TypeName}
-                                    </Option>
-                                ))}
+                                {Array.isArray(assetTypesData) && assetTypesData.map((assTyp) => (
+    <Option key={assTyp.Id} value={assTyp.Id}>
+        {assTyp.TypeName}
+    </Option>
+))}
                             </Select>
                         </div>
 
@@ -909,9 +909,8 @@ export default function TechnicianList() {
             {/* Register Tech */}
             {showAddModal && (
                 <div
-                    className="modal fade show"
-                    style={{ display: "block", background: "rgba(0,0,0,0.5)" }}
-                    tabIndex="-1"
+                    className="modal show"
+                    style={{ display: "block", background: "rgba(0,0,0,0.5)", zIndex: 1060 }}
                 >
                     <div className="modal-dialog modal-dialog-centered modal-md">
                         <div className="modal-content">
@@ -984,9 +983,6 @@ export default function TechnicianList() {
                                                 name="Name"
                                                 className="form-control form-control-sm"
                                                 placeholder="Enter technician name"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === ' ') e.preventDefault();
-                                                }}
                                                 value={formAddData.Name}
                                                 onChange={handleAddInputChange}
                                                 disabled={addSubmitLoading}

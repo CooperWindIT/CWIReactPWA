@@ -752,7 +752,7 @@ export default function AssetDashboard() {
                                 <span className="menu-arrow"></span>
                             </span>
                         </div>
-                        <div className="d-flex justify-content-between">
+                        <div className="d-flex justify-content-between bg-white shadow-sm p-2 rounded-4">
                             <div className="me-2">
                                 {/* <button
                                     className="btn btn-sm fw-bold btn-light-secondary cursor-not-allowed"

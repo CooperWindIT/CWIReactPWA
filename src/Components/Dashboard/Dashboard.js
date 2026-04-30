@@ -286,8 +286,9 @@ export default function Dashboard() {
     const firstDay = firstDayDate.toLocaleDateString("en-CA"); // YYYY-MM-DD format
 
     // Last day of current month
-    const lastDayDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    const lastDay = lastDayDate.toLocaleDateString("en-CA"); // YYYY-MM-DD format
+    const next10DaysDate = new Date();
+    next10DaysDate.setDate(next10DaysDate.getDate() + 10);
+    const lastDay = next10DaysDate.toLocaleDateString("en-CA");    
 
     const [filters, setFilters] = useState({
         FromDate: firstDay,

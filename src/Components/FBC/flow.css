@@ -1,0 +1,131 @@
+:root {
+  --font: "Segoe UI", "Inter", sans-serif;
+}
+
+.fc-app {
+  --accent: #696eff;
+  --accent-soft: rgba(105, 110, 255, 0.14);
+  --surface-1: #ffffff;
+  --surface-2: #f7f5ff;
+  --surface-3: #f0eefc;
+  --panel-bg: rgba(255, 255, 255, 0.92);
+  --panel-bg-hover: rgba(255, 255, 255, 0.98);
+  --panel-border: rgba(81, 71, 130, 0.14);
+  --panel-border-strong: rgba(81, 71, 130, 0.24);
+  --panel-shadow: 0 14px 40px rgba(42, 30, 84, 0.12);
+  --canvas-bg: #fbfaf8;
+  --text-primary: #252525;
+  --text-muted: #8d8a98;
+  position: relative;
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  font-family: var(--font);
+  background: var(--canvas-bg);
+}
+
+.fc-app[data-theme='dark'] {
+  --surface-1: #1f1d2b;
+  --surface-2: #29253a;
+  --surface-3: #332f47;
+  --panel-bg: rgba(32, 29, 45, 0.94);
+  --panel-bg-hover: rgba(36, 33, 50, 0.98);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --panel-border-strong: rgba(255, 255, 255, 0.16);
+  --panel-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  --canvas-bg: #17151f;
+  --text-primary: #f5f4fa;
+  --text-muted: #aea9bf;
+}
+
+.fc-main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--canvas-bg);
+}
+
+.fc-body {
+  position: absolute;
+  inset: 0;
+}
+
+.fc-connect-hint {
+  position: absolute;
+  top: 88px;
+  left: 50%;
+  z-index: 20;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  background: var(--panel-bg);
+  color: var(--text-muted);
+  box-shadow: var(--panel-shadow);
+  font-size: 14px;
+}
+
+.fc-shape-hint {
+  top: 132px;
+}
+
+.fc-zoomDock {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
+}
+
+.fc-actionDock {
+  position: absolute;
+  left: 166px;
+  bottom: 16px;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  background: var(--panel-bg);
+  box-shadow: var(--panel-shadow);
+}
+
+.fc-zoomBtn,
+.fc-zoomValue {
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.fc-zoomBtn {
+  width: 32px;
+}
+
+.fc-zoomValue {
+  min-width: 58px;
+  padding: 0 8px;
+  font-weight: 600;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(120, 120, 120, 0.28);
+  border-radius: 999px;
+}

@@ -12,6 +12,7 @@ import RegisterMasterTypes from "../../Config/MasterTypes";
 import Swal from "sweetalert2";
 import DocumentPreview from "./DocumentPreview";
 import { Dropdown, Menu } from 'antd';
+import InactiveDocuments from "./InactiveDocs";
 
 export default function DocumentList() {
 
@@ -445,12 +446,19 @@ export default function DocumentList() {
     const handleDeleteDoc = async (item) => {
         Swal.fire({
             title: "Are you sure?",
-            text: "Do you want to delete documnet?",
+            html: `
+            <div>
+                <div><strong>Document Name:</strong> ${item?.DocName || "-"}</div>
+                <div><strong>Document No:</strong> ${item?.DocumentCode || "-"}</div>
+                <div class="mt-2 text-danger">Do you want to delete this document?</div>
+            </div>
+        `,
             icon: "warning",
             showCancelButton: true,
             confirmButtonColor: "#3085d6",
             cancelButtonColor: "#d33",
-            confirmButtonText: "Yes, delete it!"
+            confirmButtonText: '<i class="fa-solid fa-trash me-2"></i> Yes, delete it!',
+            cancelButtonText: '<i class="fa-solid fa-xmark me-2"></i> Cancel',
         }).then(async (result) => {
             if (result.isConfirmed) {
                 try {
@@ -458,6 +466,7 @@ export default function DocumentList() {
                         UpdatedBy: sessionUserData.Id,
                         DocId: item.Id,
                         OrgId: sessionUserData.OrgId,
+                        VersionId: item.VersionId,
                     };
 
                     const response = await fetchWithAuth(`EDM/InactiveDoc`, {
@@ -471,13 +480,13 @@ export default function DocumentList() {
 
                     if (result.ResultData?.Status === 'Success') {
                         fetchDocuments();
-                        Swal.fire("Success!", "Technician has been deleted.", "success");
+                        Swal.fire("Success!", "Version has been deleted.", "success");
                     } else {
                         const errorData = await response.json();
-                        Swal.fire("Error!", errorData.ResultData?.ResultMessage || "Failed to delete technician.", "error");
+                        Swal.fire("Error!", errorData.ResultData?.ResultMessage || "Failed to delete Version.", "error");
                     }
                 } catch (error) {
-                    console.error("Error during technician delete:", error.message);
+                    console.error("Error during Version delete:", error.message);
                     Swal.fire("Error!", "An unexpected error occurred.", "error");
                 }
             }
@@ -728,7 +737,13 @@ export default function DocumentList() {
                         </div>
                     </div>
 
-                    <div className="d-flex align-items-center gap-2 gap-lg-3">
+                    <div className="bg-white p-2 rounded-3 shadow-sm border d-flex flex-wrap align-items-center gap-2">
+                        {showTypeBtn && (
+                            <Link to="/edm/inactive-docs"
+                                className="btn btn-light-danger btn-sm border border-danger d-flex align-items-center gap-2 px-3 shadow-sm custom-btn"
+                                ><i className="bi bi-building-add fs-5"></i><span className="d-none d-md-inline">Inactive Docs</span>
+                            </Link>
+                        )}
                         {showTypeBtn && (
                             <a
                                 className="btn btn-warning btn-sm d-flex align-items-center gap-2 px-3 shadow-sm custom-btn"
@@ -744,7 +759,7 @@ export default function DocumentList() {
                                 data-bs-toggle="offcanvas"
                                 data-bs-target="#offcanvasRightAddMasterTypes"
                                 aria-controls="offcanvasRightAddMasterTypes"
-                                onClick={() => setActiveCategory(2)}><i className="bi bi-building-add fs-5"></i><span className="d-none d-md-inline">Create Document Types</span>
+                                onClick={() => setActiveCategory(2)}><i className="bi bi-building-add fs-5"></i><span className="d-none d-md-inline">Create Doc Types</span>
                             </a>
                         )}
                         {showAddBtn && (
@@ -1014,31 +1029,34 @@ export default function DocumentList() {
                                 <thead className="bg-light-primary">
                                     <tr className="text-start text-muted fw-bold fs-7 text-uppercase gs-0 border-bottom-2 border-primary">
                                         <th className="min-w-40px" title="Serial Number">S.No</th>
-                                        {/* <th className="min-w-100px fw-bold" title="Document Code">Code</th>
-                                        <th className="min-w-150px" title="Document Name">Name</th>
-                                        <th className="min-w-150px" title="Type of Document">Document Type</th> */}
                                         <th className="min-w-100px cursor-pointer group-hover" onClick={() => {/* handleSort('Code') */ }}>
                                             <div className="d-flex align-items-center">
                                                 <span>Code</span>
-                                                <span className="ms-2 sort-icon-container">
-                                                    <i className="fa-solid fa-sort fs-9"></i>
-                                                </span>
+                                                <Tooltip title="Coming Soon" color="#108ee9">
+                                                    <span className="ms-2 sort-icon-container">
+                                                        <i className="fa-solid fa-sort fs-9"></i>
+                                                    </span>
+                                                </Tooltip>
                                             </div>
                                         </th>
                                         <th className="min-w-150px cursor-pointer group-hover" onClick={() => {/* handleSort('Name') */ }}>
                                             <div className="d-flex align-items-center">
                                                 <span>Name</span>
-                                                <span className="ms-2 sort-icon-container">
-                                                    <i className="fa-solid fa-sort fs-9 text-primary"></i>
-                                                </span>
+                                                <Tooltip title="Coming Soon" color="#108ee9">
+                                                    <span className="ms-2 sort-icon-container" style={{ cursor: 'help' }}>
+                                                        <i className="fa-solid fa-sort fs-9 text-primary opacity-50"></i>
+                                                    </span>
+                                                </Tooltip>
                                             </div>
                                         </th>
                                         <th className="min-w-150px cursor-pointer group-hover" onClick={() => {/* handleSort('DocType') */ }}>
                                             <div className="d-flex align-items-center">
                                                 <span>Document Type</span>
-                                                <span className="ms-2 sort-icon-container">
-                                                    <i className="fa-solid fa-sort fs-9"></i>
-                                                </span>
+                                                {/* <Tooltip title="Coming Soon" color="#108ee9">
+                                                    <span className="ms-2 sort-icon-container">
+                                                        <i className="fa-solid fa-sort fs-9"></i>
+                                                    </span>
+                                                </Tooltip> */}
                                             </div>
                                         </th>
                                         <th className="text-center min-w-90px" title="Current Active Version">Version</th>
@@ -1144,40 +1162,40 @@ export default function DocumentList() {
                                                                 trigger="hover"
                                                                 content={
                                                                     <div className="d-flex flex-column gap-1" style={{ width: '9rem' }}>
-    {/* Edit Action */}
-    <div 
-        className={`action-item ${!item.CanWrite ? 'disabled' : ''}`}
-        {...(item.CanWrite && {
-            "data-bs-toggle": "offcanvas",
-            "data-bs-target": "#offcanvasRightEdit",
-            onClick: () => handleEdit(item)
-        })}
-    >
-        <i className="fa-regular fa-pen-to-square text-info"></i>
-        <span>Edit Details</span>
-    </div>
+                                                                        {/* Edit Action */}
+                                                                        <div
+                                                                            className={`action-item  cursor-pointer ${!item.CanWrite ? 'disabled' : ''}`}
+                                                                            {...(item.CanWrite && {
+                                                                                "data-bs-toggle": "offcanvas",
+                                                                                "data-bs-target": "#offcanvasRightEdit",
+                                                                                onClick: () => handleEdit(item)
+                                                                            })}
+                                                                        >
+                                                                            <i className="fa-regular fa-pen-to-square text-info"></i>
+                                                                            <span>Edit Details</span>
+                                                                        </div>
 
-    {/* Versions Action */}
-    <Link to={`/edm/doc-version/${item.Id}`} className="action-item">
-        <i className="fa-solid fa-code-branch text-primary"></i>
-        <span>History</span>
-    </Link>
+                                                                        {/* Versions Action */}
+                                                                        <Link to={`/edm/doc-version/${item.Id}`} className="action-item">
+                                                                            <i className="fa-solid fa-code-branch text-primary"></i>
+                                                                            <span>History</span>
+                                                                        </Link>
 
-    {/* Preview Action */}
-    <div className="action-item" onClick={() => handleOpenPreview(item)}>
-        <i className="fa-solid fa-eye text-dark"></i>
-        <span>Quick View</span>
-    </div>
+                                                                        {/* Preview Action */}
+                                                                        <div className="action-item  cursor-pointer" onClick={() => handleOpenPreview(item)}>
+                                                                        <i className="bi bi-eye"></i>
+                                                                            <span>Quick View</span>
+                                                                        </div>
 
-    {/* Delete Action */}
-    <div 
-        className={`action-item ${!(showDelete && item.VersionStatus !== 'PUBLISHED') ? 'disabled' : ''}`}
-        onClick={() => showDelete && item.VersionStatus !== 'PUBLISHED' && handleDeleteDoc(item)}
-    >
-        <i className="bi bi-trash3 text-danger"></i>
-        <span>Remove</span>
-    </div>
-</div>
+                                                                        {/* Delete Action */}
+                                                                        <div
+                                                                            className={`action-item cursor-pointer ${!(showDelete && item.VersionStatus !== 'PUBLISHED') ? 'disabled' : ''}`}
+                                                                            onClick={() => showDelete && item.VersionStatus !== 'PUBLISHED' && handleDeleteDoc(item)}
+                                                                        >
+                                                                            <i className="bi bi-trash3 text-danger"></i>
+                                                                            <span>Remove</span>
+                                                                        </div>
+                                                                    </div>
                                                                 }
                                                             >
                                                                 <button
@@ -1313,7 +1331,7 @@ export default function DocumentList() {
                                                 {item.VersionStatus !== 'PUBLISHED' && (
                                                     <button
                                                         className="btn btn-sm btn-light-danger border border-danger flex-grow-1 d-flex align-items-center justify-content-center gap-1"
-                                                        onClick={() => showDelete && item.VersionStatus !== 'PUBLISHED'  && handleDeleteDoc(item)}
+                                                        onClick={() => showDelete && item.VersionStatus !== 'PUBLISHED' && handleDeleteDoc(item)}
                                                     >
                                                         <i className="bi bi-trash3"></i> Delete
                                                     </button>
@@ -1537,6 +1555,7 @@ export default function DocumentList() {
                 itemData={previewModal.item} // For logging
                 sessionUserData={sessionUserData} // From your auth context
             />
+            <InactiveDocuments />
         </Base1>
     )
 }

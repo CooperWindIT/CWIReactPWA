@@ -87,23 +87,23 @@ export default function RegisterAsset() {
         }
     }, []);
 
-     useEffect(() => {
-                const sessionMenuData = sessionStorage.getItem("menuData");
-                try {
-                    const parsedMenu = JSON.parse(sessionMenuData);
-        
-                    const ticketsMenu = parsedMenu.find(
-                        (item) => item.MenuName === "Assets"
-                    );
-        
-                    if (ticketsMenu) {
-                        const actionIdArray = ticketsMenu.ActionsIds?.split(",").map(Number);
-                        setSessionActionIds(actionIdArray);
-                    }
-                } catch (err) {
-                    console.error("Error parsing menuData:", err);
-                }
-            }, []);
+    useEffect(() => {
+        const sessionMenuData = sessionStorage.getItem("menuData");
+        try {
+            const parsedMenu = JSON.parse(sessionMenuData);
+
+            const ticketsMenu = parsedMenu.find(
+                (item) => item.MenuName === "Assets"
+            );
+
+            if (ticketsMenu) {
+                const actionIdArray = ticketsMenu.ActionsIds?.split(",").map(Number);
+                setSessionActionIds(actionIdArray);
+            }
+        } catch (err) {
+            console.error("Error parsing menuData:", err);
+        }
+    }, []);
 
     const fetchDDLData = async () => {
         try {
@@ -288,15 +288,15 @@ export default function RegisterAsset() {
             return;
         }
 
-        const maxSizeInBytes = 2 * 1024 * 1024; 
-    if (selectedFile.size > maxSizeInBytes) {
-        Toast.fire({
-            icon: "error",
-            title: "File too large",
-            text: "Image size must be less than or equal to 2MB.",
-        });
-        return;
-    }
+        const maxSizeInBytes = 2 * 1024 * 1024;
+        if (selectedFile.size > maxSizeInBytes) {
+            Toast.fire({
+                icon: "error",
+                title: "File too large",
+                text: "Image size must be less than or equal to 2MB.",
+            });
+            return;
+        }
 
         if (images.length >= 4) {
             Toast.fire({
@@ -418,7 +418,7 @@ export default function RegisterAsset() {
         if (!formAssetData?.PurchaseDate) return showWarning("Purchase Date is mandatory.");
         if (!formAssetData?.InstallationDate) return showWarning("Installation Date is mandatory.");
         if (!selectedSupplierId) return showWarning("Supplier is mandatory.");
-        
+
         // Check for at least 1 image
         if (!images || images.length <= 0) {
             return showWarning("Please upload at least 1 machine image.");
@@ -702,6 +702,15 @@ export default function RegisterAsset() {
         setAlertDates([]);
     }, [formAssetData.OcurrenceType]);
 
+    const handleInputChangeSupplier = (e) => {
+        const { name, value } = e.target;
+      
+        setFormData(prev => ({
+          ...prev,
+          [name]: value
+        }));
+      };
+
     const getNextDate = (dateStr) => {
         if (!dateStr) return "";
         const date = new Date(dateStr);
@@ -753,81 +762,52 @@ export default function RegisterAsset() {
                         </div>
                     </div>
                     <div className="offcanvas-body" style={{ marginTop: "-2rem", maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
-                        {/* <Collapse
-                            accordion
-                            defaultActiveKey={["1"]}
-                            expandIconPosition="start"
-                            expandIcon={({ isActive }) => (
-                                <CaretRightOutlined rotate={isActive ? 90 : 0} />
-                            )}
-                            style={{ background: "white" }}
-                            motion={null}
-                        >
-                            <Panel
-                                header="Register Asset"
-                                key="1"
-                                extra={
-                                    <span
-                                        className="btn btn-warning btn-sm"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleAssetSubmit("DRAFT");
-                                        }}
-                                        disabled={addSubmitLoading || returnAssetId}
-                                    >
-                                        <i className="bi bi-bookmark-check"></i>{addSubmitLoading ? "Submitting..." : "Save as Draft"}
-                                    </span>
-                                }
-                            > */}
-                                <div className="alert alert-warning p-2 mb-2">
-                                    ⚠️ Max 4 images allowed. Each image must be less than 2MB.
-                                </div>
-                                <div className="row">
-                                    <div className="col-6 col-md-6 mb-2">
-                                        <label className="form-label">
-                                            Unit <span className="text-danger">*</span>
-                                        </label>
-                                        <Select
-                                            showSearch
-                                            // allowClear
-                                            placeholder="Select unit"
-                                            className="w-100"
-                                            value={selectedUnitId || undefined}
-                                            style={{ height: '2.8rem' }}
-                                            onChange={(value) => setSelectedUnitId(value)}
-                                            optionFilterProp="children"
-                                            filterOption={(input, option) =>
-                                                option.children.toLowerCase().includes(input.toLowerCase())
-                                            }
-                                            disabled={!showDeptDwn}
-                                        >
-                                            {unitsData?.map((unt) => (
-                                                <Option key={unt.ItemId} value={unt.ItemId}>
-                                                    {unt.DisplayValue}
-                                                </Option>
-                                            ))}
-                                        </Select>
-                                    </div>
-                                    <div className="col-6 col-md-6 mb-2">
-                                        <label className="form-label">
-                                            Department <span className="text-danger">*</span>
-                                        </label>
-                                        <Select
-                                            showSearch
-                                            // allowClear
-                                            placeholder="Select department"
-                                            className="w-100"
-                                            value={selectedDeptId || undefined}
-                                            style={{ height: '2.8rem' }}
-                                            onChange={(value) => setSelectedDeptId(value)}
-                                            optionFilterProp="children"
-                                            filterOption={(input, option) =>
-                                                option.children.toLowerCase().includes(input.toLowerCase())
-                                            }
-                                            disabled={!showDeptDwn}
-                                        >
-                                            {departmentsData?.map((dep) => {
-                                        // Check if this department matches the logged-in user's department
+                        <div className="alert alert-warning p-2 mb-2">
+                            ⚠️ Max 4 images allowed. Each image must be less than 2MB.
+                        </div>
+                        <div className="row">
+                            <div className="col-6 col-md-6 mb-2">
+                                <label className="form-label">
+                                    Unit <span className="text-danger">*</span>
+                                </label>
+                                <Select
+                                    showSearch
+                                    placeholder="Select unit"
+                                    className="w-100"
+                                    value={selectedUnitId || undefined}
+                                    style={{ height: '2.8rem' }}
+                                    onChange={(value) => setSelectedUnitId(value)}
+                                    optionFilterProp="children"
+                                    filterOption={(input, option) =>
+                                        option.children.toLowerCase().includes(input.toLowerCase())
+                                    }
+                                    disabled={!showDeptDwn}
+                                >
+                                    {unitsData?.map((unt) => (
+                                        <Option key={unt.ItemId} value={unt.ItemId}>
+                                            {unt.DisplayValue}
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </div>
+                            <div className="col-6 col-md-6 mb-2">
+                                <label className="form-label">
+                                    Department <span className="text-danger">*</span>
+                                </label>
+                                <Select
+                                    showSearch
+                                    placeholder="Select department"
+                                    className="w-100"
+                                    value={selectedDeptId || undefined}
+                                    style={{ height: '2.8rem' }}
+                                    onChange={(value) => setSelectedDeptId(value)}
+                                    optionFilterProp="children"
+                                    filterOption={(input, option) =>
+                                        option.children.toLowerCase().includes(input.toLowerCase())
+                                    }
+                                    disabled={!showDeptDwn}
+                                >
+                                    {departmentsData?.map((dep) => {
                                         const isUserDept = dep.ItemId === sessionUserData?.DeptId;
 
                                         return (
@@ -848,246 +828,246 @@ export default function RegisterAsset() {
                                             </Option>
                                         );
                                     })}
-                                        </Select>
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2">
-                                        <label className="form-label">
-                                            Asset Type <span className="text-danger">*</span>
-                                        </label>
-                                        <Select
-                                            showSearch
-                                            placeholder="Select asset type"
-                                            className="w-100"
-                                            value={selectedAssetTypeId || undefined}
-                                            style={{ height: '2.8rem' }}
-                                            onChange={(value) => setSelectedAssetTypeId(value)}
-                                            optionFilterProp="children"
-                                            filterOption={(input, option) =>
-                                                option.children.toLowerCase().includes(input.toLowerCase())
-                                            }
-                                        >
-                                            {assetTypesData?.map((assTyp) => (
-                                                <Option key={assTyp.Id} value={assTyp.Id}>
-                                                    {assTyp.TypeName}
-                                                </Option>
-                                            ))}
-                                        </Select>
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2">
-                                        <label className="form-label">Asset Name<span className="text-danger">*</span></label>
-                                        <input
-                                            type="text"
-                                            name="MachineName"
-                                            className="form-control"
-                                            placeholder="Enter asset name"
-                                            style={{ height: '2.8rem' }}
-                                            value={formAssetData.MachineName}
-                                            onChange={handleInputChange}
-                                            autoComplete="off"
-                                            maxLength={50}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2">
-                                        <label className="form-label">Serial No<span className="text-danger">*</span></label>
-                                        <input
-                                            type="text"
-                                            name="MachineCode"
-                                            className="form-control"
-                                            placeholder="Enter serial no"
-                                            style={{ height: '2.8rem' }}
-                                            value={formAssetData.MachineCode}
-                                            onChange={handleInputChange}
-                                            autoComplete="off"
-                                            maxLength={20}
-                                            disabled
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2">
-                                        <label className="form-label">Asset Model<span className="text-danger">*</span></label>
-                                        <input
-                                            type="text"
-                                            name="Model"
-                                            className="form-control"
-                                            placeholder="Enter asset model"
-                                            style={{ height: '2.8rem' }}
-                                            value={formAssetData.Model}
-                                            onChange={handleInputChange}
-                                            autoComplete="off"
-                                            onKeyDown={(e) => {
-                                                if (e.key === ' ') {
-                                                    e.preventDefault();
-                                                }
-                                            }}
-                                            maxLength={15}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2">
-                                        <label className="form-label">Asset Make<span className="text-danger">*</span></label>
-                                        <input
-                                            type="text"
-                                            name="MachineMake"
-                                            className="form-control"
-                                            placeholder="Enter asset make"
-                                            style={{ height: '2.8rem' }}
-                                            value={formAssetData.MachineMake}
-                                            onChange={handleInputChange}
-                                            autoComplete="off"
-                                            maxLength={20}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-6 mb-2">
-                                        <label className="form-label">Purchase Date<span className="text-danger">*</span></label>
-                                        <input
-                                            type="date"
-                                            name="PurchaseDate"
-                                            className="form-control"
-                                            style={{ height: '2.8rem' }}
-                                            value={formAssetData.PurchaseDate}
-                                            onKeyDown={(e) => e.preventDefault()}
-                                            onChange={handleInputChange}
-                                            max={new Date().toISOString().split('T')[0]}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-6 mb-2">
-                                        <label className="form-label">Installation Date<span className="text-danger">*</span></label>
-                                        <input
-                                            type="date"
-                                            name="InstallationDate"
-                                            className="form-control"
-                                            style={{ height: '2.8rem' }}
-                                            value={formAssetData.InstallationDate}
-                                            onChange={handleInputChange}
-                                            min={formAssetData.PurchaseDate}
-                                            // max={new Date().toISOString().split("T")[0]}
-                                            disabled={!formAssetData.PurchaseDate}
-                                            onKeyDown={(e) => e.preventDefault()}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-6 mb-2">
-                                        <label className="form-label">Upcoming Maint.<span className="text-danger">*</span></label>
-                                        <input
-                                            type="date"
-                                            name="UpcomingMaintenanceDate"
-                                            className="form-control"
-                                            style={{ height: '2.8rem' }}
-                                            value={formAssetData.UpcomingMaintenanceDate}
-                                            onChange={handleInputChange}
-                                            // disabled={!formAssetData.PurchaseDate || !formAssetData.InstallationDate}
-                                            min={getNextDate(formAssetData.InstallationDate)}
-                                            onKeyDown={(e) => e.preventDefault()}
-                                            required
-                                            disabled={true}
-                                        />
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2">
-                                        <label className="form-label">PO Number<span className="text-danger">*</span></label>
-                                        <input
-                                            type="text"
-                                            name="PONumber"
-                                            className="form-control"
-                                            style={{ height: '2.8rem' }}
-                                            placeholder="Enter purchase order number"
-                                            value={formAssetData.PONumber}
-                                            onChange={handleInputChange}
-                                            autoComplete="off"
-                                            maxLength={20}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2">
-                                        <label className="form-label">Invoice Number<span className="text-danger">*</span></label>
-                                        <input
-                                            type="text"
-                                            name="InvoiceNumber"
-                                            className="form-control"
-                                            placeholder="Enter invoice number"
-                                            style={{ height: '2.8rem' }}
-                                            value={formAssetData.InvoiceNumber}
-                                            onChange={handleInputChange}
-                                            autoComplete="off"
-                                            maxLength={20}
-                                            required
-                                        />
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2 d-flex flex-column">
-                                        <label className="form-label">Supplier<span className="text-danger">*</span></label>
-                                        <div className="input-group">
-                                            <Select
-                                                placeholder="Select supplier"
-                                                showSearch
-                                                filterOption={(input, option) =>
-                                                    option?.children?.toLowerCase().includes(input.toLowerCase())
-                                                }
-                                                value={selectedSupplierId || undefined}
-                                                onChange={(value) => setSelectedSupplierId(value)}
-                                                style={{ flex: 1, height: '2.8rem' }}
-                                            >
-                                                {suppliersData?.map((item) => (
-                                                    <Option key={item.ItemId} value={item.ItemId}>
-                                                        {item.ItemValue}
-                                                    </Option>
-                                                ))}
-                                            </Select>
-                                            <button
-                                                className="btn btn-secondary"
-                                                type="button"
-                                                style={{ height: '2.8rem' }}
-                                                onClick={() => setShowSupplierModal(true)}
-                                            >
-                                                <i className="fa-solid fa-plus text-dark fs-4 mb-1"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2 d-flex flex-column">
-                                        <label className="form-label">Operator</label>
-                                        <Select
-                                            placeholder="Select user"
-                                            showSearch
-                                            allowClear
-                                            filterOption={(input, option) =>
-                                                option?.children?.toLowerCase().includes(input.toLowerCase())
-                                            }
-                                            value={selectedUserId || undefined}
-                                            onChange={(value) => setSelectedUserId(value)}
-                                            style={{ height: '2.8rem' }}
-                                        >
-                                            {usersData?.map((item) => (
-                                                <Option key={item.ItemId} value={item.ItemId}>
-                                                    {item.ItemValue}
-                                                </Option>
-                                            ))}
-                                        </Select>
-                                    </div>
-                                    <div className="col-12 col-md-6 mb-2">
-                                        <label className="form-label">Asset Images<span className="text-danger">*</span></label>
-                                        <div className="input-group">
-                                            <input
-                                                ref={fileInputRef}
-                                                className="form-control"
-                                                type="file"
-                                                name="Images"
-                                                accept=".jpg,.jpeg,.png"
-                                                onChange={handleFileChange}
-                                                style={{ height: '2.8rem' }}
-                                            />
-                                            <span
-                                                className={`input-group-text`}
-                                                style={{ cursor: 'pointer' }}
-                                                onClick={handleImageUpload}
-                                            >
-                                                <i className="fa-solid fa-cloud-arrow-up" style={{ color: '#63E6BE' }}></i>
-                                            </span>
-                                        </div>
-                                    </div>
+                                </Select>
+                            </div>
+                            <div className="col-12 col-md-6 mb-2">
+                                <label className="form-label">
+                                    Asset Type <span className="text-danger">*</span>
+                                </label>
+                                <Select
+                                    showSearch
+                                    placeholder="Select asset type"
+                                    className="w-100"
+                                    value={selectedAssetTypeId || undefined}
+                                    style={{ height: '2.8rem' }}
+                                    onChange={(value) => setSelectedAssetTypeId(value)}
+                                    optionFilterProp="children"
+                                    filterOption={(input, option) =>
+                                        option.children.toLowerCase().includes(input.toLowerCase())
+                                    }
+                                >
+                                    {assetTypesData?.map((assTyp) => (
+                                        <Option key={assTyp.Id} value={assTyp.Id}>
+                                            {assTyp.TypeName}
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </div>
+                            <div className="col-12 col-md-6 mb-2">
+                                <label className="form-label">Asset Name<span className="text-danger">*</span></label>
+                                <input
+                                    type="text"
+                                    name="MachineName"
+                                    className="form-control"
+                                    placeholder="Enter asset name"
+                                    style={{ height: '2.8rem' }}
+                                    value={formAssetData.MachineName}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    maxLength={50}
+                                    required
+                                />
+                            </div>
+                            <div className="col-12 col-md-6 mb-2">
+                                <label className="form-label">Serial No<span className="text-danger">*</span></label>
+                                <input
+                                    type="text"
+                                    name="MachineCode"
+                                    className="form-control"
+                                    placeholder="Enter serial no"
+                                    style={{ height: '2.8rem' }}
+                                    value={formAssetData.MachineCode}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    maxLength={20}
+                                    disabled
+                                    required
+                                />
+                            </div>
+                            <div className="col-12 col-md-6 mb-2">
+                                <label className="form-label">Asset Model<span className="text-danger">*</span></label>
+                                <input
+                                    type="text"
+                                    name="Model"
+                                    className="form-control"
+                                    placeholder="Enter asset model"
+                                    style={{ height: '2.8rem' }}
+                                    value={formAssetData.Model}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    onKeyDown={(e) => {
+                                        if (e.key === ' ') {
+                                            e.preventDefault();
+                                        }
+                                    }}
+                                    maxLength={15}
+                                    required
+                                />
+                            </div>
+                            <div className="col-12 col-md-6 mb-2">
+                                <label className="form-label">Asset Make<span className="text-danger">*</span></label>
+                                <input
+                                    type="text"
+                                    name="MachineMake"
+                                    className="form-control"
+                                    placeholder="Enter asset make"
+                                    style={{ height: '2.8rem' }}
+                                    value={formAssetData.MachineMake}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    maxLength={20}
+                                    required
+                                />
+                            </div>
+                            <div className="col-6 mb-2">
+                                <label className="form-label">Purchase Date<span className="text-danger">*</span></label>
+                                <input
+                                    type="date"
+                                    name="PurchaseDate"
+                                    className="form-control"
+                                    style={{ height: '2.8rem' }}
+                                    value={formAssetData.PurchaseDate}
+                                    onKeyDown={(e) => e.preventDefault()}
+                                    onChange={handleInputChange}
+                                    max={new Date().toISOString().split('T')[0]}
+                                    required
+                                />
+                            </div>
+                            <div className="col-6 mb-2">
+                                <label className="form-label">Installation Date<span className="text-danger">*</span></label>
+                                <input
+                                    type="date"
+                                    name="InstallationDate"
+                                    className="form-control"
+                                    style={{ height: '2.8rem' }}
+                                    value={formAssetData.InstallationDate}
+                                    onChange={handleInputChange}
+                                    min={formAssetData.PurchaseDate}
+                                    // max={new Date().toISOString().split("T")[0]}
+                                    disabled={!formAssetData.PurchaseDate}
+                                    onKeyDown={(e) => e.preventDefault()}
+                                    required
+                                />
+                            </div>
+                            <div className="col-6 mb-2">
+                                <label className="form-label">Upcoming Maint.<span className="text-danger">*</span></label>
+                                <input
+                                    type="date"
+                                    name="UpcomingMaintenanceDate"
+                                    className="form-control"
+                                    style={{ height: '2.8rem' }}
+                                    value={formAssetData.UpcomingMaintenanceDate}
+                                    onChange={handleInputChange}
+                                    // disabled={!formAssetData.PurchaseDate || !formAssetData.InstallationDate}
+                                    min={getNextDate(formAssetData.InstallationDate)}
+                                    onKeyDown={(e) => e.preventDefault()}
+                                    required
+                                    disabled={true}
+                                />
+                            </div>
+                            <div className="col-12 col-md-6 mb-2">
+                                <label className="form-label">PO Number<span className="text-danger">*</span></label>
+                                <input
+                                    type="text"
+                                    name="PONumber"
+                                    className="form-control"
+                                    style={{ height: '2.8rem' }}
+                                    placeholder="Enter purchase order number"
+                                    value={formAssetData.PONumber}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    maxLength={20}
+                                    required
+                                />
+                            </div>
+                            <div className="col-12 col-md-6 mb-2">
+                                <label className="form-label">Invoice Number<span className="text-danger">*</span></label>
+                                <input
+                                    type="text"
+                                    name="InvoiceNumber"
+                                    className="form-control"
+                                    placeholder="Enter invoice number"
+                                    style={{ height: '2.8rem' }}
+                                    value={formAssetData.InvoiceNumber}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    maxLength={20}
+                                    required
+                                />
+                            </div>
+                            <div className="col-12 col-md-6 mb-2 d-flex flex-column">
+                                <label className="form-label">Supplier<span className="text-danger">*</span></label>
+                                <div className="input-group">
+                                    <Select
+                                        placeholder="Select supplier"
+                                        showSearch
+                                        filterOption={(input, option) =>
+                                            option?.children?.toLowerCase().includes(input.toLowerCase())
+                                        }
+                                        value={selectedSupplierId || undefined}
+                                        onChange={(value) => setSelectedSupplierId(value)}
+                                        style={{ flex: 1, height: '2.8rem' }}
+                                    >
+                                        {suppliersData?.map((item) => (
+                                            <Option key={item.ItemId} value={item.ItemId}>
+                                                {item.ItemValue}
+                                            </Option>
+                                        ))}
+                                    </Select>
+                                    <button
+                                        className="btn btn-secondary"
+                                        type="button"
+                                        style={{ height: '2.8rem' }}
+                                        onClick={() => setShowSupplierModal(true)}
+                                    >
+                                        <i className="fa-solid fa-plus text-dark fs-4 mb-1"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="col-12 col-md-6 mb-2 d-flex flex-column">
+                                <label className="form-label">Operator</label>
+                                <Select
+                                    placeholder="Select user"
+                                    showSearch
+                                    allowClear
+                                    filterOption={(input, option) =>
+                                        option?.children?.toLowerCase().includes(input.toLowerCase())
+                                    }
+                                    value={selectedUserId || undefined}
+                                    onChange={(value) => setSelectedUserId(value)}
+                                    style={{ height: '2.8rem' }}
+                                >
+                                    {usersData?.map((item) => (
+                                        <Option key={item.ItemId} value={item.ItemId}>
+                                            {item.ItemValue}
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </div>
+                            <div className="col-12 col-md-6 mb-2">
+                                <label className="form-label">Asset Images<span className="text-danger">*</span></label>
+                                <div className="input-group">
+                                    <input
+                                        ref={fileInputRef}
+                                        className="form-control"
+                                        type="file"
+                                        name="Images"
+                                        accept=".jpg,.jpeg,.png"
+                                        onChange={handleFileChange}
+                                        style={{ height: '2.8rem' }}
+                                    />
+                                    <span
+                                        className={`input-group-text`}
+                                        style={{ cursor: 'pointer' }}
+                                        onClick={handleImageUpload}
+                                    >
+                                        <i className="fa-solid fa-cloud-arrow-up" style={{ color: '#63E6BE' }}></i>
+                                    </span>
+                                </div>
+                            </div>
 
-                                    {/* Purchase File Upload */}
-                                    {/* <div className="col-12 col-md-6 mb-2">
+                            {/* Purchase File Upload */}
+                            {/* <div className="col-12 col-md-6 mb-2">
                                 <label className="form-label">Purchase File Upload</label>
                                 <div className="input-group">
                                     <input
@@ -1118,8 +1098,8 @@ export default function RegisterAsset() {
                                     </span>
                                 </div>
                             </div> */}
-                                    {/* Invoice File Upload */}
-                                    {/* <div className="col-12 col-md-6 mb-2">
+                            {/* Invoice File Upload */}
+                            {/* <div className="col-12 col-md-6 mb-2">
                                 <label className="form-label">Invoice File Upload</label>
                                 <div className="input-group">
                                     <input
@@ -1150,177 +1130,185 @@ export default function RegisterAsset() {
                                     </span>
                                 </div>
                             </div> */}
-                                </div>
-                                <div className="d-flex flex-wrap mt-2 gap-2">
-                                    {images.map((image, index) => (
-                                        <div
-                                            key={index}
-                                            className="position-relative shadow-sm rounded"
-                                            style={{ width: 100, height: 100, overflow: 'hidden' }}
-                                        >
-                                            <img
-                                                src={`${BASE_IMAGE_API_GET}${(image)}`}
-                                                alt="preview"
-                                                className="img-fluid rounded"
-                                                style={{ objectFit: 'cover', width: '100%', height: '100%' }}
-                                            />
-                                            <span
-                                                onClick={() => handleRemoveImage(image)}
-                                                className="position-absolute top-0 end-0 bg-danger text-white rounded-circle"
-                                                style={{ cursor: 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.8rem' }}
-                                            >
-                                                ✖
-                                            </span>
-                                            <span
-                                                onClick={() => handleViewImage(image)}
-                                                className="position-absolute bottom-0 end-0 bg-primary text-white rounded-circle"
-                                                style={{ cursor: 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.8rem' }}
-                                            >
-                                                <i className="fa-regular fa-eye fa-beat-fade"></i>
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                                {previewImage && (
-                                    <div
-                                        className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-dark bg-opacity-50"
-                                        style={{ zIndex: 1050 }}
-                                        onClick={handleClosePreview}
+                        </div>
+                        <div className="d-flex flex-wrap mt-2 gap-2">
+                            {images.map((image, index) => (
+                                <div
+                                    key={index}
+                                    className="position-relative shadow-sm rounded"
+                                    style={{ width: 100, height: 100, overflow: 'hidden' }}
+                                >
+                                    <img
+                                        src={`${BASE_IMAGE_API_GET}${(image)}`}
+                                        alt="preview"
+                                        className="img-fluid rounded"
+                                        style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+                                    />
+                                    <span
+                                        onClick={() => handleRemoveImage(image)}
+                                        className="position-absolute top-0 end-0 bg-danger text-white rounded-circle"
+                                        style={{ cursor: 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.8rem' }}
                                     >
-                                        <img
-                                            src={previewImage}
-                                            alt="Full preview"
-                                            style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '10px' }}
-                                        />
-                                    </div>
-                                )}
-                            {/* </Panel>
+                                        ✖
+                                    </span>
+                                    <span
+                                        onClick={() => handleViewImage(image)}
+                                        className="position-absolute bottom-0 end-0 bg-primary text-white rounded-circle"
+                                        style={{ cursor: 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.8rem' }}
+                                    >
+                                        <i className="fa-regular fa-eye fa-beat-fade"></i>
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                        {previewImage && (
+                            <div
+                                className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-dark bg-opacity-50"
+                                style={{ zIndex: 1050 }}
+                                onClick={handleClosePreview}
+                            >
+                                <img
+                                    src={previewImage}
+                                    alt="Full preview"
+                                    style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '10px' }}
+                                />
+                            </div>
+                        )}
+                        {/* </Panel>
                         </Collapse> */}
                     </div>
                 </div>
+
+                
+                {/* Supplier model */}
+                {showSupplierModal && (
+                    <div 
+                    className="modal show"
+                    style={{ display: "block", background: "rgba(0,0,0,0.5)", zIndex: 1060 }}
+                    // tabIndex="-1"
+                >
+                        <div className="modal-dialog modal-lg modal-dialog-centered">
+                            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: "15px" }}>
+
+                                <div className="modal-header bg-white border-bottom-0 pt-4 px-4">
+                                    <h5 className="modal-title fw-bold" style={{ color: "#1e293b" }}>Add New Supplier</h5>
+                                    <button type="button" className="btn-close" onClick={() => setShowSupplierModal(false)}></button>
+                                </div>
+
+                                <form onSubmit={handleAddSupplier}>
+                                    <div className="modal-body px-4">
+                                        <div className="row g-3">
+                                            <div className="col-md-6">
+                                                <label className="form-label fw-semibold small text-muted">Supplier Name<span className="text-danger">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    name="SupplierName"
+                                                    className="form-control fs-6"
+                                                    value={formData.SupplierName || ''}
+                                                    onChange={handleInputChangeSupplier}
+                                                    placeholder="Enter supplier name"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label fw-semibold small text-muted">Phone<span className="text-danger">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    name="Phone"
+                                                    className="form-control fs-6"
+                                                    // required
+                                                    value={formData.Phone || ''}
+                                                    onChange={handleInputChangeSupplier}
+                                                    placeholder="Enter phone number"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label fw-semibold small text-muted">Email Address<span className="text-danger">*</span></label>
+                                                <input
+                                                    type="email"
+                                                    name="Email"
+                                                    className="form-control fs-6"
+                                                    // required
+                                                    value={formData.Email || ''}
+                                                    onChange={handleInputChangeSupplier}
+                                                    placeholder="Enter email address"
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label fw-semibold small text-muted">GST Number</label>
+                                                <input
+                                                    type="text"
+                                                    name="GSTNumber"
+                                                    className="form-control fs-6"
+                                                    value={formData.GSTNumber || ''}
+                                                    onChange={handleInputChangeSupplier}
+                                                    placeholder="Enter GST number"
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label fw-semibold small text-muted">PAN Number</label>
+                                                <input
+                                                    type="text"
+                                                    name="PANNumber"
+                                                    className="form-control fs-6"
+                                                    value={formData.PANNumber || ''}
+                                                    onChange={handleInputChangeSupplier}
+                                                    placeholder="Enter PAN number"
+                                                />
+                                            </div>
+                                            <div className="col-md-6">
+                                                <label className="form-label fw-semibold small text-muted">Status<span className="text-danger">*</span></label>
+                                                <select
+                                                    className="form-select form-select-lg fs-6"
+                                                    name="IsActive"
+                                                    value={formData.IsActive || 'true'}
+                                                    onChange={handleInputChangeSupplier}
+                                                >
+                                                    <option value="true">Active</option>
+                                                    <option value="false">Inactive</option>
+                                                </select>
+                                            </div>
+                                            <div className="col-12">
+                                                <label className="form-label fw-semibold small text-muted">Address<span className="text-danger">*</span></label>
+                                                <textarea
+                                                    className="form-control fs-6"
+                                                    name="Address"
+                                                    rows="2"
+                                                    value={formData.Address || ''}
+                                                    onChange={handleInputChangeSupplier}
+                                                    placeholder="Enter physical address..."
+                                                    required
+                                                ></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="modal-footer border-top-0 pb-4 px-4">
+                                        <button type="button" className="btn btn-light px-4 fw-semibold" onClick={() => setShowSupplierModal(false)}>
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="btn btn-primary px-4 fw-semibold"
+                                            disabled={loading}
+                                            style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
+                                        >
+                                            {loading ? (
+                                                <><span className="spinner-border spinner-border-sm me-2"></span>Saving...</>
+                                            ) : (
+                                                <><i className="bi bi-bookmark-check me-2"></i>Save Supplier</>
+                                            )}
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
-            {/* Supplier model */}
-            {showSupplierModal && <div className="modal-backdrop fade show"></div>}
-            <div
-                className={`modal fade ${showSupplierModal ? "show d-block" : "d-none"}`}
-                tabIndex="-1"
-                role="dialog"
-            >
-                <div className="modal-dialog modal-lg modal-dialog-centered">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title fw-bold">Add New Supplier</h5>
-                            <button type="button" className="btn-close" onClick={() => setShowSupplierModal(false)}></button>
-                        </div>
-                        <form onSubmit={handleAddSupplier}>
-                            <div className="modal-body">
-                                <div className="row g-3">
-                                    <div className="col-md-6">
-                                        <label className="form-label fw-semibold">Supplier Name <span className="text-danger">*</span></label>
-                                        <input
-                                            type="text"
-                                            name="SupplierName"
-                                            className="form-control"
-                                            required
-                                            value={formData.SupplierName}
-                                            onChange={(e) => setFormData({ ...formData, SupplierName: e.target.value })}
-                                            placeholder="Enter supplier name"
-                                        />
-                                    </div>
-                                    <div className="col-md-6">
-                                        <label className="form-label fw-semibold">Phone <span className="text-danger">*</span></label>
-                                        <input
-                                            type="text"
-                                            name="Phone"
-                                            className="form-control"
-                                            value={formData.Phone}
-                                            onChange={(e) => setFormData({ ...formData, Phone: e.target.value })}
-                                            placeholder="Enter phone number"
-                                        />
-                                    </div>
-                                    <div className="col-md-6">
-                                        <label className="form-label fw-semibold">Email Address <span className="text-danger">*</span></label>
-                                        <input
-                                            type="email"
-                                            name="Email"
-                                            className="form-control"
-                                            value={formData.Email === true ? "" : formData.Email} // Handling your default 'true' state
-                                            onChange={(e) => setFormData({ ...formData, Email: e.target.value })}
-                                            placeholder="Enter email address"
-                                        />
-                                    </div>
-                                    <div className="col-md-6">
-                                        <label className="form-label fw-semibold">GST Number</label>
-                                        <input
-                                            type="text"
-                                            name="GSTNumber"
-                                            className="form-control"
-                                            value={formData.GSTNumber}
-                                            onChange={(e) => setFormData({ ...formData, GSTNumber: e.target.value.toUpperCase() })}
-                                            placeholder="Enter GST number"
-                                        />
-                                    </div>
-                                    <div className="col-md-6">
-                                        <label className="form-label fw-semibold">PAN Number</label>
-                                        <input
-                                            type="text"
-                                            name="PANNumber"
-                                            className="form-control"
-                                            value={formData.PANNumber}
-                                            onChange={(e) => setFormData({ ...formData, PANNumber: e.target.value.toUpperCase() })}
-                                            placeholder="Enter PAN number"
-                                        />
-                                    </div>
-                                    <div className="col-md-6">
-                                        <label className="form-label fw-semibold">Status <span className="text-danger">*</span></label>
-                                        <select
-                                            className="form-select"
-                                            name="IsActive"
-                                            value={formData.IsActive}
-                                            onChange={(e) => setFormData({ ...formData, IsActive: e.target.value })}
-                                        >
-                                            <option value="true">Active</option>
-                                            <option value="false">Inactive</option>
-                                        </select>
-                                    </div>
-                                    <div className="col-12">
-                                        <label className="form-label fw-semibold">Address</label>
-                                        <textarea
-                                            className="form-control"
-                                            name="Address"
-                                            rows="2"
-                                            value={formData.Address || ''}
-                                            onChange={(e) => setFormData({ ...formData, Address: e.target.value })}
-                                            placeholder="Enter address..."
-                                        ></textarea>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="modal-footer bg-light">
-                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowSupplierModal(false)}><i class="bi bi-x-lg mb-1 text-dark"></i>Close</button>
-                                <button
-                                    type="submit"
-                                    className="btn btn-primary btn-sm px-4"
-                                    disabled={loading}
-                                >
-                                    {loading ? (
-                                        <>
-                                            <span className="spinner-border spinner-border-sm me-2"></span>
-                                            Saving...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <i className="bi bi-bookmark-check fs-4"></i>
-                                            Save Supplier
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
         </>
     );
 }

@@ -180,7 +180,7 @@ export default function ViewAlert({ alertObj }) {
                 OrgId: sessionUserData?.OrgId,
                 JsonData: {
                     ScheduledAlertId: selectedScheduledAlertId,
-                    ProofUrl: proofUrl,
+                    ProofUrl: proofUrl || "",
                     Comments: comments,
                     SubmittedBy: sessionUserData?.Id,
                     AlertCode: alertObj?.AutoIncNo,
@@ -352,13 +352,6 @@ export default function ViewAlert({ alertObj }) {
                     maxHeight: 'calc(100vh - 100px)'
                 }}>
                     <div className="row g-3">
-
-                        {/* <div className="col-12 col-md-6">
-                            <div className="p-2 border rounded bg-light">
-                                <h6 className="text-primary mb-1"><i className="fa-solid fa-cogs me-2"></i>Asset</h6>
-                                <p className="mb-0 fw-semibold">{alertObj?.DocName || "N/A"}</p>
-                            </div>
-                        </div> */}
                         <div className="col-12 col-md-6">
                             <div className="p-2 border rounded bg-light">
                                 <h6 className="text-primary mb-1"><i className="fa-solid fa-bell me-2"></i>Alert Title</h6>

@@ -1072,8 +1072,29 @@ export default function TicketScanview() {
     };
 
 
-    const steps = ["NEW", "MODIFIED", "APPROVED", "ASSIGNED", "PICKUP", "RETURNED", "RESOLVED", "CLOSED"];
-    const activeStepIndex = steps.indexOf(ticketDetails?.Status);
+    const normalizeStep = (value) => String(value || "").trim().toUpperCase();
+
+const steps = ticketDetails?.DirectAssign
+    ? ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "TECH_FIXED", "RESOLVED", "CLOSED"]
+    : ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "RESOLVED", "CLOSED"];
+
+const currentStatusForStepper =
+    ticketDetails?.Status === "PENDING_WITH_CLIENT"
+        ? "NEW"
+        : ticketDetails?.Status;
+
+const activeStepIndex = steps.indexOf(normalizeStep(currentStatusForStepper));
+
+const enabledStepSet = new Set(
+    (ticketLogs || [])
+        .map((item) => normalizeStep(item.Label))
+        .filter(Boolean)
+);
+
+// also keep current visible in stepper
+if (currentStatusForStepper) {
+    enabledStepSet.add(normalizeStep(currentStatusForStepper));
+}
 
     const showReqApproveBtn = sessionActionIds?.includes(12);
     const showResolveBtn = sessionActionIds?.includes(13);
@@ -1710,33 +1731,39 @@ export default function TicketScanview() {
                                     {viewTicketShow &&
                                         <>
                                             <div className="step-container d-flex justify-content-between align-items-center w-100 my-4 pt-2">
-                                                {steps.map((step, index) => {
-                                                    const isFilled = index <= activeStepIndex;
-                                                    const isActive = index === activeStepIndex;
+                                    {steps.map((step, index) => {
+                                        const normalizedStep = normalizeStep(step);
+                                        const isEnabled = enabledStepSet.has(normalizedStep);
+                                        const isFilled = isEnabled && index <= activeStepIndex;
+                                        const isActive = isEnabled && index === activeStepIndex;
+                                        const isMasked = !isEnabled;
 
-                                                    return (
-                                                        <div key={step} className="text-center flex-fill position-relative">
-                                                            {/* Circle */}
-                                                            <div
-                                                                className={`step-circle-horizontal mx-auto 
-                                                                ${isFilled ? "filled" : ""} 
-                                                                ${isActive ? "active" : ""}`}
-                                                            >
-                                                                {index + 1}
-                                                            </div>
+                                        return (
+                                            <div key={step} className="text-center flex-fill position-relative">
+                                                <div
+                                                    className={`step-circle-horizontal mx-auto
+                        ${isFilled ? "filled" : ""}
+                        ${isActive ? "active" : ""}
+                        ${isMasked ? "opacity-50 bg-light text-muted border" : ""}
+                    `}
+                                                >
+                                                    {isMasked ? <i className="bi bi-x-lg"></i> : index + 1}
+                                                </div>
 
-                                                            {/* Line connecting to next step */}
-                                                            {index !== steps.length - 1 && (
-                                                                <div
-                                                                    className={`step-line-horizontal ${index < activeStepIndex ? "filled" : ""}`}
-                                                                ></div>
-                                                            )}
+                                                {index !== steps.length - 1 && (
+                                                    <div
+                                                        className={`step-line-horizontal ${isEnabled && index < activeStepIndex ? "filled" : ""
+                                                            } ${isMasked ? "opacity-25" : ""}`}
+                                                    ></div>
+                                                )}
 
-                                                            <div className="step-label mt-2 fw-semibold">{step}</div>
-                                                        </div>
-                                                    );
-                                                })}
+                                                <div className={`step-label mt-2 fw-semibold ${isMasked ? "text-muted" : ""}`}>
+                                                    {step}
+                                                </div>
                                             </div>
+                                        );
+                                    })}
+                                </div>
 
                                             <div className="row">
                                                 <div className="col-12 col-md-10 order-2 order-md-1">

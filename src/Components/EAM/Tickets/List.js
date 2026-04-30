@@ -26,7 +26,6 @@ export default function EAMTicketsList() {
     const [dataLoading, setDataLoading] = useState(false);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [closeData, setCloseData] = useState([]);
-    const [editData, setEditData] = useState([]);
     const [ticketData, setTicketData] = useState([]);
     const [openPanelId, setOpenPanelId] = useState(null);
     const [selectedMCNId, setSelectedMCNId] = useState(null);
@@ -40,6 +39,7 @@ export default function EAMTicketsList() {
 
     const [assetTypesData, setAssetTypesData] = useState([]);
     const [selectedAssetTypeId, setSelectedAssetTypeId] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [unitsData, setUnitsData] = useState([]);
 
     const savedTicketFilters = JSON.parse(
@@ -69,8 +69,9 @@ export default function EAMTicketsList() {
     );
 
     const [selectedToDt, setSelectedToDt] = useState(
-        savedTicketFilters?.toDate || new Date().toISOString().split("T")[0]
-    );
+        savedTicketFilters?.toDate ||
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+    );    
 
     const [approveSubmitLoading, SetApproveSubmitLoading] = useState(null);
     const [usersData, setUsersData] = useState([]);
@@ -78,6 +79,7 @@ export default function EAMTicketsList() {
     const [sessionActionIds, setSessionActionIds] = useState([]);
     const [asetsDDL, setAssetsDDL] = useState([]);
     const [totalRecords, setTotalRecords] = useState(0);
+    const [editTicketId, setEditTicketId] = useState(null);
 
     const { Option } = Select;
     const [navigationPath, setNavigationPath] = useState("");
@@ -416,10 +418,6 @@ export default function EAMTicketsList() {
         }
     }, [sessionUserData, selectedAssetTypeId]);
 
-    const handleEdit = (item) => {
-        setEditData(item);
-    };
-
     const handleCloseTicket = (item) => {
         setCloseData(item);
     };
@@ -721,9 +719,13 @@ export default function EAMTicketsList() {
             case "approved":
                 return "badge-light-danger";
             case "closed":
+                return "badge-light-success";
+            case "tech_fixed":
                 return "badge-light-info";
+            case "pending_with_client":
+                return "badge-light-warning";
             case "resolved":
-                return "badge-light-info";
+                return "badge-light-primary";
             case "req approval":
                 return "badge-light-info";
             case "req approved":
@@ -795,13 +797,14 @@ export default function EAMTicketsList() {
     const statusOptions = [
         { value: "ALL", label: "All" },
         { value: "NEW", label: "New" },
-        // { value: "MODIFIED", label: "Modified" },
         { value: "APPROVED", label: "Approved" },
         { value: "REJECTED", label: "Rejected" },
-        // { value: "REQ APPROVAL", label: "REQ-Approval" },
-        // { value: "REQ APPROVED", label: "REQ-Approved" },
+        { value: "PENDING_WITH_CLIENT", label: "Pending With Client" },
         { value: "RESOLVED", label: "Resolved" },
         { value: "CLOSED", label: "Closed" },
+        // { value: "MODIFIED", label: "Modified" },
+        // { value: "REQ APPROVAL", label: "REQ-Approval" },
+        // { value: "REQ APPROVED", label: "REQ-Approved" },
     ];
 
     const handleStatusChange = (values) => {
@@ -846,7 +849,7 @@ export default function EAMTicketsList() {
                         </ul>
                     </div>
 
-                    <div className="d-flex align-items-center gap-2 gap-lg-3 ms-auto">
+                    <div className="bg-white p-2 rounded-3 shadow-sm border d-flex flex-wrap align-items-center gap-2">
                         <a
                             className="btn btn-info btn-sm shadow-sm custom-btn"
                             data-bs-toggle="offcanvas"
@@ -1134,7 +1137,7 @@ export default function EAMTicketsList() {
                     </div>
 
                     <div className="card d-md-block d-none mt-1 mb-10 shadow-sm">
-                        <div className="table-responsive" style={{ overflowX: "hidden" }}>
+                        <div className="table-responsive">
                             <table className="table align-middle table-hover gs-7 gy-5 mb-0 fs-6">
                                 <thead className="bg-light-primary">
                                     <tr className="text-start text-muted fw-bold fs-7 text-uppercase gs-0 border-bottom-2 border-primary">
@@ -1142,10 +1145,10 @@ export default function EAMTicketsList() {
                                         <th className="min-w-125px">Ticket Code</th>
                                         <th className="min-w-125px">Asset</th>
                                         <th className="min-w-125px">Created On</th>
-                                        <th className="min-w-125px">Technician</th>
+                                        <th className="min-w-205px">Technician</th>
                                         <th className="min-w-100px">Priority</th>
                                         <th className="min-w-100px">Status</th>
-                                        <th className="min-w-100px">Updated On</th>
+                                        {/* <th className="min-w-100px">Updated On</th> */}
                                         <th className="min-w-100px">Aging</th>
                                         <th className="min-w-100px text-center">Last Log</th>
                                         <th className="">Actions</th>
@@ -1189,7 +1192,7 @@ export default function EAMTicketsList() {
                                                         {(currentPage - 1) * pageSize + index + 1}
                                                     </td>
                                                     <td>
-                                                        <Link to={`/eam/ticket-view/${item.OrgId}/${item.Id}`} className="text-dark fw-bold text-hover-primary mb-1">{item.TicketCode}</Link>
+                                                        <Link to={`/eam/ticket-view/${item.OrgId}/${item.Id}`} className="text-dark fw-bold text-hover-primary mb-1 badge badge-light-primary">{item.TicketCode}</Link>
                                                     </td>
                                                     <td>
                                                         <Tooltip
@@ -1231,9 +1234,9 @@ export default function EAMTicketsList() {
                                                             {item.Status}
                                                         </span>
                                                     </td>
-                                                    <td>
+                                                    {/* <td>
                                                         {formatDate(item.UpdatedOn)}
-                                                    </td>
+                                                    </td> */}
                                                     <td className="text-info">
                                                         <Tooltip
                                                             title={getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
@@ -1300,10 +1303,7 @@ export default function EAMTicketsList() {
                                                                             filter: canEdit ? 'none' : 'blur(1px)',
                                                                         }}
                                                                         className="text-hover-primary"
-                                                                        data-bs-toggle="offcanvas"
-                                                                        data-bs-target="#offcanvasRightEdit"
-                                                                        aria-controls="offcanvasRightEdit"
-                                                                        onClick={() => canEdit && handleEdit(item)}
+                                                                        onClick={() => {setIsModalOpen(true); setEditTicketId(item.Id)}}
                                                                     >
                                                                         <i className="fa-regular fa-pen-to-square me-2 text-info"></i>
                                                                         Edit
@@ -1454,10 +1454,7 @@ export default function EAMTicketsList() {
                                                                     pointerEvents: canEdit ? 'auto' : 'none',
                                                                     filter: canEdit ? 'none' : 'blur(1px)',
                                                                 }}
-                                                                data-bs-toggle="offcanvas"
-                                                                data-bs-target="#offcanvasRightEdit"
-                                                                aria-controls="offcanvasRightEdit"
-                                                                onClick={() => canEdit && handleEdit(item)}
+                                                                onClick={() => {setIsModalOpen(true); setEditTicketId(item.Id);}}
                                                             ></i>
                                                             <i
                                                                 className="fa-solid fa-check"
@@ -1663,7 +1660,12 @@ export default function EAMTicketsList() {
                 deptId={targetAsset.deptId}
             />
             <TechnicianList />
-            <EditTicket editObj={editData} />
+            {isModalOpen && (
+                <EditTicket
+                    editTicketId={editTicketId}
+                    onClose={() => setIsModalOpen(false)}
+                />
+            )}
             <AssignTechnician ticketObj={ticketData} />
             <CloseTicket ticketObj={closeData} />
         </Base1>

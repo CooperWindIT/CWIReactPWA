@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { BASE_IMAGE_API_GET } from './Config';
 import { useWeather } from '../../utils/useWeather';
 import WeatherDetails from './../../utils/WeatherDetails';
+import FAQButton from './FAQBtn';
 // import LogoImg from '../Assests/Images/cwilogo.png';
 
 const Base1 = ({ children }) => {
@@ -22,7 +23,7 @@ const Base1 = ({ children }) => {
     const navigate = useNavigate();
     const currentPath = window.location.pathname;
     const location = useLocation();
-    const shouldHideSidebar = ["/vms/", "/alert/", "/edm/"].some(path => location.pathname.includes(path));
+    const shouldHideSidebar = ["/vms/", "/alert/", "/edm/", "/faq"].some(path => location.pathname.includes(path));
     const shouldDocComponents = location.pathname.includes("/pmms/");
     const searchParams = new URLSearchParams(location.search);
     const reportId = searchParams.get("reportId");
@@ -86,6 +87,15 @@ const Base1 = ({ children }) => {
                     data-bs-toggle="offcanvas"
                     data-bs-target="#offcanvasRightViewProfile"
                 ><i className="fa-regular fa-user text-info me-2"></i> My Profile</a>
+            </div>
+            <div className="menu-item px-5">
+                <Link
+                    to="/organization-chart"
+                    className="menu-link px-5 text-dark text-hover-warning"
+                >
+                    <i className="bi bi-diagram-3-fill text-primary me-2"></i>
+                    Organization Chart
+                </Link>
             </div>
 
             <div className="menu-item px-5">
@@ -763,6 +773,8 @@ const Base1 = ({ children }) => {
                     </div>
                 </div>
             </div>
+
+            <FAQButton />
 
             <style>
                 {`

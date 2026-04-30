@@ -6,7 +6,7 @@ import { Form, Button, message } from 'antd';
 import { fetchWithAuth } from "../../../../utils/api";
 
 export default function TicketViewCommentsModal({ ticObj, onClose }) {
-    
+
 
     const navigate = useNavigate();
     const [sessionUserData, setSessionUserData] = useState([]);
@@ -226,124 +226,124 @@ export default function TicketViewCommentsModal({ ticObj, onClose }) {
 
     return (
         <>
-        {onClose && (
-            <div
-                className="modal fade show"
-                style={{ display: "block", background: "rgba(0,0,0,0.5)" }}
-                tabIndex="-1"
-            >
-                <div className="modal-dialog modal-dialog-centered modal-md">
-                    <div className="modal-content">
-                        <div className="modal-header">
-                            <h5 className="modal-title" id="addTechnicianModalLabel">
-                                Comments
-                            </h5>
-                            <button
-                                type="button"
-                                className="btn-close"
-                                onClick={onClose}
-                            ></button>
-                        </div>
-
-                        <div className="modal-body">
-                            <div className="card shadow-sm border-0 p-3 rounded-3">
-                                <h5 className="fw-bold mb-0 d-flex align-items-center gap-2 text-primary mb-3">
-                                    <i className="fa-solid fa-comment-dots"></i>
-                                    Comments <span className="badge bg-light-primary">{ticketComments?.length || 0}</span>
+            {onClose && (
+                <div
+                    className="modal fade show"
+                    style={{ display: "block", background: "rgba(0,0,0,0.5)" }}
+                    tabIndex="-1"
+                >
+                    <div className="modal-dialog modal-dialog-centered modal-md">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title" id="addTechnicianModalLabel">
+                                    Comments
                                 </h5>
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={onClose}
+                                ></button>
+                            </div>
 
-                                <div className="comments-chat rounded p-3">
-    {ticketComments?.map((comment, indx) => {
-        const isCurrentUser = comment.Col2 == sessionUserData?.Id;
-        const displayName = isCurrentUser ? "You" : comment.Label;
+                            <div className="modal-body">
+                                <div className="card shadow-sm border-0 p-3 rounded-3">
+                                    <h5 className="fw-bold mb-0 d-flex align-items-center gap-2 text-primary mb-3">
+                                        <i className="fa-solid fa-comment-dots"></i>
+                                        Comments <span className="badge bg-light-primary">{ticketComments?.length || 0}</span>
+                                    </h5>
 
-        return (
-            <div 
-                key={indx} 
-                className={`chat-message-wrapper d-flex mb-3 ${isCurrentUser ? 'justify-content-end' : 'justify-content-start'}`}
-            >
-                {/* Avatar only shows for the other person in WhatsApp style */}
-                {!isCurrentUser && (
-                    <div
-                        className="avatar-circle me-2"
-                        style={{
-                            backgroundColor: getAvatarColor(comment?.Label),
-                            color: "#333",
-                            fontSize: '12px'
-                        }}
-                    >
-                        {comment?.Label?.charAt(0)?.toUpperCase()}
-                    </div>
-                )}
+                                    <div className="comments-chat rounded p-3">
+                                        {ticketComments?.map((comment, indx) => {
+                                            const isCurrentUser = comment.Col2 == sessionUserData?.Id;
+                                            const displayName = isCurrentUser ? "You" : comment.Label;
 
-                <div className={`message-bubble ${isCurrentUser ? 'sent' : 'received'}`}>
-                    {!isCurrentUser && (
-                        <div className="message-sender fw-bold small text-primary mb-1">
-                            {displayName}
-                        </div>
-                    )}
-                    
-                    <div
-                        className="message-text"
-                        dangerouslySetInnerHTML={{ __html: highlightMentions(comment.Col1) }}
-                    ></div>
-                    
-                    <div className="message-footer d-flex justify-content-end align-items-center gap-1 mt-1">
-                        <span className="message-time">
-                            {comment.Col3 || "Just now"}
-                        </span>
-                        {isCurrentUser && <i className="bi bi-check2-all text-info" style={{fontSize: '14px'}}></i>}
-                    </div>
-                </div>
-            </div>
-        );
-    })}
-</div>
-
-                                <div className="col-12">
-                                    <Form layout="vertical">
-                                        <Form.Item>
-                                            <MentionsInput
-                                                value={enteredContent}
-                                                onChange={handleChange}
-                                                placeholder="Type @ to mention a user..."
-                                                className="mentions"
-                                            >
-                                                <Mention
-                                                    trigger="@"
-                                                    data={usersData}
-                                                    displayTransform={(id, display) => `@${display}`}
-                                                    // markup="@__display__"
-                                                    markup="@(__display__)[__id__]"
-                                                    appendSpaceOnAdd={true}
-                                                    style={{ backgroundColor: "#eef5ff" }}
-                                                    renderSuggestion={(entry, search, highlightedDisplay) => (
-                                                        <div className="mention-suggestion-item">
-                                                            {highlightedDisplay} <small className="text-muted">{entry.id}</small>
+                                            return (
+                                                <div
+                                                    key={indx}
+                                                    className={`chat-message-wrapper d-flex mb-3 ${isCurrentUser ? 'justify-content-end' : 'justify-content-start'}`}
+                                                >
+                                                    {/* Avatar only shows for the other person in WhatsApp style */}
+                                                    {!isCurrentUser && (
+                                                        <div
+                                                            className="avatar-circle me-2"
+                                                            style={{
+                                                                backgroundColor: getAvatarColor(comment?.Label),
+                                                                color: "#333",
+                                                                fontSize: '12px'
+                                                            }}
+                                                        >
+                                                            {comment?.Label?.charAt(0)?.toUpperCase()}
                                                         </div>
                                                     )}
-                                                    // This makes matching case-insensitive
-                                                    isValidSearchTerm={(term) => !!term && term.length > 0}
-                                                />
-                                            </MentionsInput>
-                                        </Form.Item>
 
-                                        <div className="d-flex justify-content-end">
-                                            <Button type="default" className="me-2" onClick={handleSaveAsDraft}>
-                                                <i className="bi bi-bookmark-check"></i>Save as Draft
-                                            </Button>
-                                            <Button type="primary" onClick={handleCommentSubmit} disabled={commentSubmitLoading || !enteredContent.trim()}>
-                                                <i className="bi bi-chat-left-dots text-white"></i>{commentSubmitLoading ? 'Submitting...' : 'Comment'}
-                                            </Button>
-                                        </div>
-                                    </Form>
+                                                    <div className={`message-bubble ${isCurrentUser ? 'sent' : 'received'}`}>
+                                                        {!isCurrentUser && (
+                                                            <div className="message-sender fw-bold small text-primary mb-1">
+                                                                {displayName}
+                                                            </div>
+                                                        )}
+
+                                                        <div
+                                                            className="message-text"
+                                                            dangerouslySetInnerHTML={{ __html: highlightMentions(comment.Col1) }}
+                                                        ></div>
+
+                                                        <div className="message-footer d-flex justify-content-end align-items-center gap-1 mt-1">
+                                                            <span className="message-time">
+                                                                {comment.Col3 || "Just now"}
+                                                            </span>
+                                                            {isCurrentUser && <i className="bi bi-check2-all text-info" style={{ fontSize: '14px' }}></i>}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="col-12">
+                                        <Form layout="vertical">
+                                            <Form.Item>
+                                                <MentionsInput
+                                                    value={enteredContent}
+                                                    onChange={handleChange}
+                                                    placeholder="Type @ to mention a user..."
+                                                    className="mentions"
+                                                >
+                                                    <Mention
+                                                        trigger="@"
+                                                        data={usersData}
+                                                        displayTransform={(id, display) => `@${display}`}
+                                                        // markup="@__display__"
+                                                        markup="@(__display__)[__id__]"
+                                                        appendSpaceOnAdd={true}
+                                                        style={{ backgroundColor: "#eef5ff" }}
+                                                        renderSuggestion={(entry, search, highlightedDisplay) => (
+                                                            <div className="mention-suggestion-item">
+                                                                {highlightedDisplay} <small className="text-muted">{entry.id}</small>
+                                                            </div>
+                                                        )}
+                                                        // This makes matching case-insensitive
+                                                        isValidSearchTerm={(term) => !!term && term.length > 0}
+                                                    />
+                                                </MentionsInput>
+                                            </Form.Item>
+
+                                            <div className="d-flex justify-content-end">
+                                                <Button type="default" className="me-2" onClick={handleSaveAsDraft}>
+                                                    <i className="bi bi-bookmark-check"></i>Save as Draft
+                                                </Button>
+                                                <Button type="primary" onClick={handleCommentSubmit} disabled={commentSubmitLoading || !enteredContent.trim()}>
+                                                    <i className="bi bi-chat-left-dots text-white"></i>{commentSubmitLoading ? 'Submitting...' : 'Comment'}
+                                                </Button>
+                                            </div>
+                                        </Form>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        )}
+            )}
 
             <style>
                 {`

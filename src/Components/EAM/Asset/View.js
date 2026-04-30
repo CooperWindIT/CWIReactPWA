@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from "react";
-import { BASE_IMAGE_API_GET, BASE_IMAGE_UPLOAD_API, BASE_IMG_DOC_DELETE, BASE_IMG_UPLOAD, MACHINE_INFO_HTML_API } from "../../Config/Config";
+import { BASE_IMAGE_API_GET, BASE_IMG_DOC_DELETE, BASE_IMG_UPLOAD, MACHINE_INFO_HTML_API } from "../../Config/Config";
 import '../../Config/Pagination.css';
 import '../../Config/Loader.css';
 import { Link, useParams } from "react-router-dom";
@@ -2051,7 +2051,7 @@ export default function AssetDetailsView() {
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <div className="d-flex flex-wrap gap-2">
+                                                                <div className="d-flex flex-wrap gap-2 bg-white p-3 rounded shadow-sm">
                                                                     <button
                                                                         className="btn btn-light-success btn-sm px-3 flex-fill flex-md-grow-0"
                                                                         onClick={() => handleApprove(machineId)}
@@ -2088,9 +2088,9 @@ export default function AssetDetailsView() {
                                                                         className="btn btn-light-danger btn-sm px-3 flex-fill flex-md-grow-0"
                                                                         type="button"
                                                                         onClick={handleDeactivate}
-                                                                        disabled={(status === "ACTIVE" || status === "OUTOFSERVICE") ? false : true}
+                                                                        disabled={!["ACTIVE", "OUTOFSERVICE"].includes(status)}
                                                                     >
-                                                                        <i className="bi bi-send-exclamation fs-5 me-1"></i>Inactive
+                                                                        <i class="fa-solid fa-power-off fs-5 me-1"></i>Inactive
                                                                     </button>
                                                                 </div>
                                                             </div>
@@ -3433,433 +3433,434 @@ export default function AssetDetailsView() {
                         </div>
                     </div>
                 </div>
+
                 <style>
                     {`
                     .pulse-white {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.2);
-            left: 0;
-            top: 0;
-            border-radius: 8px;
-            animation: pulse-border 2s infinite;
-        }
+                        position: absolute;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(255, 255, 255, 0.2);
+                        left: 0;
+                        top: 0;
+                        border-radius: 8px;
+                        animation: pulse-border 2s infinite;
+                    }
 
-        @keyframes pulse-border {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(1.15); opacity: 0; }
-        }
+                    @keyframes pulse-border {
+                        0% { transform: scale(1); opacity: 1; }
+                        100% { transform: scale(1.15); opacity: 0; }
+                    }
                  .blurred {
-  filter: blur(2px);
-  pointer-events: none;
-  user-select: none;
-  transition: all 0.2s ease-in-out;
-}
-  @media print {
-    /* Hide the entire UI */
-    body * {
-        visibility: hidden;
-    }
-    /* Show only the QR container and its children */
-    #printable-qr, #printable-qr * {
-        visibility: visible;
-    }
-    /* Position the QR code at the top left of the printed page */
-    #printable-qr {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 100%;
-        text-align: center;
-    }
-}
-  @media (max-width: 767.98px) {
-  .mobile-scroll-container {
-    display: flex !important;
-    flex-wrap: nowrap !important;
-    overflow-x: auto !important;
-    padding-bottom: 10px;
-    scroll-snap-type: x mandatory;
-    gap: 12px; /* Controls spacing between items */
-  }
+                filter: blur(2px);
+                pointer-events: none;
+                user-select: none;
+                transition: all 0.2s ease-in-out;
+                }
+                @media print {
+                    /* Hide the entire UI */
+                    body * {
+                        visibility: hidden;
+                    }
+                    /* Show only the QR container and its children */
+                    #printable-qr, #printable-qr * {
+                        visibility: visible;
+                    }
+                    /* Position the QR code at the top left of the printed page */
+                    #printable-qr {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 100%;
+                        text-align: center;
+                    }
+                }
+                @media (max-width: 767.98px) {
+                .mobile-scroll-container {
+                    display: flex !important;
+                    flex-wrap: nowrap !important;
+                    overflow-x: auto !important;
+                    padding-bottom: 10px;
+                    scroll-snap-type: x mandatory;
+                    gap: 12px; /* Controls spacing between items */
+                }
 
-  .mobile-scroll-container > div {
-    flex: 0 0 auto !important;
-    width: 160px; /* Set a fixed width for the image cards on mobile */
-    scroll-snap-align: start;
-  }
+                .mobile-scroll-container > div {
+                    flex: 0 0 auto !important;
+                    width: 160px; /* Set a fixed width for the image cards on mobile */
+                    scroll-snap-align: start;
+                }
 
-  /* Hide scrollbar for a cleaner look (optional) */
-  .mobile-scroll-container::-webkit-scrollbar {
-    height: 4px;
-  }
-  .mobile-scroll-container::-webkit-scrollbar-thumb {
-    background: #ccc;
-    border-radius: 10px;
-  }
-}
-  .eye-btn {
-    background: rgba(255, 255, 255, 0.7);
-    border-radius: 50%;
-}
+                /* Hide scrollbar for a cleaner look (optional) */
+                .mobile-scroll-container::-webkit-scrollbar {
+                    height: 4px;
+                }
+                .mobile-scroll-container::-webkit-scrollbar-thumb {
+                    background: #ccc;
+                    border-radius: 10px;
+                }
+                }
+                .eye-btn {
+                    background: rgba(255, 255, 255, 0.7);
+                    border-radius: 50%;
+                }
 
-.eye-blink {
-    animation: eyeBlink 1.2s ease-in-out;
-}
+                .eye-blink {
+                    animation: eyeBlink 1.2s ease-in-out;
+                }
 
-@keyframes eyeBlink {
-    0% {
-        transform: scale(1);
-        opacity: 1;
-    }
-    25% {
-        transform: scale(1.2);
-        opacity: 0.5;
-    }
-    50% {
-        transform: scale(0.9);
-        opacity: 1;
-    }
-    75% {
-        transform: scale(1.15);
-        opacity: 0.7;
-    }
-    100% {
-        transform: scale(1);
-        opacity: 1;
-    }
-}
+                @keyframes eyeBlink {
+                    0% {
+                        transform: scale(1);
+                        opacity: 1;
+                    }
+                    25% {
+                        transform: scale(1.2);
+                        opacity: 0.5;
+                    }
+                    50% {
+                        transform: scale(0.9);
+                        opacity: 1;
+                    }
+                    75% {
+                        transform: scale(1.15);
+                        opacity: 0.7;
+                    }
+                    100% {
+                        transform: scale(1);
+                        opacity: 1;
+                    }
+                }
 
-  .badge:hover {
-    transform: translateY(-1px);
-    transition: all 0.2s ease;
-}
-.icon-tab-btn {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+                .badge:hover {
+                    transform: translateY(-1px);
+                    transition: all 0.2s ease;
+                }
+                .icon-tab-btn {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
 
-    height: 40px;
-    width: 40px; /* Icon-only default */
-    padding: 0 12px;
+                    height: 40px;
+                    width: 40px; /* Icon-only default */
+                    padding: 0 12px;
 
-    border-radius: 50px;
-    border: 1px solid transparent;
+                    border-radius: 50px;
+                    border: 1px solid transparent;
 
-    background: #f1f1f1;
-    color: #333;
+                    background: #f1f1f1;
+                    color: #333;
 
-    overflow: hidden;
-    transition: all 0.25s ease-in-out;
+                    overflow: hidden;
+                    transition: all 0.25s ease-in-out;
 
-    cursor: pointer;
-    white-space: nowrap;
-}
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
 
-/* Hover Expand Effect */
-.icon-tab-btn:hover {
-    width: 160px; /* Button expands */
-    background: #e7f1ff;
-    border-color: #c8ddff;
-}
+                /* Hover Expand Effect */
+                .icon-tab-btn:hover {
+                    width: 160px; /* Button expands */
+                    background: #e7f1ff;
+                    border-color: #c8ddff;
+                }
 
-/* Hide label initially */
-.icon-tab-label {
-    opacity: 0;
-    font-size: 14px;
-    transition: opacity 0.2s ease-in-out;
-}
+                /* Hide label initially */
+                .icon-tab-label {
+                    opacity: 0;
+                    font-size: 14px;
+                    transition: opacity 0.2s ease-in-out;
+                }
 
-/* Reveal label on hover */
-.icon-tab-btn:hover .icon-tab-label {
-    opacity: 1;
-}
+                /* Reveal label on hover */
+                .icon-tab-btn:hover .icon-tab-label {
+                    opacity: 1;
+                }
 
-/* Icon styling */
-.icon-tab-btn i {
-    font-size: 18px;
-}
+                /* Icon styling */
+                .icon-tab-btn i {
+                    font-size: 18px;
+                }
 
-/* Color Variants */
-.icon-tab-btn.primary     { background: #eef4ff; color: #3066ff; }
-.icon-tab-btn.primary:hover { background: #dce7ff; }
+                /* Color Variants */
+                .icon-tab-btn.primary     { background: #eef4ff; color: #3066ff; }
+                .icon-tab-btn.primary:hover { background: #dce7ff; }
 
-.icon-tab-btn.warning     { background: #fff8e5; color: #d19a00; }
-.icon-tab-btn.warning:hover { background: #ffefc2; }
+                .icon-tab-btn.warning     { background: #fff8e5; color: #d19a00; }
+                .icon-tab-btn.warning:hover { background: #ffefc2; }
 
-.icon-tab-btn.info        { background: #e9faff; color: #17a2b8; }
-.icon-tab-btn.info:hover { background: #d9f4ff; }
+                .icon-tab-btn.info        { background: #e9faff; color: #17a2b8; }
+                .icon-tab-btn.info:hover { background: #d9f4ff; }
 
-.icon-tab-btn.danger      { background: #ffecec; color: #d9534f; }
-.icon-tab-btn.danger:hover { background: #ffd4d4; }
-.icon-tab-btn.dark {
-    background: #f0f0f0;   /* Light gray background */
-    color: #3a3a3a;        /* Dark gray text */
-}
+                .icon-tab-btn.danger      { background: #ffecec; color: #d9534f; }
+                .icon-tab-btn.danger:hover { background: #ffd4d4; }
+                .icon-tab-btn.dark {
+                    background: #f0f0f0;   /* Light gray background */
+                    color: #3a3a3a;        /* Dark gray text */
+                }
 
-.icon-tab-btn.dark:hover {
-    background: #d9d9d9;   /* Slightly darker gray */
-}
+                .icon-tab-btn.dark:hover {
+                    background: #d9d9d9;   /* Slightly darker gray */
+                }
 
-.icon-tab-btn.success {
-    background: #e8f7ee;   /* Light green */
-    color: #0f9b4a;        /* Success green */
-}
+                .icon-tab-btn.success {
+                    background: #e8f7ee;   /* Light green */
+                    color: #0f9b4a;        /* Success green */
+                }
 
-.icon-tab-btn.success:hover {
-    background: #d4f0df;   /* Slightly darker green */
-}
+                .icon-tab-btn.success:hover {
+                    background: #d4f0df;   /* Slightly darker green */
+                }
 
 
-/* Default icon-only button */
-.icon-tab-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+                /* Default icon-only button */
+                .icon-tab-btn {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
 
-    height: 40px;
-    width: 40px; /* icon size */
-    padding: 0 12px;
+                    height: 40px;
+                    width: 40px; /* icon size */
+                    padding: 0 12px;
 
-    border-radius: 50px;
-    background: #f1f1f1;
-    color: #333;
-    border: 1px solid transparent;
+                    border-radius: 50px;
+                    background: #f1f1f1;
+                    color: #333;
+                    border: 1px solid transparent;
 
-    overflow: hidden;
-    white-space: nowrap;
+                    overflow: hidden;
+                    white-space: nowrap;
 
-    cursor: pointer;
-    transition: all 0.25s ease-in-out;
-}
+                    cursor: pointer;
+                    transition: all 0.25s ease-in-out;
+                }
 
-/* Hide label initially */
-.icon-tab-label {
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
-}
+                /* Hide label initially */
+                .icon-tab-label {
+                    opacity: 0;
+                    transition: opacity 0.2s ease-in-out;
+                }
 
-/* 🔥 ACTIVE TAB EXPANDS */
-.icon-tab-btn.active-expand {
-    width: 170px;       /* expand horizontally */
-    background: #e8f0ff;
-    border-color: #3066ff;
-    color: #3066ff;
-}
+                /* 🔥 ACTIVE TAB EXPANDS */
+                .icon-tab-btn.active-expand {
+                    width: 170px;       /* expand horizontally */
+                    background: #e8f0ff;
+                    border-color: #3066ff;
+                    color: #3066ff;
+                }
 
-/* Show the label when active */
-.icon-tab-btn.active-expand .icon-tab-label {
-    opacity: 1;
-}
+                /* Show the label when active */
+                .icon-tab-btn.active-expand .icon-tab-label {
+                    opacity: 1;
+                }
 
-/* Active icon color */
-.icon-tab-btn.active-expand i {
-    color: #3066ff;
-}
-    .badge-light-purple {
-    background-color: #d6c1ff;
-    color: #4b0082;
-}
-    .badge-light-pink {
-    background-color: #f8bbd0;
-    color: #880e4f;
-}
+                /* Active icon color */
+                .icon-tab-btn.active-expand i {
+                    color: #3066ff;
+                }
+                    .badge-light-purple {
+                    background-color: #d6c1ff;
+                    color: #4b0082;
+                }
+                    .badge-light-pink {
+                    background-color: #f8bbd0;
+                    color: #880e4f;
+                }
 
-.badge-light-brown {
-    background-color: #d7ccc8;
-    color: #3e2723;
-}
-.badge-light-indigo {
-    background-color: #c5cae9;
-    color: #283593;
-}
-    .step-circle-horizontal {
-    background-color: #ffc107;
-    border-color: #ffc107;
-    color: #000;
-}
+                .badge-light-brown {
+                    background-color: #d7ccc8;
+                    color: #3e2723;
+                }
+                .badge-light-indigo {
+                    background-color: #c5cae9;
+                    color: #283593;
+                }
+                    .step-circle-horizontal {
+                    background-color: #ffc107;
+                    border-color: #ffc107;
+                    color: #000;
+                }
 
-.step-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    position: relative;
-    overflow-x: auto;
-    scrollbar-width: thin;
-    scrollbar-color: #bbb transparent;
-    scroll-snap-type: x mandatory;
-    padding-bottom: 10px;
-  }
-  
-  .step-container::-webkit-scrollbar {
-    height: 6px;
-  }
-  
-  .step-container::-webkit-scrollbar-thumb {
-    background: #bbb;
-    border-radius: 10px;
-  }
-  
-  .step-container > div {
-    scroll-snap-align: center;
-    flex: 0 0 auto;
-    min-width: 90px; /* ensures circles + text fit well */
-  }
-  .step-circle-horizontal {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    border: 2px solid #ccc;
-    background-color: #fff;
-    color: #777;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    position: relative;
-    z-index: 2;
-    transition: all 0.4s ease;
-  }
-  
-  .step-circle-horizontal.filled {
-    background-color: #4b49ac;
-    border-color: #4b49ac;
-    color: #fff;
-    transform: scale(1.1);
-  }
-  
-  /* 🟣 Add a subtle pulsing animation for active step */
-  .step-circle-horizontal.active {
-    animation: pulseActive 1.5s infinite ease-in-out;
-    box-shadow: 0 0 0 0 rgba(75, 73, 172, 0.5);
-  }
-  
-  @keyframes pulseActive {
-    0% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 rgba(75, 73, 172, 0.5);
-    }
-    70% {
-      transform: scale(1.15);
-      box-shadow: 0 0 0 12px rgba(75, 73, 172, 0);
-    }
-    100% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 rgba(75, 73, 172, 0);
-    }
-  }
-    .step-line-horizontal {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translateY(-50%);
-    width: 100%; /* Full stretch to next circle */
-    height: 4px;
-    background-color: #ccc;
-    z-index: 1;
-    border-radius: 2px;
-    transition: all 0.4s ease;
-  }
-  
-  .step-line-horizontal.filled {
-    background: linear-gradient(90deg, #4b49ac, #8c87ff, #4b49ac);
-    background-size: 200% 100%;
-    animation: gradientMove 2s linear infinite;
-  }
-  
-  @keyframes gradientMove {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
-  }
-  
-  .alert-feed {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
+                .step-container {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    position: relative;
+                    overflow-x: auto;
+                    scrollbar-width: thin;
+                    scrollbar-color: #bbb transparent;
+                    scroll-snap-type: x mandatory;
+                    padding-bottom: 10px;
+                }
+                
+                .step-container::-webkit-scrollbar {
+                    height: 6px;
+                }
+                
+                .step-container::-webkit-scrollbar-thumb {
+                    background: #bbb;
+                    border-radius: 10px;
+                }
+                
+                .step-container > div {
+                    scroll-snap-align: center;
+                    flex: 0 0 auto;
+                    min-width: 90px; /* ensures circles + text fit well */
+                }
+                .step-circle-horizontal {
+                    width: 38px;
+                    height: 38px;
+                    border-radius: 50%;
+                    border: 2px solid #ccc;
+                    background-color: #fff;
+                    color: #777;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: 600;
+                    position: relative;
+                    z-index: 2;
+                    transition: all 0.4s ease;
+                }
+                
+                .step-circle-horizontal.filled {
+                    background-color: #4b49ac;
+                    border-color: #4b49ac;
+                    color: #fff;
+                    transform: scale(1.1);
+                }
+                
+                /* 🟣 Add a subtle pulsing animation for active step */
+                .step-circle-horizontal.active {
+                    animation: pulseActive 1.5s infinite ease-in-out;
+                    box-shadow: 0 0 0 0 rgba(75, 73, 172, 0.5);
+                }
+                
+                @keyframes pulseActive {
+                    0% {
+                    transform: scale(1);
+                    box-shadow: 0 0 0 0 rgba(75, 73, 172, 0.5);
+                    }
+                    70% {
+                    transform: scale(1.15);
+                    box-shadow: 0 0 0 12px rgba(75, 73, 172, 0);
+                    }
+                    100% {
+                    transform: scale(1);
+                    box-shadow: 0 0 0 0 rgba(75, 73, 172, 0);
+                    }
+                }
+                    .step-line-horizontal {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translateY(-50%);
+                    width: 100%; /* Full stretch to next circle */
+                    height: 4px;
+                    background-color: #ccc;
+                    z-index: 1;
+                    border-radius: 2px;
+                    transition: all 0.4s ease;
+                }
+                
+                .step-line-horizontal.filled {
+                    background: linear-gradient(90deg, #4b49ac, #8c87ff, #4b49ac);
+                    background-size: 200% 100%;
+                    animation: gradientMove 2s linear infinite;
+                }
+                
+                @keyframes gradientMove {
+                    0% {
+                    background-position: 200% 0;
+                    }
+                    100% {
+                    background-position: -200% 0;
+                    }
+                }
+                
+                .alert-feed {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
 
-.alert-card {
-    display: flex;
-    background: #ffffff;
-    border-radius: 10px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-    overflow: hidden;
-    transition: all 0.25s ease;
-}
+                .alert-card {
+                    display: flex;
+                    background: #ffffff;
+                    border-radius: 10px;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+                    overflow: hidden;
+                    transition: all 0.25s ease;
+                }
 
-.alert-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-}
+                .alert-card:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+                }
 
-.severity-bar {
-    width: 6px;
-}
+                .severity-bar {
+                    width: 6px;
+                }
 
-.alert-content {
-    flex: 1;
-    padding: 12px 14px;
-}
+                .alert-content {
+                    flex: 1;
+                    padding: 12px 14px;
+                }
 
-.alert-message {
-    font-size: 0.85rem;
-    color: #6c757d;
-    margin-top: 6px;
-    line-height: 1.4;
-}
+                .alert-message {
+                    font-size: 0.85rem;
+                    color: #6c757d;
+                    margin-top: 6px;
+                    line-height: 1.4;
+                }
 
-/* Optional subtle background tint */
-.alert-card.severity-high {
-    background: linear-gradient(90deg, #fff5f5, #ffffff);
-}
+                /* Optional subtle background tint */
+                .alert-card.severity-high {
+                    background: linear-gradient(90deg, #fff5f5, #ffffff);
+                }
 
-.alert-card.severity-medium {
-    background: linear-gradient(90deg, #fff9ed, #ffffff);
-}
+                .alert-card.severity-medium {
+                    background: linear-gradient(90deg, #fff9ed, #ffffff);
+                }
 
-.alert-card.severity-low {
-    background: linear-gradient(90deg, #f3fff8, #ffffff);
-}
+                .alert-card.severity-low {
+                    background: linear-gradient(90deg, #f3fff8, #ffffff);
+                }
 
-  @keyframes fillLine {
-      from { width: 0; }
-      to { width: 100%; }
-    }
-    
-    .step-label {
-      font-size: 0.85rem;
-      color: #444;
-      white-space: nowrap;
-    }
-    
-    /* ✅ Mobile adjustments */
-    @media (max-width: 768px) {
-      .step-container {
-        justify-content: flex-start;
-      }
-    
-      .step-container::after {
-        /* subtle gradient hint that more steps exist */
-        content: "";
-        position: absolute;
-        right: 0;
-        top: 0;
-        height: 100%;
-        width: 40px;
-        background: linear-gradient(to left, #fff, transparent);
-        pointer-events: none;
-      }
-    
-      .step-label {
-        font-size: 0.75rem;
-      }
-    }
+                @keyframes fillLine {
+                    from { width: 0; }
+                    to { width: 100%; }
+                    }
+                    
+                    .step-label {
+                    font-size: 0.85rem;
+                    color: #444;
+                    white-space: nowrap;
+                    }
+                    
+                    /* ✅ Mobile adjustments */
+                    @media (max-width: 768px) {
+                    .step-container {
+                        justify-content: flex-start;
+                    }
+                    
+                    .step-container::after {
+                        /* subtle gradient hint that more steps exist */
+                        content: "";
+                        position: absolute;
+                        right: 0;
+                        top: 0;
+                        height: 100%;
+                        width: 40px;
+                        background: linear-gradient(to left, #fff, transparent);
+                        pointer-events: none;
+                    }
+                    
+                    .step-label {
+                        font-size: 0.75rem;
+                    }
+                    }
                 `}
                 </style>
 

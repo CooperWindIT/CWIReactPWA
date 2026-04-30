@@ -63,22 +63,27 @@ export default function InactiveAssetsList() {
     }
 
     const filteredInactiveAssets = Array.isArray(inactiveAssetsData)
-        ? inactiveAssetsData.filter((item) => {
-            const query = searchQuery.toLowerCase();
+    ? inactiveAssetsData.filter((item) => {
+        const query = searchQuery.toLowerCase().trim();
+        if (!query) return true; // Show all if search is empty
 
-            return (
-                item.AssetName?.toLowerCase().includes(query) ||
-                item.AssetCode?.toLowerCase().includes(query) ||
-                item.Code?.toLowerCase().includes(query) ||
-                item.AssetType?.toLowerCase().includes(query) ||
-                item.DeptName?.toLowerCase().includes(query)
-            );
-        })
-        : [];
+        return (
+            // Use || "" to handle null/undefined values safely
+            (item.AssetName || "").toLowerCase().includes(query) ||
+            (item.AssetCode || "").toLowerCase().includes(query) ||
+            (item.Code || "").toLowerCase().includes(query) ||
+            (item.AssetType || "").toLowerCase().includes(query) ||
+            (item.DeptName || "").toLowerCase().includes(query)
+        );
+    })
+    : [];
 
-    const indexOfLastRecord = currentPage * recordsPerPage;
-    const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
-    const currentRecords = filteredInactiveAssets.slice(indexOfFirstRecord, indexOfLastRecord);
+  // Example of how your pagination should look:
+const indexOfLastRecord = currentPage * recordsPerPage;
+const indexOfFirstRecord = indexOfLastRecord - recordsPerPage;
+
+// IMPORTANT: Slice the FILTERED list, not the original list
+const currentRecords = filteredInactiveAssets.slice(indexOfFirstRecord, indexOfLastRecord);
     const totalPages = Math.ceil(filteredInactiveAssets.length / recordsPerPage);
 
     const handlePageChange = (pageNumber) => {
@@ -159,13 +164,19 @@ export default function InactiveAssetsList() {
                                             className="form-control form-control-solid ps-12 fs-7"
                                             placeholder="Search assets..."
                                             value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            onChange={(e) => {
+                                                setSearchQuery(e.target.value);
+                                                setCurrentPage(1); // ← ADD THIS
+                                              }}
                                             style={{ height: '2.8rem' }}
                                         />
                                         {searchQuery && (
                                             <i
                                                 className="fa-solid fa-circle-xmark position-absolute top-50 end-0 translate-middle-y me-4 text-gray-400 cursor-pointer text-hover-primary fs-7"
-                                                onClick={() => setSearchQuery("")}
+                                                onClick={() => {
+                                                    setSearchQuery("");
+                                                    setCurrentPage(1);
+                                                  }}
                                             ></i>
                                         )}
                                     </div>

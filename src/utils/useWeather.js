@@ -60,71 +60,6 @@ export const useWeather = () => {
     }
   };
 
-  // useEffect(() => {
-
-  //     const fetchWeather = async (lat, lon, city) => {
-  //         try {
-  //             const res = await fetch(
-  //                 `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`
-  //             );
-
-  //             const data = await res.json();
-  //             const current = data.current_weather;
-
-  //             const weatherInfo = weatherCodeMap[current.weathercode] || {
-  //                 label: "Unknown",
-  //                 icon: "❓",
-  //             };
-
-  //             setWeather({
-  //                 city: city,
-  //                 temp: current.temperature,
-  //                 condition: weatherInfo.label,
-  //                 icon: weatherInfo.icon,
-  //                 windspeed: current.windspeed,
-  //                 winddirection: current.winddirection,
-  //                 isDay: current.is_day,
-  //                 time: current.time,
-  //                 fetchedAt: new Date(),
-  //             });
-
-  //         } catch (error) {
-  //             console.error("Weather fetch failed", error);
-  //         }
-  //     };
-
-  //     // 🌍 Get user location
-  //     if (navigator.geolocation) {
-
-  //         navigator.geolocation.getCurrentPosition(
-
-  //           // ✅ SUCCESS CALLBACK
-  //           async (position) => {
-  //             const lat = position.coords.latitude;
-  //             const lon = position.coords.longitude;
-
-  //             const city = await fetchCityName(lat, lon);
-
-  //             fetchWeather(lat, lon, city);
-  //           },
-
-  //           // ❌ ERROR CALLBACK
-  //           (error) => {
-  //             console.error("Location permission denied", error);
-
-  //             // Fallback location (Hyderabad)
-  //             fetchWeather(17.375, 78.5, "Hyderabad");
-  //           }
-
-  //         );
-
-  //       } else {
-  //         console.error("Geolocation not supported");
-  //         fetchWeather(17.375, 78.5, "Hyderabad");
-  //       }          
-
-  // }, []);
-
   const WEATHER_CACHE_KEY = "app_weather_cache";
   const TEN_MINUTES = 10 * 60 * 1000;
 
@@ -201,11 +136,11 @@ export const useWeather = () => {
             fetchAndStore(lat, lon, city);
           },
           () => {
-            fetchAndStore(17.375, 78.5, "Hyderabad");
+            fetchAndStore(13.0827, 80.2707, "Chennai");
           }
         );
       } else {
-        fetchAndStore(17.375, 78.5, "Hyderabad");
+        fetchAndStore(13.0827, 80.2707, "Chennai");
       }
     };
 
