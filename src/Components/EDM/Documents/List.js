@@ -33,6 +33,8 @@ export default function DocumentList() {
     const [docsData, setDocsData] = useState([]);
     const [selectedDocId, setSelectedDocId] = useState(0);
     const [activeCategory, setActiveCategory] = useState(null);
+    const [globalSearch, setGlobalSearch] = useState("");
+
     const { Option } = Select;
     const savedState = JSON.parse(
         sessionStorage.getItem("docListState") || "{}"
@@ -376,21 +378,35 @@ export default function DocumentList() {
         }
 
         setDataLoading(true);
+        const hasGlobalSearch = !!globalSearch?.trim();
 
         const payload = {
             ServiceName: "GETDocumentDetails",
             PageNumber: page,
             PageSize: finalPageSize,
+            // Params: {
+            //     OrgId: sessionUserData?.OrgId,
+            //     UserId: sessionUserData?.Id,
+            //     UnitId: filters.UnitId,
+            //     VersionStatus: filters.VersionStatus,
+            //     DocId: selectedDocId || 0,
+            //     DeptId: filters.DeptId || 0,
+            //     ContentTypeId: filters.ContentTypeId || 0,
+            //     DocumentCode: filters.DocumentCode || "ALL",
+            //     DocName: globalSearch || "",
+            // },
             Params: {
                 OrgId: sessionUserData?.OrgId,
                 UserId: sessionUserData?.Id,
-                UnitId: filters.UnitId,
-                VersionStatus: filters.VersionStatus,
-                DocId: selectedDocId || 0,
-                DeptId: filters.DeptId || 0,
-                ContentTypeId: filters.ContentTypeId || 0,
-                DocumentCode: filters.DocumentCode || "ALL",
+                UnitId: hasGlobalSearch ? 0 : filters.UnitId,
+                VersionStatus: hasGlobalSearch ? "ALL" : filters.VersionStatus,
+                DocId: hasGlobalSearch ? 0 : (selectedDocId || 0),
+                DeptId: hasGlobalSearch ? 0 : (filters.DeptId || 0),
+                ContentTypeId: hasGlobalSearch ? 0 : (filters.ContentTypeId || 0),
+                DocumentCode: hasGlobalSearch ? "ALL" : (filters.DocumentCode || "ALL"),
+                DocName: globalSearch || "",
             },
+
         };
 
         try {
@@ -722,7 +738,7 @@ export default function DocumentList() {
                                     </li>
                                 </ul>
                             </div>
-                            <a href='/edm/edm-dashboard' style={{ position: "relative", zIndex: 10 }}>
+                            <a href='/edm/dashboard' style={{ position: "relative", zIndex: 10 }}>
                                 <span className="menu-link bg-white shadow-sm me-2">
                                     <span className="menu-title"><i className="bi bi-columns-gap text-primary fs-4"></i></span>
                                     <span className="menu-arrow"></span>
@@ -741,7 +757,7 @@ export default function DocumentList() {
                         {showTypeBtn && (
                             <Link to="/edm/inactive-docs"
                                 className="btn btn-light-danger btn-sm border border-danger d-flex align-items-center gap-2 px-3 shadow-sm custom-btn"
-                                ><i className="bi bi-building-add fs-5"></i><span className="d-none d-md-inline">Inactive Docs</span>
+                            ><i className="bi bi-building-add fs-5"></i><span className="d-none d-md-inline">Inactive Docs</span>
                             </Link>
                         )}
                         {showTypeBtn && (
@@ -985,12 +1001,40 @@ export default function DocumentList() {
                                             value={filters.DocumentCode}
                                             onChange={(e) => setFilters((prev) => ({ ...prev, DocumentCode: e.target.value }))}
                                         />
-
                                         {filters.DocumentCode && (
                                             <span
                                                 className="position-absolute top-50 end-0 translate-middle-y me-3 cursor-pointer text-gray-400 text-hover-primary"
                                                 onClick={() => setFilters((prev) => ({ ...prev, DocumentCode: '' }))}
                                                 style={{ transition: 'color 0.2s' }}
+                                            >
+                                                <i className="fa-solid fa-circle-xmark fs-7"></i>
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="col-12 col-md-3 mb-md-0 my-3" title="Comming soon..!">
+                                    <label className="form-label fw-bold fs-8 text-gray-700">
+                                        Global Search
+                                    </label>
+
+                                    <div className="position-relative">
+                                        <input
+                                            type="text"
+                                            className="form-control form-control-sm pe-10"
+                                            placeholder="Search anything..."
+                                            value={globalSearch}
+                                            onChange={(e) => setGlobalSearch(e.target.value)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                    handleFilterSubmit();
+                                                }
+                                            }}
+                                        />
+
+                                        {globalSearch && (
+                                            <span
+                                                className="position-absolute top-50 end-0 translate-middle-y me-3 cursor-pointer text-gray-400 text-hover-primary"
+                                                onClick={() => setGlobalSearch("")}
                                             >
                                                 <i className="fa-solid fa-circle-xmark fs-7"></i>
                                             </span>
@@ -1008,12 +1052,12 @@ export default function DocumentList() {
                                         {dataLoading ? (
                                             <>
                                                 <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                                                Submitting...
+                                                Fetching...
                                             </>
                                         ) : (
                                             <>
                                                 <i className="bi bi-funnel"></i>
-                                                <span>Submit</span>
+                                                <span>Fetch</span>
                                             </>
                                         )}
                                     </button>
@@ -1024,7 +1068,7 @@ export default function DocumentList() {
 
                     {/* docz list */}
                     <div className="card d-md-block d-none shadow-sm">
-                        <div className="table-responsive" style={{ overflowX: "hidden" }}>
+                        <div className="table-responsive">
                             <table className="table align-middle table-hover gs-7 gy-5 mb-0 fs-6">
                                 <thead className="bg-light-primary">
                                     <tr className="text-start text-muted fw-bold fs-7 text-uppercase gs-0 border-bottom-2 border-primary">
@@ -1183,7 +1227,7 @@ export default function DocumentList() {
 
                                                                         {/* Preview Action */}
                                                                         <div className="action-item  cursor-pointer" onClick={() => handleOpenPreview(item)}>
-                                                                        <i className="bi bi-eye"></i>
+                                                                            <i className="bi bi-eye"></i>
                                                                             <span>Quick View</span>
                                                                         </div>
 

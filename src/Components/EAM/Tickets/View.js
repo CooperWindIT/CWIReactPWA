@@ -1126,8 +1126,8 @@ export default function EAMTicketView() {
     const normalizeStep = (value) => String(value || "").trim().toUpperCase();
 
     const steps = ticketDetails?.DirectAssign
-        ? ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "TECH_FIXED", "RESOLVED", "CLOSED"]
-        : ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "RESOLVED", "CLOSED"];
+        ? ["NEW", "APPROVED", "ASSIGNED", "TECH_FIXED", "RESOLVED", "CLOSED"]
+        : ["NEW", "APPROVED", "ASSIGNED", "RESOLVED", "CLOSED"];
 
     const currentStatusForStepper =
         ticketDetails?.Status === "PENDING_WITH_CLIENT"
@@ -1157,9 +1157,9 @@ export default function EAMTicketView() {
     };
 
     const showDeleteBtn = sessionActionIds?.includes(11);
-    const showReqApproveBtn = sessionActionIds?.includes(12);
+    // const showReqApproveBtn = sessionActionIds?.includes(12);
     const showResolveBtn = sessionActionIds?.includes(13);
-    const ShowPickupBtn = sessionActionIds?.includes(20);
+    // const ShowPickupBtn = sessionActionIds?.includes(20);
 
     const showEditBtn = sessionActionIds?.includes(3);
     const showApproveBtn = sessionActionIds?.includes(4);
@@ -1195,7 +1195,7 @@ export default function EAMTicketView() {
     const handleReAssignTech = async () => {
         const result = await Swal.fire({
             title: "Re-Assign Technician?",
-            text: "Are you sure you want to re-assign this ticket to another technician?",
+            text: "Are you sure you want to re-assign this ticket to technician?",
             icon: "question",
             showCancelButton: true,
             confirmButtonText: '<i class="bi bi-check-circle text-white me-2"></i>Yes, Re-Assign',
@@ -1233,6 +1233,7 @@ export default function EAMTicketView() {
 
             if (data?.success && responseCode === 3005) {
                 fetchTicketDetails();
+                fetchTicketData();
                 Swal.fire("Success", "Ticket reassigned successfully.", "success");
             } else {
                 Swal.fire("Error", "Failed to reassign technician.", "error");
@@ -1246,7 +1247,7 @@ export default function EAMTicketView() {
     return (
         <Base1>
 
-            <div id="kt_app_content" className="app-content flex-column-fluid">
+            <div id="kt_app_content" className="app-content flex-column-fluid mb-4">
                 <div id="kt_app_content_container" className={`app-container container-xxl ${loading ? 'blurred' : ''}`}>
                     {loading && (
                         <div className="loading-overlay">
@@ -1711,7 +1712,7 @@ export default function EAMTicketView() {
                                         <hr className="text-primary" />
 
                                         {/* Pickup & Drop */}
-                                        {(ticketDetails?.Status === 'APPROVED' || ticketDetails?.Status === 'PICKED UP') &&
+                                        {/* {(ticketDetails?.Status === 'APPROVED' || ticketDetails?.Status === 'PICKED UP') &&
                                             <div className="card shadow-sm border-0 p-3 rounded-3 mt-3">
                                                 <div className="d-flex align-items-center justify-content-between mb-3">
                                                     <h5 className="fw-bold mb-0 d-flex align-items-center gap-2 text-primary">
@@ -1784,7 +1785,6 @@ export default function EAMTicketView() {
                                                     </div>
                                                 </div>
 
-                                                {/* Log */}
                                                 <div className="row g-3 mb-3 mt-8">
                                                     <div className={`col-12 col-md-2`}>
                                                         <label className="form-label fw-semibold">
@@ -1853,7 +1853,7 @@ export default function EAMTicketView() {
                                                         />
                                                     </div>
                                                 </div>
-                                                {/* Submit Button */}
+
                                                 <div className="text-end">
                                                     <button
                                                         type="button"
@@ -1889,11 +1889,10 @@ export default function EAMTicketView() {
 
                                                 <hr className="text-primary" />
                                             </div>
-                                        }
+                                        } */}
 
                                         {/* Requirements */}
-                                        <div className="card shadow-sm border-0 p-4 rounded-4 bg-white">
-                                            {/* Section Header */}
+                                        {/* <div className="card shadow-sm border-0 p-4 rounded-4 bg-white">
                                             <div className="d-flex justify-content-between align-items-center mb-4">
                                                 <h5 className="fw-bolder mb-0 d-flex align-items-center gap-2 text-dark">
                                                     <span className="bg-light-primary p-2 rounded-3">
@@ -1901,7 +1900,6 @@ export default function EAMTicketView() {
                                                     </span>
                                                     Requirement Checklist
 
-                                                    {/* Info Tooltip */}
                                                     <Tooltip
                                                         placement="top"
                                                         title={
@@ -2044,14 +2042,14 @@ export default function EAMTicketView() {
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </div> */}
 
-                                        <hr className="text-primary" />
+                                        {/* <hr className="text-primary" /> */}
 
                                         {/* Uploaded Files */}
                                         <div className="card shadow-sm border-0 p-3 rounded-3">
                                             <h5 className="fw-bold mb-4 d-flex align-items-center gap-2 text-primary">
-                                                <i className="fa-solid fa-file-arrow-up"></i> Uploaded Files
+                                                <i className="fa-solid fa-file-arrow-up"></i> Submit Related Documents
 
                                                 <Tooltip
                                                     title="If you need to upload any documents like invoices, receipts, or technical files, you can use this feature to attach them to the record."
@@ -2754,6 +2752,7 @@ export default function EAMTicketView() {
                 </style>
 
             </div>
+
             <RegisterTicket />
             <EditTicket editObj={editData} />
             <AssignTechnician ticketObj={ticketData} />

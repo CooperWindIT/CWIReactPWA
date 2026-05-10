@@ -816,7 +816,7 @@ export default function ReportData() {
                 <div id="kt_app_toolbar" className="app-toolbar py-3 py-lg-6">
                     <div id="kt_app_toolbar_container" className="app-container container-xxl d-flex flex-stack">
                         <div className={`page-title d-none ${(shouldHideSidebar || reportId === '3') ? 'd-md-block' : 'd-none'}`}>
-                            <a href='/vms/vms-dashboard'>
+                            <a href='/vms/dashboard'>
                                 <span className="menu-link bg-white shadow-sm me-2 cursor-pointer">
                                     <span className="menu-title"><i className="fa-solid fa-person-walking"></i> Visitors</span>
                                     <span className="menu-arrow"></span>
@@ -980,7 +980,7 @@ export default function ReportData() {
                                 </ul>
                             </div>
 
-                            <a href='/vms/vms-dashboard'>
+                            <a href='/vms/dashboard'>
                                 <span className="menu-link bg-white shadow-sm me-2">
                                     <span className="menu-title"><i className="fa-solid fa-person-walking"></i></span>
                                     <span className="menu-arrow"></span>

@@ -16,7 +16,6 @@ export default function UplaodDocument() {
     const [selectedDeptId, setSelectedDeptId] = useState(null);
     const [selectedUnitId, setSelectedUnitId] = useState(null);
     const [selectedContentType, setSelectedContentType] = useState(null);
-    const [selectedTypeId, setSelectedTypeId] = useState(null);
     const [uploadLoading, setUploadLoading] = useState(false);
     const [sessionActionIds, setSessionActionIds] = useState([]);
     const [sessionModuleId, setSessionModuleId] = useState(null);
@@ -1063,12 +1062,12 @@ export default function UplaodDocument() {
                                                 <br /><br />
                                                 Please contact your <span className="text-primary fw-bold">System Administrator</span> to request the necessary rights.
                                             </p>
-                                            <button
+                                            {/* <button
                                                 className="btn btn-sm btn-light-primary fw-bold mt-2"
                                                 onClick={() => window.location.reload()}
                                             >
                                                 Request Access
-                                            </button>
+                                            </button> */}
                                         </div>
                                     </div>
                                 )}

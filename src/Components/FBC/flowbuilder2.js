@@ -160,10 +160,51 @@ function stepZoom(current, direction) {
   return ZOOM_STEPS[0] / 100;
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function labelMatches(label, query, caseSensitive, wholeWord) {
+  const source = `${label || ''}`;
+  const search = `${query || ''}`;
+  if (!search.trim()) return false;
+
+  if (wholeWord) {
+    const flags = caseSensitive ? '' : 'i';
+    const pattern = new RegExp(`\\b${escapeRegExp(search.trim())}\\b`, flags);
+    return pattern.test(source);
+  }
+
+  if (caseSensitive) {
+    return source.includes(search);
+  }
+
+  return source.toLowerCase().includes(search.toLowerCase());
+}
+
+function collectSubtreeIds(rootId, connections) {
+  const visited = new Set([rootId]);
+  const queue = [rootId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift();
+    connections.forEach((connection) => {
+      if (connection.from === currentId && !visited.has(connection.to)) {
+        visited.add(connection.to);
+        queue.push(connection.to);
+      }
+    });
+  }
+
+  return visited;
+}
+
 export default function FlowBuilderC() {
   const deletedConnectionsRef = useRef(new Set());
   const history = useRef([]);
   const historyIdx = useRef(-1);
+  const nodesRef = useRef([]);
+  const connectionsRef = useRef([]);
 
   const [nodes, setNodes] = useState([]);
   const [connections, setConnections] = useState([]);
@@ -180,8 +221,50 @@ export default function FlowBuilderC() {
   const [showGrid, setShowGrid] = useState(false);
   const [canvasBg, setCanvasBg] = useState(null);
   const [sessionUserData, setSessionUserData] = useState(null);
+  const [showShapeHint, setShowShapeHint] = useState(false);
+
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchCaseSensitive, setSearchCaseSensitive] = useState(false);
+  const [searchWholeWord, setSearchWholeWord] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState(0);
+  const [focusedBranchRootId, setFocusedBranchRootId] = useState(null);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+
+  useEffect(() => {
+    connectionsRef.current = connections;
+  }, [connections]);
+
+  const matchedNodeIds = nodes
+    .filter((node) => labelMatches(node.label, searchQuery, searchCaseSensitive, searchWholeWord))
+    .map((node) => node.id);
+
+  const activeSearchNodeId = matchedNodeIds.length > 0
+    ? matchedNodeIds[((activeSearchIndex % matchedNodeIds.length) + matchedNodeIds.length) % matchedNodeIds.length]
+    : null;
+
+  const focusedNodeIds = focusedBranchRootId
+    ? Array.from(collectSubtreeIds(focusedBranchRootId, connections))
+    : [];
+
+  const allExpanded = nodes.every((node) => !node.collapsed && Object.values(node.collapsedSides || DEFAULT_COLLAPSED_SIDES).every((value) => !value));
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setActiveSearchIndex(0);
+      return;
+    }
+
+    setActiveSearchIndex((prev) => {
+      if (matchedNodeIds.length === 0) return 0;
+      return Math.min(prev, matchedNodeIds.length - 1);
+    });
+  }, [matchedNodeIds.length, searchQuery]);
 
   const pushHistory = useCallback((n, c) => {
     history.current = history.current.slice(0, historyIdx.current + 1);
@@ -224,9 +307,11 @@ export default function FlowBuilderC() {
     setConnections(defaultConnections);
     setFileName('Untitled diagram');
     setSelectedId(null);
+
     setMode('select');
     setActiveShape(null);
     setConnectFrom(null);
+    setFocusedBranchRootId(null);
     setCurrentFileId(fileId);
     history.current = [snapshot(defaultNodes, defaultConnections)];
     historyIdx.current = 0;
@@ -255,6 +340,7 @@ export default function FlowBuilderC() {
     setMode('select');
     setActiveShape(null);
     setConnectFrom(null);
+    setFocusedBranchRootId(null);
     setCurrentFileId(id);
     history.current = [snapshot(loadedNodes, loadedConnections)];
     historyIdx.current = 0;
@@ -295,21 +381,34 @@ export default function FlowBuilderC() {
   }, []);
 
   const handleShapeSelect = useCallback((shapeId) => {
-    setActiveShape((prev) => (prev === shapeId ? null : shapeId));
+    setActiveShape((prev) => {
+      const nextShape = prev === shapeId ? null : shapeId;
+      setShowShapeHint(Boolean(nextShape));
+      return nextShape;
+    });
     setMode('select');
     setConnectFrom(null);
     setSelectedId(null);
   }, []);
 
+  const expandNodes = useCallback((inputNodes) => inputNodes.map((node) => ({
+    ...node,
+    collapsed: false,
+    collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
+  })), []);
+
   const appendNode = useCallback((newNode) => {
     setNodes((prevNodes) => {
-      const nextNodes = [...prevNodes, newNode];
+      // const nextNodes = [...prevNodes, newNode];
+
+      const expandedPrevNodes = expandNodes(prevNodes);
+      const nextNodes = [...expandedPrevNodes, { ...newNode, collapsed: false, collapsedSides: { ...DEFAULT_COLLAPSED_SIDES } }];
 
       setConnections((prevConnections) => {
         let nextConnections = prevConnections;
 
-        if (prevNodes.length > 0) {
-          const lastNodeId = prevNodes[prevNodes.length - 1].id;
+        if (expandedPrevNodes.length > 0) {
+          const lastNodeId = expandedPrevNodes[expandedPrevNodes.length - 1].id;
           const alreadyExists = prevConnections.some((connection) => connection.from === lastNodeId && connection.to === newNode.id);
 
           if (!alreadyExists) {
@@ -329,22 +428,37 @@ export default function FlowBuilderC() {
 
       return nextNodes;
     });
-  }, [pushHistory]);
+  }, [expandNodes, pushHistory]);
 
   const handleCanvasCreateNode = useCallback((shape, position) => {
     if (readMode) return;
+    setShowShapeHint(false);
     appendNode(createNode(shape, position.x, position.y));
   }, [appendNode, readMode]);
+
+  const handleCanvasCreateTextNode = useCallback((position) => {
+    if (readMode) return;
+    // const newNode = createNode('text', position.x, position.y);
+    const newNode = { ...createNode('text', position.x, position.y), collapsed: false, collapsedSides: { ...DEFAULT_COLLAPSED_SIDES } };
+    setNodes((prevNodes) => {
+      const nextNodes = [...expandNodes(prevNodes), newNode];
+      pushHistory(nextNodes, connectionsRef.current);
+      return nextNodes;
+    });
+    setSelectedId(newNode.id);
+    setFocusedBranchRootId(null);
+  }, [expandNodes, pushHistory, readMode]);
 
   const handleQuickCreateFromNode = useCallback((sourceNodeId, position) => {
     if (readMode) return;
 
     setNodes((prevNodes) => {
-      const sourceNode = prevNodes.find((node) => node.id === sourceNodeId);
-      if (!sourceNode) return prevNodes;
+      const expandedPrevNodes = expandNodes(prevNodes);
+      const sourceNode = expandedPrevNodes.find((node) => node.id === sourceNodeId);
+      if (!sourceNode) return expandedPrevNodes;
 
       const newNode = createChildNodeFromSource(sourceNode, position);
-      const nextNodes = [...prevNodes, newNode];
+      const nextNodes = [...expandedPrevNodes, { ...newNode, collapsed: false, collapsedSides: { ...DEFAULT_COLLAPSED_SIDES } }];
 
       setConnections((prevConnections) => {
         const nextConnections = [
@@ -357,7 +471,8 @@ export default function FlowBuilderC() {
 
       return nextNodes;
     });
-  }, [pushHistory, readMode]);
+    setFocusedBranchRootId(null);
+  }, [expandNodes, pushHistory, readMode]);
 
   const handleConnect = useCallback((nodeId) => {
     setMode('connect');
@@ -383,6 +498,7 @@ export default function FlowBuilderC() {
       setMode('select');
       return null;
     });
+    setFocusedBranchRootId(null);
   }, [pushHistory]);
 
   const handleNodesChange = useCallback((updater) => {
@@ -391,11 +507,23 @@ export default function FlowBuilderC() {
 
   const handleNodeDrop = useCallback((newNode) => {
     if (readMode) return;
+    setShowShapeHint(false);
     appendNode({
       ...normalizeNode(newNode),
       collapsed: newNode.collapsed || false,
     });
   }, [appendNode, readMode]);
+
+  const handleNodeDragEnd = useCallback(() => {
+    const currentNodes = nodesRef.current;
+    const currentConnections = connectionsRef.current;
+    if (currentNodes.length === 0) return;
+
+    const latest = history.current[historyIdx.current];
+    const nextSnap = snapshot(currentNodes, currentConnections);
+    if (latest && JSON.stringify(latest) === JSON.stringify(nextSnap)) return;
+    pushHistory(currentNodes, currentConnections);
+  }, [pushHistory]);
 
   const handleLabelChange = useCallback((id, label) => {
     setNodes((prev) => {
@@ -462,7 +590,26 @@ export default function FlowBuilderC() {
       collapsed: true,
       collapsedSides: { top: true, right: true, bottom: true, left: true },
     })));
+    setFocusedBranchRootId(null);
   }, []);
+
+  const focusBranch = useCallback((nodeId) => {
+    if (!readMode) return;
+    const subtreeIds = collectSubtreeIds(nodeId, connectionsRef.current);
+    if (subtreeIds.size <= 1) return;
+
+    setNodes((prev) => prev.map((node) => (
+      subtreeIds.has(node.id)
+        ? {
+          ...node,
+          collapsed: false,
+          collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
+        }
+        : node
+    )));
+
+    setFocusedBranchRootId((prev) => (prev === nodeId ? null : nodeId));
+  }, [readMode]);
 
   const handleToggleReadMode = useCallback(() => {
     setReadMode((prev) => {
@@ -471,6 +618,7 @@ export default function FlowBuilderC() {
       setMode('select');
       setActiveShape(null);
       setConnectFrom(null);
+      setFocusedBranchRootId(null);
       if (nextReadMode) {
         collapseAll();
       } else {
@@ -548,6 +696,8 @@ export default function FlowBuilderC() {
         handleModeChange('select');
         setSelectedId(null);
         setActiveShape(null);
+        setShowShapeHint(false);
+        setFocusedBranchRootId(null);
       }
     };
 
@@ -573,7 +723,7 @@ export default function FlowBuilderC() {
     </svg>
   );
 
-  const allExpanded = nodes.every(node => !node.collapsed);
+  // const allExpanded = nodes.every(node => !node.collapsed);
 
   const handleToggleAll = () => {
     if (allExpanded) {
@@ -592,6 +742,25 @@ export default function FlowBuilderC() {
       navigate("/");
     }
   }, [navigate]);
+
+
+  const handleSearchChange = useCallback((value) => {
+    setSearchQuery(value);
+    setActiveSearchIndex(0);
+    if (value.trim()) {
+      expandAll();
+    }
+  }, [expandAll]);
+
+  const handleSearchNext = useCallback(() => {
+    if (matchedNodeIds.length === 0) return;
+    setActiveSearchIndex((prev) => (prev + 1) % matchedNodeIds.length);
+  }, [matchedNodeIds.length]);
+
+  const handleSearchPrev = useCallback(() => {
+    if (matchedNodeIds.length === 0) return;
+    setActiveSearchIndex((prev) => (prev - 1 + matchedNodeIds.length) % matchedNodeIds.length);
+  }, [matchedNodeIds.length]);
 
   return (
     <div className="fc-app" data-theme={theme}>
@@ -627,6 +796,19 @@ export default function FlowBuilderC() {
           collapseAll={collapseAll}
           allExpanded={allExpanded}
           onToggleAll={handleToggleAll}
+
+          allExpanded={allExpanded}
+          onToggleAll={allExpanded ? collapseAll : expandAll}
+          searchQuery={searchQuery}
+          onSearchQueryChange={handleSearchChange}
+          searchCaseSensitive={searchCaseSensitive}
+          onSearchCaseSensitiveChange={setSearchCaseSensitive}
+          searchWholeWord={searchWholeWord}
+          onSearchWholeWordChange={setSearchWholeWord}
+          searchResultCount={matchedNodeIds.length}
+          activeSearchIndex={activeSearchNodeId ? activeSearchIndex : -1}
+          onSearchNext={handleSearchNext}
+          onSearchPrev={handleSearchPrev}
         />
 
         {mode === 'connect' && !readMode && (
@@ -637,7 +819,7 @@ export default function FlowBuilderC() {
           </div>
         )}
 
-        {activeShape && !readMode && (
+        {activeShape && !readMode && showShapeHint && (
           <div className="fc-connect-hint fc-shape-hint">
             Click on the canvas to place a new {activeShape} shape, or drag the tool into the diagram.
           </div>
@@ -651,13 +833,19 @@ export default function FlowBuilderC() {
             mode={readMode ? 'view' : mode}
             activeShape={readMode ? null : activeShape}
             connectFrom={readMode ? null : connectFrom}
+            matchedNodeIds={matchedNodeIds}
+            activeSearchNodeId={activeSearchNodeId}
+            focusedNodeIds={focusedNodeIds}
             onNodesChange={readMode ? () => { } : handleNodesChange}
             onNodeDrop={readMode ? () => { } : handleNodeDrop}
             onCreateNode={handleCanvasCreateNode}
+            onCreateTextNode={readMode ? () => { } : handleCanvasCreateTextNode}
+            onNodeDragEnd={readMode ? () => { } : handleNodeDragEnd}
             onToggle={handleToggleNode}
             onSelectNode={handleSelectNode}
             onConnect={readMode ? () => { } : handleConnect}
             onQuickCreateFromNode={readMode ? () => { } : handleQuickCreateFromNode}
+            onFocusBranch={focusBranch}
             onLabelChange={readMode ? () => { } : handleLabelChange}
             onDeleteConnection={readMode ? () => { } : handleDeleteConnection}
             readMode={readMode}

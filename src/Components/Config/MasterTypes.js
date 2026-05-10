@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useRef } from "react";
 import Swal from 'sweetalert2';
-import { Select, Tooltip, message } from "antd";
+import { Select, Tooltip, message, Modal, Input } from "antd";
 import { fetchWithAuth } from "../../utils/api";
 import PropTypes from "prop-types";
 
@@ -17,8 +17,13 @@ export default function RegisterMasterTypes({ typeCategory }) {
     const [sessionActionIds, setSessionActionIds] = useState([]);
     const [dataLoading, setDataLoading] = useState(false);
     const [typeSearchQuery, setTypeSearchQuery] = useState("");
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [selectedEditType, setSelectedEditType] = useState(null);
+    const [editTypeName, setEditTypeName] = useState("");
+    const [editLoading, setEditLoading] = useState(false);
 
     const { Option } = Select;
+    const offcanvasModalRef = useRef(null);
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem("userData");
@@ -290,6 +295,75 @@ export default function RegisterMasterTypes({ typeCategory }) {
         type.TypeName?.toLowerCase().includes(typeSearchQuery.toLowerCase())
     ) || [];
 
+    const handleOpenEditModal = (type) => {
+        setSelectedEditType(type);
+        setEditTypeName(type?.TypeName || "");
+        setIsEditModalOpen(true);
+    };
+
+    const handleCloseEditModal = () => {
+        setIsEditModalOpen(false);
+        setSelectedEditType(null);
+        setEditTypeName("");
+    };
+
+    const handleUpdateMasterType = async () => {
+        if (!editTypeName.trim()) {
+            Swal.fire({
+                title: "Warning",
+                text: "Type name is mandatory.",
+                icon: "warning",
+            });
+            return;
+        }
+
+        try {
+            setEditLoading(true);
+
+            const payload = {
+                Id: selectedEditType?.Id,
+                TypeName: editTypeName.trim(),
+                UserId: sessionUserData?.Id,
+            };
+
+            const response = await fetchWithAuth(`EDM/UpdateMasterTypes`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const result = await response.json();
+
+            if (result?.ResultData?.Status === "Success") {
+                Swal.fire({
+                    title: "Success",
+                    text: "Type updated successfully.",
+                    icon: "success",
+                });
+
+                handleCloseEditModal();
+                fetchMasterTypes();
+            } else {
+                Swal.fire({
+                    title: "Error",
+                    text: "Something went wrong, please try again.",
+                    icon: "error",
+                });
+            }
+        } catch (error) {
+            console.error("Update type error:", error);
+            Swal.fire({
+                title: "Error",
+                text: "An unexpected error occurred.",
+                icon: "error",
+            });
+        } finally {
+            setEditLoading(false);
+        }
+    };
+
     const typeLabelMap = {
         1: "Asset",
         2: "Document",
@@ -297,6 +371,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
     };
 
     const isDeleteDisabled = sessionActionIds?.includes(29) ? true : false;
+    const isEditDocType = sessionActionIds?.includes(34) ? true : false;
 
     return (
         <div
@@ -305,6 +380,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
             id="offcanvasRightAddMasterTypes"
             aria-labelledby="offcanvasRightLabel"
             style={{ width: "90%" }}
+            ref={offcanvasModalRef}
         >
             <style>
                 {`
@@ -520,19 +596,34 @@ export default function RegisterMasterTypes({ typeCategory }) {
                                                         </td>
 
                                                         <td className="text-center">
-                                                            <button
-                                                                className="btn btn-icon btn-light-danger btn-sm border-0 shadow-sm rounded-circle"
-                                                                style={{
-                                                                    width: "32px",
-                                                                    height: "32px",
-                                                                    cursor: !isDeleteDisabled ? "not-allowed" : "pointer",
-                                                                    opacity: !isDeleteDisabled ? 0.4 : 1
-                                                                }}
-                                                                onClick={() => isDeleteDisabled && handleDeleteMasterType(type)}
-                                                                disabled={!isDeleteDisabled}
-                                                            >
-                                                                <i className="bi bi-trash3 fs-6"></i>
-                                                            </button>
+                                                            <div className="d-flex justify-content-center gap-2">
+                                                                {sessionModuleId == 15 && (typeCategory === 2) && isEditDocType && (
+                                                                <button
+                                                                    className="btn btn-icon btn-light-primary btn-sm border-0 shadow-sm rounded-circle"
+                                                                    style={{
+                                                                        width: "32px",
+                                                                        height: "32px",
+                                                                    }}
+                                                                    onClick={() => handleOpenEditModal(type)}
+                                                                >
+                                                                    <i className="bi bi-pencil-square fs-6"></i>
+                                                                </button>
+                                                                )}
+
+                                                                <button
+                                                                    className="btn btn-icon btn-light-danger btn-sm border-0 shadow-sm rounded-circle"
+                                                                    style={{
+                                                                        width: "32px",
+                                                                        height: "32px",
+                                                                        cursor: !isDeleteDisabled ? "not-allowed" : "pointer",
+                                                                        opacity: !isDeleteDisabled ? 0.4 : 1
+                                                                    }}
+                                                                    onClick={() => isDeleteDisabled && handleDeleteMasterType(type)}
+                                                                    disabled={!isDeleteDisabled}
+                                                                >
+                                                                    <i className="bi bi-trash3 fs-6"></i>
+                                                                </button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );
@@ -551,6 +642,46 @@ export default function RegisterMasterTypes({ typeCategory }) {
                     </div>
                 </div>
             </div>
+
+            <Modal
+    title={
+        <div className="d-flex align-items-center gap-2">
+            <span
+                className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
+                style={{ width: "34px", height: "34px" }}
+            >
+                <i className="bi bi-pencil-square"></i>
+            </span>
+            <span className="fw-bold">Edit Type</span>
+        </div>
+    }
+    open={isEditModalOpen}
+    onCancel={handleCloseEditModal}
+    onOk={handleUpdateMasterType}
+    okText="Update"
+    confirmLoading={editLoading}
+    destroyOnHidden
+    zIndex={2000}
+    getContainer={() => offcanvasModalRef.current || document.body}
+    maskClosable={false}
+>
+    <div className="mt-2">
+        <label className="form-label fw-semibold mb-2 d-flex align-items-center gap-2">
+            {/* <i className="bi bi-tag text-primary"></i> */}
+            <span>Type Name</span>
+        </label>
+
+        <Input
+            autoFocus
+            value={editTypeName}
+            onChange={(e) => setEditTypeName(e.target.value)}
+            placeholder="Enter type name"
+            maxLength={100}
+            prefix={<i className="bi bi-input-cursor-text text-muted"></i>}
+        />
+    </div>
+</Modal>
+
         </div>
     );
 }

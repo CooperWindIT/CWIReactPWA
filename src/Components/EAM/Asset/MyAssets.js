@@ -173,7 +173,7 @@ export default function MyAssetsList() {
                     <div className="d-flex align-items-center gap-2 gap-lg-3">
                         <a
                             className="btn btn-light-secondary border border-dark shadow btn-sm d-none d-md-block"
-                            href="eam-dashboard"
+                            href="dashboard"
                             type="button"
                         ><i className="bi bi-arrow-left"></i>Back to Dashboard
                         </a>

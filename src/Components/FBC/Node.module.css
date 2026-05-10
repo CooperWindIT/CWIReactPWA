@@ -62,6 +62,19 @@
   box-shadow: 0 0 0 3px rgba(48, 176, 83, 0.18);
 }
 
+.dimmed .nodeInner {
+  filter: blur(2px);
+  opacity: 0.22;
+}
+
+.searchMatched .nodeInner {
+  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.28);
+}
+
+.searchActive .nodeInner {
+  box-shadow: 0 0 0 3px rgba(250, 173, 20, 0.55) !important;
+}
+
 
 .cp {
   position: absolute;

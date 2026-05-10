@@ -16,10 +16,14 @@ export default function Node({
   sideControls,
   selected,
   theme,
+  dimmed,
+  searchMatched,
+  searchActive,
   mode,
   connectFrom,
   onMouseDown,
   onQuickCreateFromNode,
+  onReadModeDoubleClick,
   onSelect,
   onToggle,
   onConnect,
@@ -66,7 +70,13 @@ export default function Node({
   }, [mode, node.id, onConnect, onMouseDown, onSelect, readMode]);
 
   const handleDoubleClick = useCallback(() => {
-    if (mode !== 'select' || readMode) return;
+    // if (mode !== 'select' || readMode) return;
+    if (readMode) {
+      onReadModeDoubleClick(node.id);
+      return;
+    }
+    if (mode !== 'select') return;
+
 
     setEditing(true);
     setTimeout(() => {
@@ -78,7 +88,7 @@ export default function Node({
       selection.removeAllRanges();
       selection.addRange(range);
     }, 0);
-  }, [mode, readMode]);
+  }, [mode, node.id, onReadModeDoubleClick, readMode]);
 
   const handleBlur = useCallback(() => {
     setEditing(false);
@@ -109,6 +119,9 @@ export default function Node({
         selected ? styles.selected : '',
         isConnectSource ? styles.connectSource : '',
         readMode ? styles.readOnly : '',
+        dimmed ? styles.dimmed : '',
+        searchMatched ? styles.searchMatched : '',
+        searchActive ? styles.searchActive : '',
       ].join(' ')}
       style={{
         left: node.x,

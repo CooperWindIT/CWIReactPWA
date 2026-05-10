@@ -1099,7 +1099,7 @@ export default function AssetViewMore() {
                     }
                     <div className="d-flex align-items-center gap-2 gap-lg-3">
                         <Link
-                            to="/eam/eam-dashboard"
+                            to="/eam/dashboard"
                             className={`btn btn-dark btn-sm`}>
                             <i className="fa-solid fa-arrow-left me-"></i>Back
                         </Link>

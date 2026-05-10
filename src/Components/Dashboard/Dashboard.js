@@ -761,7 +761,7 @@ export default function Dashboard() {
                                     </ul>
                                 </div>
                                 <a
-                                    href="/vms/vms-dashboard"
+                                    href="/vms/dashboard"
                                     style={{ position: "relative", zIndex: 10 }}
                                 >
                                     <span className="menu-link bg-white shadow-sm me-2 cursor-pointer active">
@@ -858,7 +858,7 @@ export default function Dashboard() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a href='/vms/vms-dashboard' style={{ position: "relative", zIndex: 10 }}>
+                                <a href='/vms/dashboard' style={{ position: "relative", zIndex: 10 }}>
                                     <span className="menu-link bg-white shadow-sm me-2 active">
                                         <span className="menu-title"><i className="fa-solid fa-person-walking "></i></span>
                                         <span className="menu-arrow"></span>

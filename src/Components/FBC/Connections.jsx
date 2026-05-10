@@ -1,7 +1,7 @@
 import React from 'react';
 import { getNodeCenter, getEdgePoint } from './Geometry';
 
-export default function Connections({ nodes, connection, theme, onDeleteConnection }) {
+export default function Connections({ nodes, connection, theme, dimmed,  onDeleteConnection }) {
   const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
   const from = nodeMap[connection.from];
   const to = nodeMap[connection.to];
@@ -76,6 +76,8 @@ export default function Connections({ nodes, connection, theme, onDeleteConnecti
           strokeLinecap="round"
           strokeLinejoin="round"
           markerEnd="url(#flow-arrow)"
+          opacity={dimmed ? 0.16 : 1}
+          
         />
 
         <path

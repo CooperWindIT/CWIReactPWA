@@ -268,7 +268,7 @@ export default function UserAccessDoc() {
                         <h1 className="page-heading d-flex text-gray-900 fw-bolder fs-3 flex-column justify-content-center my-0">Access Control Management</h1>
                         <ul className="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
                             <li className="breadcrumb-item text-muted">
-                                <a href="/edm/edm-dashboard" className="text-muted text-hover-primary">Dashboard</a>
+                                <a href="/edm/dashboard" className="text-muted text-hover-primary">Dashboard</a>
                             </li>
                             <li className="breadcrumb-item">
                                 <span className="bullet bg-gray-500 w-5px h-2px"></span>

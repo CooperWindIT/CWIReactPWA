@@ -36,6 +36,7 @@ export default function EAMTicketsList() {
     const [techniciansData, setTechniciansData] = useState([]);
     const [assetTypeId, setAssetTypeId] = useState(null);
     const [isDirectAssign, setIsDirectAssign] = useState(null);
+    const [selectedTicketCode, setSelectedTicketCode] = useState("");
 
     const [assetTypesData, setAssetTypesData] = useState([]);
     const [selectedAssetTypeId, setSelectedAssetTypeId] = useState(null);
@@ -221,6 +222,7 @@ export default function EAMTicketsList() {
                 UnitId: unitId,
                 DeptId: deptId,
                 TechId: 0,
+                TicketCode: selectedTicketCode || "ALL",   
             },
         };
 
@@ -928,7 +930,7 @@ export default function EAMTicketsList() {
                             </div>
                             <div className="row d-flex justify-content-start align-items-end">
                                 <div className="col-6 col-md-2 mb-2 d-flex flex-column">
-                                    <label className="form-label">From<span className="text-danger">*</span></label>
+                                    <label className="form-label fw-bold fs-8 text-gray-700">From<span className="text-danger">*</span></label>
                                     <input
                                         type="date"
                                         className="form-control form-control-sm"
@@ -938,7 +940,7 @@ export default function EAMTicketsList() {
                                     />
                                 </div>
                                 <div className="col-6 col-md-2 mb-2 d-flex flex-column">
-                                    <label className="form-label">To<span className="text-danger">*</span></label>
+                                    <label className="form-label fw-bold fs-8 text-gray-700">To<span className="text-danger">*</span></label>
                                     <input
                                         type="date"
                                         className="form-control form-control-sm"
@@ -949,7 +951,7 @@ export default function EAMTicketsList() {
                                 </div>
 
                                 <div className="col-6 col-md-2 mb-2 d-flex flex-column">
-                                    <label className="form-label">
+                                    <label className="form-label fw-bold fs-8 text-gray-700">
                                         Unit<span className="text-danger">*</span>
                                     </label>
                                     <Select
@@ -977,7 +979,7 @@ export default function EAMTicketsList() {
                                     </Select>
                                 </div>
                                 <div className="col-6 col-md-2 mb-2 d-flex flex-column">
-                                    <label className="form-label">
+                                    <label className="form-label fw-bold fs-8 text-gray-700">
                                         Department<span className="text-danger">*</span>
                                     </label>
                                     <Select
@@ -1023,7 +1025,7 @@ export default function EAMTicketsList() {
                                 </div>
 
                                 <div className="col-12 col-md-3 mb-2 d-flex flex-column">
-                                    <label className="form-label">
+                                    <label className="form-label fw-bold fs-8 text-gray-700">
                                         Asset Type
                                     </label>
                                     <Select
@@ -1048,7 +1050,7 @@ export default function EAMTicketsList() {
                                     </Select>
                                 </div>
                                 <div className="col-12 col-md-4 mb-2 d-flex flex-column">
-                                    <label className="form-label">
+                                    <label className="form-label fw-bold fs-8 text-gray-700">
                                         Asset
                                     </label>
                                     <Select
@@ -1083,7 +1085,7 @@ export default function EAMTicketsList() {
                                     </Select>
                                 </div>
                                 <div className="col-6 col-md-2 mb-2 d-flex flex-column">
-                                    <label className="form-label">Priority</label>
+                                    <label className="form-label fw-bold fs-8 text-gray-700">Priority</label>
                                     <Select
                                         showSearch
                                         placeholder="Select Priority"
@@ -1100,7 +1102,7 @@ export default function EAMTicketsList() {
                                     />
                                 </div>
                                 <div className="col-6 col-md-2 mb-2 d-flex flex-column">
-                                    <label className="form-label">Status</label>
+                                    <label className="form-label fw-bold fs-8 text-gray-700">Status</label>
                                     <Select
                                         mode="multiple"
                                         allowClear
@@ -1120,6 +1122,30 @@ export default function EAMTicketsList() {
                                             };
                                         })}
                                     />
+                                </div>
+                                <div className="col-6 col-md-2 mb-2">
+                                    <label className="form-label fw-bold fs-8 text-gray-700">
+                                        Ticket Code
+                                    </label>
+                                    <div className="position-relative">
+    <input
+        type="text"
+        className="form-control form-control-sm pe-10"
+        placeholder="Enter ticket code"
+        value={selectedTicketCode}
+        onChange={(e) => setSelectedTicketCode(e.target.value)}
+    />
+
+    {selectedTicketCode && (
+        <span
+            className="position-absolute top-50 end-0 translate-middle-y me-3 cursor-pointer text-gray-400 text-hover-primary"
+            onClick={() => setSelectedTicketCode("")}
+            style={{ transition: "color 0.2s" }}
+        >
+            <i className="fa-solid fa-circle-xmark fs-7"></i>
+        </span>
+    )}
+</div>
                                 </div>
                                 <div className="col-auto mb-2 d-flex">
                                     <button
@@ -1143,15 +1169,16 @@ export default function EAMTicketsList() {
                                     <tr className="text-start text-muted fw-bold fs-7 text-uppercase gs-0 border-bottom-2 border-primary">
                                         <th className="">S.No</th>
                                         <th className="min-w-125px">Ticket Code</th>
-                                        <th className="min-w-125px">Asset</th>
+                                        <th className="min-w-145px">Asset</th>
                                         <th className="min-w-125px">Created On</th>
                                         <th className="min-w-205px">Technician</th>
-                                        <th className="min-w-100px">Priority</th>
-                                        <th className="min-w-100px">Status</th>
-                                        {/* <th className="min-w-100px">Updated On</th> */}
+                                        <th className="min-w-100px text-center">Priority</th>
+                                        <th className="min-w-100px text-center">Status</th>
                                         <th className="min-w-100px">Aging</th>
-                                        <th className="min-w-100px text-center">Last Log</th>
-                                        <th className="">Actions</th>
+                                        <th className="min-w-50px text-center">Last Log</th>
+                                        <th className="min-w-80px">Action Req. By</th>
+                                        {/* <th className="min-w-100px">Updated On</th> */}
+                                        {/* <th className="">Actions</th> */}
                                     </tr>
                                 </thead>
                                 <tbody className="fw-semibold text-gray-700">
@@ -1163,23 +1190,24 @@ export default function EAMTicketsList() {
                                         </tr>
                                     ) : ticketsData && ticketsData?.length > 0 ? (
                                         ticketsData?.map((item, index) => {
-                                            const canEdit = showEditBtn && !permissionsByStatus.edit.includes(item.Status);
-                                            const canDelete = showDeleteBtn && permissionsByStatus.delete.includes(item.Status);
-                                            const canApprove = showApproveBtn && permissionsByStatus.approve.includes(item.Status);
-                                            const canReject = showRejectBtn && permissionsByStatus.reject.includes(item.Status);
+                                            // const canEdit = showEditBtn && !permissionsByStatus.edit.includes(item.Status);
+                                            // const canDelete = showDeleteBtn && permissionsByStatus.delete.includes(item.Status);
+                                            // const canApprove = showApproveBtn && permissionsByStatus.approve.includes(item.Status);
+                                            // const canReject = showRejectBtn && permissionsByStatus.reject.includes(item.Status);
                                             // const canAssignTech = permissionsByStatus.assignTech.includes(item.Status);
-                                            const canAssignTech = (showAssignTechBtn) && (
-                                                // Case 1: Status is NEW and DirectAssign is true
-                                                (item.Status === 'NEW' && item.DirectAssign === true) ||
+                                            // const canAssignTech = (showAssignTechBtn) && (
+                                            //     // Case 1: Status is NEW and DirectAssign is true
+                                            //     (item.Status === 'NEW' && item.DirectAssign === true) ||
 
-                                                // Case 2: Status is APPROVED (DirectAssign is ignored)
-                                                (item.Status === 'APPROVED') ||
+                                            //     // Case 2: Status is APPROVED (DirectAssign is ignored)
+                                            //     (item.Status === 'APPROVED') ||
 
-                                                // Case 3: Fallback for any other statuses defined in your permissions array
-                                                (!['NEW', 'APPROVED'].includes(item.Status) && permissionsByStatus.assignTech.includes(item.Status))
-                                            );
-                                            const canClose = showCloseBtn && permissionsByStatus.close.includes(item.Status);
-                                            const canView = showViewBtn;
+                                            //     // Case 3: Fallback for any other statuses defined in your permissions array
+                                            //     (!['NEW', 'APPROVED'].includes(item.Status) && permissionsByStatus.assignTech.includes(item.Status))
+                                            // );
+                                            // const canClose = showCloseBtn && permissionsByStatus.close.includes(item.Status);
+                                            // const canView = showViewBtn;
+
                                             return (
                                                 <tr
                                                     key={index}
@@ -1192,7 +1220,12 @@ export default function EAMTicketsList() {
                                                         {(currentPage - 1) * pageSize + index + 1}
                                                     </td>
                                                     <td>
-                                                        <Link to={`/eam/ticket-view/${item.OrgId}/${item.Id}`} className="text-dark fw-bold text-hover-primary mb-1 badge badge-light-primary">{item.TicketCode}</Link>
+                                                        <Link
+                                                            to={`/eam/ticket-view/${item.OrgId}/${item.Id}`}
+                                                            className="fw-bold text-dark text-hover-primary text-decoration-underline"
+                                                        >
+                                                            {item.TicketCode}
+                                                        </Link>
                                                     </td>
                                                     <td>
                                                         <Tooltip
@@ -1205,7 +1238,7 @@ export default function EAMTicketsList() {
                                                                 className="fw-bold text-primary"
                                                                 style={{
                                                                     display: "inline-block",
-                                                                    maxWidth: "180px",
+                                                                    maxWidth: "190px",
                                                                     whiteSpace: "nowrap",
                                                                     overflow: "hidden",
                                                                     textOverflow: "ellipsis",
@@ -1218,25 +1251,41 @@ export default function EAMTicketsList() {
                                                     </td>
                                                     <td>{formatDate(item.CreatedOn) || 'N/A'}</td>
                                                     <td>{item.Technician || 'N/A'}</td>
-                                                    <td>
-                                                        {item.Priority === 1 && (
-                                                            <span className="badge badge-light-danger">High</span>
-                                                        )}
-                                                        {item.Priority === 2 && (
-                                                            <span className="badge badge-light-warning">Medium</span>
-                                                        )}
-                                                        {item.Priority === 3 && (
-                                                            <span className="badge badge-light-primary">Low</span>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        <span className={`badge ${getStatusBadgeClass(item.Status)}`}>
-                                                            {item.Status}
-                                                        </span>
-                                                    </td>
-                                                    {/* <td>
-                                                        {formatDate(item.UpdatedOn)}
-                                                    </td> */}
+                                                    <td className="text-center">
+    {item.Priority === 1 && (
+        <span
+            className="badge badge-light-danger d-inline-flex align-items-center justify-content-center"
+            style={{ width: "80px" }}
+        >
+            High
+        </span>
+    )}
+    {item.Priority === 2 && (
+        <span
+            className="badge badge-light-warning d-inline-flex align-items-center justify-content-center"
+            style={{ width: "80px" }}
+        >
+            Medium
+        </span>
+    )}
+    {item.Priority === 3 && (
+        <span
+            className="badge badge-light-primary d-inline-flex align-items-center justify-content-center"
+            style={{ width: "80px" }}
+        >
+            Low
+        </span>
+    )}
+</td>
+
+<td className="text-center">
+    <span
+        className={`badge ${getStatusBadgeClass(item.Status)} d-inline-flex align-items-center justify-content-center`}
+        style={{ width: "80px" }}
+    >
+        {item.Status}
+    </span>
+</td>
                                                     <td className="text-info">
                                                         <Tooltip
                                                             title={getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
@@ -1269,7 +1318,7 @@ export default function EAMTicketsList() {
                                                                 trigger="hover"
                                                             >
                                                                 <Tooltip >
-                                                                    <FileTextOutlined style={{ fontSize: 18, color: "#1890ff", cursor: "pointer" }} />
+                                                                    <FileTextOutlined style={{ fontSize: 12, color: "#1890ff", cursor: "pointer" }} />
                                                                 </Tooltip>
                                                             </Popover>
                                                         ) : (
@@ -1277,6 +1326,13 @@ export default function EAMTicketsList() {
                                                         )}
                                                     </td>
                                                     <td>
+  <Tooltip title="Coming soon">
+    <span className="blur-cell">
+      Employee Name
+    </span>
+  </Tooltip>
+</td>
+                                                    {/* <td>
                                                         <Popover
                                                             placement="bottom"
                                                             content={
@@ -1388,7 +1444,7 @@ export default function EAMTicketsList() {
                                                                 <i className="fa-solid fa-ellipsis-vertical"></i>
                                                             </button>
                                                         </Popover>
-                                                    </td>
+                                                    </td> */}
                                                 </tr>
                                             )
                                         })
@@ -1600,6 +1656,13 @@ export default function EAMTicketsList() {
 
                 <style>
                     {`
+                    .blur-cell {
+  filter: blur(3px);
+  opacity: 0.6;
+  cursor: not-allowed;
+  user-select: none;
+  display: inline-block;
+}
                     .table tbody tr:hover {
                         background-color: #f8faff !important;
                         transform: scale(1.01);

@@ -32,14 +32,20 @@ export default function Canvas({
   mode,
   activeShape,
   connectFrom,
+  matchedNodeIds,
+  activeSearchNodeId,
+  focusedNodeIds,
   onNodesChange,
   onNodeDrop,
   onCreateNode,
+  onCreateTextNode,
+  onNodeDragEnd,
   onToggle,
   onSelectNode,
   onConnect,
   onLabelChange,
   onQuickCreateFromNode,
+  onFocusBranch,
   onDeleteConnection,
   readMode,
   zoom,
@@ -89,8 +95,10 @@ export default function Canvas({
     };
 
     const onMouseUp = () => {
+      const shouldCommitDrag = Boolean(dragging.current) && didDrag.current;
       dragging.current = null;
       panning.current = null;
+      if (shouldCommitDrag) onNodeDragEnd();
       didDrag.current = false;
     };
 
@@ -100,7 +108,15 @@ export default function Canvas({
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [onNodesChange, toCanvasPoint]);
+  }, [onNodeDragEnd, onNodesChange, toCanvasPoint]);
+
+  useEffect(() => {
+    if (!activeSearchNodeId || !wrapRef.current) return;
+    const target = wrapRef.current.querySelector(`[data-nodeid="${activeSearchNodeId}"]`);
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+  }, [activeSearchNodeId]);
+
 
   const handleNodeMouseDown = useCallback((event, nodeId) => {
     if (mode !== 'select' || readMode) return;
@@ -162,6 +178,13 @@ export default function Canvas({
 
     if (!readMode) onSelectNode(null);
   }, [activeShape, mode, onCreateNode, onSelectNode, readMode, toCanvasPoint]);
+
+  const handleCanvasDoubleClick = useCallback((event) => {
+    if (readMode) return;
+    if (event.target !== canvasRef.current && !event.target.classList.contains(styles.grid)) return;
+    const point = toCanvasPoint(event.clientX, event.clientY);
+    onCreateTextNode(point);
+  }, [onCreateTextNode, readMode, toCanvasPoint]);
 
   const handleWheel = useCallback((event) => {
     if (!(event.ctrlKey || event.metaKey)) return;
@@ -234,6 +257,7 @@ export default function Canvas({
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onMouseDown={handleCanvasMouseDown}
+            onDoubleClick={handleCanvasDoubleClick}
             style={{
               width: BASE_WIDTH,
               height: BASE_HEIGHT,
@@ -261,6 +285,7 @@ export default function Canvas({
                   connection={connection}
                   nodes={nodes}
                   theme={theme}
+                  dimmed={focusedNodeIds.length > 0 && (!focusedNodeIds.includes(connection.from) || !focusedNodeIds.includes(connection.to))}
                   onDeleteConnection={onDeleteConnection}
                 />
               ))}
@@ -285,6 +310,9 @@ export default function Canvas({
                   key={node.id}
                   node={node}
                   sideControls={sideControls}
+                  dimmed={readMode && focusedNodeIds.length > 0 && !focusedNodeIds.includes(node.id)}
+                  searchMatched={matchedNodeIds.includes(node.id)}
+                  searchActive={activeSearchNodeId === node.id}
                   onToggle={onToggle}
                   selected={selectedId === node.id}
                   mode={mode}
@@ -293,6 +321,7 @@ export default function Canvas({
                   onSelect={onSelectNode}
                   onConnect={onConnect}
                   onQuickCreateFromNode={onQuickCreateFromNode}
+                  onReadModeDoubleClick={onFocusBranch}
                   onLabelChange={onLabelChange}
                   readMode={readMode}
                   theme={theme}
