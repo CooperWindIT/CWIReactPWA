@@ -194,6 +194,7 @@ export default function TicketViewCommentsModal({ ticObj, onClose }) {
                 CommentText: plainTextContent,
                 TablePrimaryId: ticObj?.TicketId, // replace dynamically if needed
                 ToEmails: mentionedEmails.join(","), // 👈 comma separated string
+                CommentId: 0,
             },
         };
 

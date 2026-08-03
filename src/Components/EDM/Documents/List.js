@@ -28,6 +28,7 @@ export default function DocumentList() {
     const [dataLoading, setDataLoading] = useState(false);
     const [totalRecords, setTotalRecords] = useState({});
     const [docListData, setDocListData] = useState([]);
+    const [selectedIsFC, setSelectedIsFC] = useState(0);
     const [menuData, setMenuData] = useState([]);
     const [editData, setEditData] = useState([]);
     const [docsData, setDocsData] = useState([]);
@@ -384,17 +385,6 @@ export default function DocumentList() {
             ServiceName: "GETDocumentDetails",
             PageNumber: page,
             PageSize: finalPageSize,
-            // Params: {
-            //     OrgId: sessionUserData?.OrgId,
-            //     UserId: sessionUserData?.Id,
-            //     UnitId: filters.UnitId,
-            //     VersionStatus: filters.VersionStatus,
-            //     DocId: selectedDocId || 0,
-            //     DeptId: filters.DeptId || 0,
-            //     ContentTypeId: filters.ContentTypeId || 0,
-            //     DocumentCode: filters.DocumentCode || "ALL",
-            //     DocName: globalSearch || "",
-            // },
             Params: {
                 OrgId: sessionUserData?.OrgId,
                 UserId: sessionUserData?.Id,
@@ -405,6 +395,7 @@ export default function DocumentList() {
                 ContentTypeId: hasGlobalSearch ? 0 : (filters.ContentTypeId || 0),
                 DocumentCode: hasGlobalSearch ? "ALL" : (filters.DocumentCode || "ALL"),
                 DocName: globalSearch || "",
+                IsFlowChart: selectedIsFC,
             },
 
         };
@@ -1041,6 +1032,41 @@ export default function DocumentList() {
                                         )}
                                     </div>
                                 </div>
+                                <div className="col-12 col-md-3 mb-md-0 my-3">
+                                    <label className="form-label fw-bold fs-8 text-gray-700 d-block mb-2">
+                                        Is Flow Chart
+                                    </label>
+
+                                    <div
+                                        className="d-flex align-items-center gap-3 px-3 py-2 rounded"
+                                        style={{
+                                            background: "#f8f9fa",
+                                            border: "1px solid #e4e6ef",
+                                            minHeight: "36px",
+                                        }}
+                                    >
+                                        <div className="form-check form-switch m-0">
+                                            <input
+                                                className="form-check-input"
+                                                type="checkbox"
+                                                id="isFlowChart"
+                                                checked={selectedIsFC === 1}
+                                                onChange={(e) => setSelectedIsFC(e.target.checked ? 1 : 0)}
+                                            />
+                                        </div>
+
+                                        <label
+                                            htmlFor="isFlowChart"
+                                            className="mb-0 fw-semibold"
+                                            style={{
+                                                color: selectedIsFC ? "#198754" : "#6c757d",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            {selectedIsFC ? "Flow Charts Only" : "All Documents"}
+                                        </label>
+                                    </div>
+                                </div>
                                 <div className="col-12 col-md-1 d-flex my-5 mb-0">
                                     <button
                                         className="btn btn-light-primary btn-sm border border-primary w-100 w-md-auto d-flex align-items-center justify-content-center"
@@ -1218,20 +1244,14 @@ export default function DocumentList() {
                                                                             <i className="fa-regular fa-pen-to-square text-info"></i>
                                                                             <span>Edit Details</span>
                                                                         </div>
-
-                                                                        {/* Versions Action */}
                                                                         <Link to={`/edm/doc-version/${item.Id}`} className="action-item">
                                                                             <i className="fa-solid fa-code-branch text-primary"></i>
                                                                             <span>History</span>
                                                                         </Link>
-
-                                                                        {/* Preview Action */}
                                                                         <div className="action-item  cursor-pointer" onClick={() => handleOpenPreview(item)}>
                                                                             <i className="bi bi-eye"></i>
                                                                             <span>Quick View</span>
                                                                         </div>
-
-                                                                        {/* Delete Action */}
                                                                         <div
                                                                             className={`action-item cursor-pointer ${!(showDelete && item.VersionStatus !== 'PUBLISHED') ? 'disabled' : ''}`}
                                                                             onClick={() => showDelete && item.VersionStatus !== 'PUBLISHED' && handleDeleteDoc(item)}

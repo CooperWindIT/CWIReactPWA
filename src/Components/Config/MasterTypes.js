@@ -21,6 +21,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
     const [selectedEditType, setSelectedEditType] = useState(null);
     const [editTypeName, setEditTypeName] = useState("");
     const [editLoading, setEditLoading] = useState(false);
+    const [isFlowChart, setIsFlowChart] = useState(false);
 
     const { Option } = Select;
     const offcanvasModalRef = useRef(null);
@@ -187,6 +188,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
                 : selectedAddDeptId,
             ModuleId: sessionModuleId,
             DirectAssign: isPeripheral ? 1 : 0,
+            IsFlowChart: isFlowChart ? 1 : 0,
         }
 
         try {
@@ -449,20 +451,65 @@ export default function RegisterMasterTypes({ typeCategory }) {
                                 )}
 
                                 {/* Type Name Input */}
-                                <div className="col-12 col-md-5">
-                                    <label className="form-label fw-bold text-gray-700">
-                                        {typeLabelMap[typeCategory] || "Type"} Type Name<spn className="text-danger fw-bold">*</spn>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        className="form-control form-control-solid shadow-sm border border-dark"
-                                        placeholder="Enter type name"
-                                        style={{ height: '2.8rem' }}
-                                        value={typeName}
-                                        onChange={(e) => setTypeName(e.target.value)}
-                                        disabled={addTypeLoading}
-                                        required
-                                    />
+                                <div className="row g-4 align-items-end">
+
+                                    <div className={typeCategory === 2 ? "col-lg-8 col-md-7" : "col-12"}>
+                                        <label className="form-label fw-bold text-gray-700">
+                                            {typeLabelMap[typeCategory] || "Type"} Name
+                                            <span className="text-danger ms-1">*</span>
+                                        </label>
+
+                                        <input
+                                            type="text"
+                                            className="form-control form-control-sm shadow-sm"
+                                            placeholder={`Enter ${typeLabelMap[typeCategory] || "Type"} Name`}
+                                            style={{ height: "40px" }}
+                                            value={typeName}
+                                            onChange={(e) => setTypeName(e.target.value)}
+                                            disabled={addTypeLoading}
+                                            required
+                                        />
+                                    </div>
+
+                                    {Number(typeCategory) === 2 && (
+                                        <div className="col-lg-4 col-md-5">
+
+                                            <div
+                                                className="border rounded-3 px-3 py-2 d-flex justify-content-between align-items-center h-100"
+                                                style={{
+                                                    minHeight: "46px",
+                                                    background: "#f8f9fc"
+                                                }}
+                                            >
+                                                <div>
+                                                    <div className="fw-semibold">
+                                                        Flow Chart
+                                                    </div>
+                                                    <small className="text-muted">
+                                                        Enable flow chart for this type
+                                                    </small>
+                                                </div>
+
+                                                <div className="form-check form-switch m-0">
+                                                    <input
+                                                        className="form-check-input"
+                                                        type="checkbox"
+                                                        role="switch"
+                                                        checked={isFlowChart}
+                                                        onChange={(e) => setIsFlowChart(e.target.checked)}
+                                                        disabled={addTypeLoading}
+                                                        style={{
+                                                            width: "3rem",
+                                                            height: "1.5rem",
+                                                            cursor: "pointer"
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    )}
+
                                 </div>
 
                                 {sessionModuleId === '14' && typeCategory === 1 && (
@@ -567,7 +614,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
                                     <tbody className="fw-semibold text-gray-600">
                                         {filteredTypes.length > 0 ? (
                                             filteredTypes.map((type, indx) => {
-                                                const isExpiryAlertType = type.DirectAssign === true;
+                                                const isExpiryAlertType = type.DirectAssign === true && sessionModuleId == 15;
 
                                                 return (
                                                     <tr
@@ -577,7 +624,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
                                                         <td className="text-gray-400 text-center">{indx + 1}</td>
 
                                                         <td>
-                                                            <div className="d-flex align-items-center gap-2">
+                                                            <div className="d-flex align-items-center gap-2 flex-wrap">
                                                                 <span
                                                                     className="text-gray-800 fw-bold d-inline-block text-truncate"
                                                                     style={{ maxWidth: "150px" }}
@@ -588,8 +635,15 @@ export default function RegisterMasterTypes({ typeCategory }) {
 
                                                                 {isExpiryAlertType && (
                                                                     <span className="badge badge-light-warning text-warning border border-warning-subtle">
-                                                                        <i className="bi bi-bell-fill text-warning me-1"></i>
-                                                                        Expiry Alert Type
+                                                                        <i className="bi bi-bell-fill me-1"></i>
+                                                                        Expiry Alert
+                                                                    </span>
+                                                                )}
+
+                                                                {type.IsFlowChart === true && (
+                                                                    <span className="badge badge-light-primary text-primary border border-primary-subtle">
+                                                                        <i className="bi bi-diagram-3-fill me-1 text-primary"></i>
+                                                                        Flow Chart
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -598,16 +652,16 @@ export default function RegisterMasterTypes({ typeCategory }) {
                                                         <td className="text-center">
                                                             <div className="d-flex justify-content-center gap-2">
                                                                 {sessionModuleId == 15 && (typeCategory === 2) && isEditDocType && (
-                                                                <button
-                                                                    className="btn btn-icon btn-light-primary btn-sm border-0 shadow-sm rounded-circle"
-                                                                    style={{
-                                                                        width: "32px",
-                                                                        height: "32px",
-                                                                    }}
-                                                                    onClick={() => handleOpenEditModal(type)}
-                                                                >
-                                                                    <i className="bi bi-pencil-square fs-6"></i>
-                                                                </button>
+                                                                    <button
+                                                                        className="btn btn-icon btn-light-primary btn-sm border-0 shadow-sm rounded-circle"
+                                                                        style={{
+                                                                            width: "32px",
+                                                                            height: "32px",
+                                                                        }}
+                                                                        onClick={() => handleOpenEditModal(type)}
+                                                                    >
+                                                                        <i className="bi bi-pencil-square fs-6"></i>
+                                                                    </button>
                                                                 )}
 
                                                                 <button
@@ -644,43 +698,43 @@ export default function RegisterMasterTypes({ typeCategory }) {
             </div>
 
             <Modal
-    title={
-        <div className="d-flex align-items-center gap-2">
-            <span
-                className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
-                style={{ width: "34px", height: "34px" }}
+                title={
+                    <div className="d-flex align-items-center gap-2">
+                        <span
+                            className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
+                            style={{ width: "34px", height: "34px" }}
+                        >
+                            <i className="bi bi-pencil-square"></i>
+                        </span>
+                        <span className="fw-bold">Edit Type</span>
+                    </div>
+                }
+                open={isEditModalOpen}
+                onCancel={handleCloseEditModal}
+                onOk={handleUpdateMasterType}
+                okText="Update"
+                confirmLoading={editLoading}
+                destroyOnHidden
+                zIndex={2000}
+                getContainer={() => offcanvasModalRef.current || document.body}
+                maskClosable={false}
             >
-                <i className="bi bi-pencil-square"></i>
-            </span>
-            <span className="fw-bold">Edit Type</span>
-        </div>
-    }
-    open={isEditModalOpen}
-    onCancel={handleCloseEditModal}
-    onOk={handleUpdateMasterType}
-    okText="Update"
-    confirmLoading={editLoading}
-    destroyOnHidden
-    zIndex={2000}
-    getContainer={() => offcanvasModalRef.current || document.body}
-    maskClosable={false}
->
-    <div className="mt-2">
-        <label className="form-label fw-semibold mb-2 d-flex align-items-center gap-2">
-            {/* <i className="bi bi-tag text-primary"></i> */}
-            <span>Type Name</span>
-        </label>
+                <div className="mt-2">
+                    <label className="form-label fw-semibold mb-2 d-flex align-items-center gap-2">
+                        {/* <i className="bi bi-tag text-primary"></i> */}
+                        <span>Type Name</span>
+                    </label>
 
-        <Input
-            autoFocus
-            value={editTypeName}
-            onChange={(e) => setEditTypeName(e.target.value)}
-            placeholder="Enter type name"
-            maxLength={100}
-            prefix={<i className="bi bi-input-cursor-text text-muted"></i>}
-        />
-    </div>
-</Modal>
+                    <Input
+                        autoFocus
+                        value={editTypeName}
+                        onChange={(e) => setEditTypeName(e.target.value)}
+                        placeholder="Enter type name"
+                        maxLength={100}
+                        prefix={<i className="bi bi-input-cursor-text text-muted"></i>}
+                    />
+                </div>
+            </Modal>
 
         </div>
     );

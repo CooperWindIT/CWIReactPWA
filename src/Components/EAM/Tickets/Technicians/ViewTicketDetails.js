@@ -41,7 +41,7 @@ export default function TicketViewDetails({ ticObj }) {
         const payload = {
             OrgId: sessionUserData?.OrgId,
             Priority: 1,
-            TicketStatus: "TECH_FIXED",
+            TicketStatus: "ISSUE_FIXED",
             TicketId: item.TicketId,
             UserId: sessionUserData?.Id,
             JsonData: {
@@ -61,11 +61,20 @@ export default function TicketViewDetails({ ticObj }) {
             const data = await res.json();
 
             if (data?.success && data?.data?.result?.[0]?.ResponseCode === 3003) {
-                fetchTicketDetails();
-                setIsResolveModalOpen(false);
-                Swal.fire("Success", "Ticket resolved.", "success");
+                Swal.fire({
+                    icon: "success",
+                    title: "Success",
+                    text: "Ticket resolved.",
+                    confirmButtonText: "OK",
+                }).then(() => {
+                    window.location.reload();
+                });
             } else {
-                Swal.fire("Error", "Failed to resolve", "error");
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: "Failed to resolve.",
+                });
             }
         } catch (err) {
             Swal.fire("Error", "Server error", "error");
@@ -126,9 +135,23 @@ export default function TicketViewDetails({ ticObj }) {
                 await fetchTicketDetails();
                 setIsPriorityModalOpen(false);
                 setPriorityForm({ techPriority: "", techlevel: "" });
-                Swal.fire("Success", "Priority and level updated successfully.", "success");
+
+                Swal.fire({
+                    icon: "success",
+                    title: "Success",
+                    text: "Priority and level updated successfully.",
+                    confirmButtonText: "OK",
+                }).then(() => {
+                    fetchTicketDetails();
+                });
             } else {
-                Swal.fire("Error", data?.data?.result?.[0]?.Logs || "Failed to update priority and level.", "error");
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text:
+                        data?.data?.result?.[0]?.Logs ||
+                        "Failed to update priority and level.",
+                });
             }
         } catch (error) {
             Swal.fire("Error", "Server error", "error");
@@ -174,12 +197,24 @@ export default function TicketViewDetails({ ticObj }) {
             const responseCode = data?.data?.result?.[0]?.ResponseCode;
 
             if (data?.success && responseCode === 3004) {
-                fetchTicketDetails();
+                await fetchTicketDetails();
                 setIsSupportModalOpen(false);
                 setSupportDescription("");
-                Swal.fire("Success", "Support request submitted successfully.", "success");
+
+                Swal.fire({
+                    icon: "success",
+                    title: "Success",
+                    text: "Support request submitted successfully.",
+                    confirmButtonText: "OK",
+                }).then(() => {
+                    fetchTicketDetails();
+                });
             } else {
-                Swal.fire("Error", "Failed to submit support request.", "error");
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text: "Failed to submit support request.",
+                });
             }
         } catch (error) {
             Swal.fire("Error", "Server error", "error");
@@ -271,7 +306,7 @@ export default function TicketViewDetails({ ticObj }) {
 
         const balanceSeconds = slaSeconds - effectiveSeconds;
 
-        if (ticket?.Status === "TECH_FIXED") {
+        if (ticket?.Status === "ISSUE_FIXED") {
             return {
                 label: `Stopped at ${formatDuration(effectiveSeconds)}`,
                 textClass: "text-success",
@@ -327,22 +362,34 @@ export default function TicketViewDetails({ ticObj }) {
                     }
                 `}
             </style>
-            <div>
-                <div className="offcanvas-header d-flex justify-content-between align-items-center bg-white border-bottom py-3 px-4">
-                    <h5 id="offcanvasRightLabel" className="mb-0 fw-bold text-gray-800">
-                        Ticket Details <span className="badge badge-light-primary text-primary fw-bold px-3 py-2 mb-2 ms-2">
-                            {ticObj?.TicketCode}
-                        </span>
-                    </h5>
+            <div className="mb-4 pb-4">
+                <div className="offcanvas-header premium-offcanvas-header px-4">
+                    <div className="d-flex align-items-center">
+                        <div className="header-icon me-3">
+                            <i className="bi bi-ticket-detailed-fill"></i>
+                        </div>
+
+                        <div>
+                            <h5 className="mb-1 fw-bold text-white">
+                                Ticket Details
+                            </h5>
+
+                            <span className="ticket-code-pill">
+                                {ticObj?.TicketCode}
+                            </span>
+                        </div>
+                    </div>
                     <button
                         type="button"
-                        className="btn-close"
+                        className="premium-close-btn"
                         data-bs-dismiss="offcanvas"
                         aria-label="Close"
-                    ></button>
+                    >
+                        <i className="bi bi-x-lg"></i>
+                    </button>
                 </div>
 
-                <div className="offcanvas-body d-flex flex-column h-100 p-0" style={{ marginTop: "-1rem", maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
+                <div className="offcanvas-body d-flex flex-column h-100 p-0 mb-4" style={{ marginTop: "-1rem", maxHeight: "calc(100vh - 4rem)", overflowY: "auto" }}>
                     <div className="detail-header p-3 p-md-4 bg-white border-bottom shadow-sm mb-3">
                         <div className="d-flex flex-column flex-sm-row justify-content-between align-items-start gap-2 mb-3">
                             <div>
@@ -356,7 +403,7 @@ export default function TicketViewDetails({ ticObj }) {
                             </div>
 
                             <span
-                                className={`badge px-3 py-2 rounded-pill ${ticketDetails?.Status === "TECH_FIXED"
+                                className={`badge px-3 py-2 rounded-pill ${ticketDetails?.Status === "ISSUE_FIXED"
                                     ? "badge-light-success text-success"
                                     : ticketDetails?.Status === "PENDING_WITH_CLIENT"
                                         ? "badge-light-info text-info"
@@ -426,8 +473,8 @@ export default function TicketViewDetails({ ticObj }) {
                                 <div className="col-12 col-md-6">
                                     <Tooltip
                                         title={
-                                            ticketDetails?.Status === "TECH_FIXED"
-                                                ? "Support from client cannot be requested after the ticket is marked as TECH_FIXED"
+                                            ticketDetails?.Status === "ISSUE_FIXED"
+                                                ? "Support from client cannot be requested after the ticket is marked as ISSUE_FIXED"
                                                 : ticketDetails?.Status === "PENDING_WITH_CLIENT"
                                                     ? "Client support has already been requested for this ticket"
                                                     : "Request support or clarification from the client"
@@ -438,8 +485,10 @@ export default function TicketViewDetails({ ticObj }) {
                                                 className="shadow-sm btn btn-light-info w-100 btn-sm d-flex align-items-center justify-content-center gap-2 py-3 rounded-3 fw-bold"
                                                 onClick={() => setIsSupportModalOpen(true)}
                                                 disabled={
-                                                    ticketDetails?.Status === "TECH_FIXED" ||
-                                                    ticketDetails?.Status === "PENDING_WITH_CLIENT"
+                                                    ticketDetails?.Status === "ISSUE_FIXED" ||
+                                                    ticketDetails?.Status === "PENDING_WITH_CLIENT" ||
+                                                    ticketDetails?.TechPriority === 0 ||
+                                                    ticketDetails?.TechLevel === 0
                                                 }
                                             >
                                                 <i className="bi bi-headset"></i>
@@ -452,9 +501,11 @@ export default function TicketViewDetails({ ticObj }) {
                                 <div className="col-12 col-md-6">
                                     <Tooltip
                                         title={
-                                            ["ASSIGNED"].includes(ticObj?.Status?.toUpperCase())
-                                                ? "Mark this ticket as fixed"
-                                                : "This action is available only when the ticket status is ASSIGNED"
+                                            ticObj?.Status?.toUpperCase() !== "ASSIGNED"
+                                                ? "This action is available only when the ticket status is ASSIGNED"
+                                                : (!ticketDetails?.TechPriority || !ticketDetails?.TechLevel)
+                                                    ? "Please assign both Priority and Level before marking the ticket as Fixed."
+                                                    : "Mark this ticket as fixed"
                                         }
                                     >
                                         <span className="d-block">
@@ -462,7 +513,10 @@ export default function TicketViewDetails({ ticObj }) {
                                                 className={`shadow-sm btn btn-light-success w-100 btn-sm d-flex align-items-center justify-content-center gap-2 py-3 rounded-3 fw-bold ${!["ASSIGNED"].includes(ticObj?.Status?.toUpperCase()) ? "opacity-50" : ""
                                                     }`}
                                                 onClick={() => handleIsFixedClick(ticObj)}
-                                                disabled={!["ASSIGNED"].includes(ticObj?.Status?.toUpperCase())}
+                                                disabled={!["ASSIGNED"].includes(ticObj?.Status?.toUpperCase()) ||
+                                                    ticketDetails?.TechPriority === 0 ||
+                                                    ticketDetails?.TechLevel === 0
+                                                }
                                             >
                                                 <i className="bi bi-check-circle-fill"></i>
                                                 <span>Mark As Fixed</span>
@@ -834,8 +888,67 @@ export default function TicketViewDetails({ ticObj }) {
 
 
             <style>
-                {`/* Custom Header Styling */
-                /* Helper for ultra-small text on mobile labels */
+                {`
+                .premium-offcanvas-header{
+                    background: linear-gradient(135deg,#2563eb 0%,#4f46e5 100%);
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    border-bottom:none;
+                    box-shadow:0 8px 20px rgba(37,99,235,.18);
+                }
+
+                .header-icon{
+                    width:52px;
+                    height:52px;
+                    border-radius:14px;
+                    background:rgba(255,255,255,.18);
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    backdrop-filter:blur(6px);
+                }
+
+                .header-icon i{
+                    color:#fff;
+                    font-size:24px;
+                }
+
+                .ticket-code-pill{
+                    display:inline-block;
+                    margin-top:2px;
+                    padding:5px 14px;
+                    border-radius:999px;
+                    background:rgba(255,255,255,.18);
+                    color:#fff;
+                    font-size:12px;
+                    font-weight:600;
+                    letter-spacing:.4px;
+                    backdrop-filter:blur(6px);
+                }
+
+                .premium-close-btn{
+                    width:42px;
+                    height:42px;
+                    border:none;
+                    border-radius:12px;
+                    background:rgba(255,255,255,.15);
+                    color:#fff;
+                    display:flex;
+                    align-items:center;
+                    justify-content:center;
+                    transition:.25s;
+                }
+
+                .premium-close-btn:hover{
+                    background:#fff;
+                    color:#2563eb;
+                    transform:rotate(90deg);
+                }
+
+                .premium-close-btn i{
+                    font-size:18px;
+                }
                     .fs-9 { font-size: 0.65rem !important; }
                     .ls-1 { letter-spacing: 0.5px; }
 

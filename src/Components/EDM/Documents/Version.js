@@ -17,7 +17,9 @@ import AddAlert from './../../MasterAlerts/Add';
 import { Select } from "antd";
 import DocumentPreview from "./DocumentPreview";
 import ViewAlert from './../../MasterAlerts/View';
-import { Dropdown, Menu } from 'antd';
+import { Dropdown, Menu, message } from 'antd';
+import LZString from "lz-string";
+import { exportDiagramAsPdf } from '../../FBC/hooks/pdfUtils';
 
 export default function DocVersion() {
 
@@ -97,6 +99,7 @@ export default function DocVersion() {
 
     const handleTabChange = (tabName) => {
         setActiveTab(tabName);
+        fetchDocVersions();
         // localStorage.setItem("docDetails_activeTab", tabName);
     };
 
@@ -335,6 +338,39 @@ export default function DocVersion() {
 
     const handleEditVersion = (item) => {
         setEditVersionData(item);
+    };
+
+    const handleDownloadFCDoc = async (item) => {
+        if (!item.JsonData) {
+            message.warning("Flow chart data not available.");
+            return;
+        }
+    
+        try {
+            const json = LZString.decompressFromBase64(item.JsonData);
+    
+            if (!json) {
+                message.error("Unable to load Flow Chart.");
+                return;
+            }
+    
+            const diagram = JSON.parse(json);
+    
+            const pdf = await exportDiagramAsPdf({
+                name: diagram.name,
+                nodes: diagram.nodes,
+                connections: diagram.connections,
+                meta: {
+                    docNo: item.DocumentNo,
+                    date: item.UploadedOn?.split("T")[0],
+                },
+            });
+    
+            pdf.save(`${diagram.name || "FlowChart"}.pdf`);
+        } catch (e) {
+            console.error(e);
+            message.error("Unable to generate Flow Chart PDF.");
+        }
     };
 
     const handleDownloadDoc = async (item) => {
@@ -993,7 +1029,7 @@ export default function DocVersion() {
     const showReject = sessionActionIds?.includes(5);
     const showViewLogs = sessionActionIds?.includes(28);
     const showDelete = sessionActionIds?.includes(11);
-    const showAlertTab = sessionActionIds?.includes(33);
+    // const showAlertTab = sessionActionIds?.includes(33);
 
     const getActions = (item) => {
         const status = item.VersionStatus?.toUpperCase() || "";
@@ -1020,6 +1056,11 @@ export default function DocVersion() {
         ? !(latestStatus === "PUBLISHED" && docDetails?.CanWrite)
         : !docDetails?.CanWrite;
 
+    const addVersionTooltip = !docDetails?.CanWrite
+        ? "You don't have permission to add a new document version."
+        : hasVersions && latestStatus !== "PUBLISHED"
+            ? `The latest version is "${latestStatus}". A new version can only be created after the current version is Published.`
+            : "";
 
     return (
         <Base1>
@@ -1298,7 +1339,7 @@ export default function DocVersion() {
 
                     <div className="col-auto text-end d-flex align-items-center justify-content-end gap-2 p-2 bg-white rounded-4 shadow-sm">
                         <Tooltip
-                            title={isAddDisabled ? "You can only add a new version once the current version is Published." : ""}
+                            title={addVersionTooltip}
                             placement="top"
                         >
                             <span className="d-inline-block">
@@ -1309,7 +1350,7 @@ export default function DocVersion() {
                                     data-bs-toggle="offcanvas"
                                     data-bs-target="#offcanvasRightAddDocVersion"
                                     disabled={isAddDisabled}
-                                    style={isAddDisabled ? { pointerEvents: 'none' } : {}}
+                                    style={isAddDisabled ? { pointerEvents: "none" } : {}}
                                 >
                                     <i className="bi bi-file-arrow-up fs-5"></i>
                                     <span className="d-none d-md-inline ms-1">Add Version</span>
@@ -1599,7 +1640,16 @@ export default function DocVersion() {
                                                                 className="badge badge-light-dark fs-7 fw-bold border"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    handleDownloadDoc(item);
+                                                                
+                                                                    const hasFlowChart =
+                                                                        item.JsonData &&
+                                                                        item.JsonData.trim() !== "";
+                                                                
+                                                                    if (hasFlowChart) {
+                                                                        handleDownloadFCDoc(item);
+                                                                    } else {
+                                                                        handleDownloadDoc(item);
+                                                                    }
                                                                 }}
                                                                 style={{ cursor: "pointer" }}
                                                             >
@@ -1728,7 +1778,19 @@ export default function DocVersion() {
                                                             <div className="col-6">
                                                                 <button
                                                                     className="btn btn-light-dark btn-sm w-100"
-                                                                    onClick={(e) => { e.stopPropagation(); handleDownloadDoc(item) }}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                    
+                                                                        const hasFlowChart =
+                                                                            item.JsonData &&
+                                                                            item.JsonData.trim() !== "";
+                                                                    
+                                                                        if (hasFlowChart) {
+                                                                            handleDownloadFCDoc(item);
+                                                                        } else {
+                                                                            handleDownloadDoc(item);
+                                                                        }
+                                                                    }}
                                                                 >
                                                                     <i className="fa-solid fa-download"></i> Download
                                                                 </button>
@@ -1829,7 +1891,7 @@ export default function DocVersion() {
                         </div>
                     )}
 
-                    {activeTab === "alerts" && showAlertTab && docVersions.length > 0 && (
+                    {activeTab === "alerts" && docVersions.length > 0 && (
                         <div className="card tab-content animate__animated animate__fadeIn">
                             <div className="card-body p-3 p-md-4">
                                 <div className="row g-3 align-items-center justify-content-between">
@@ -1955,7 +2017,7 @@ export default function DocVersion() {
                                                                                 {item.IsMaintenance === true && (
                                                                                     <span className="badge bg-light-warning text-warning border border-warning-subtle fs-9 rounded-pill">
                                                                                         <i className="bi bi-tools me-1 text-warning me-1"></i>
-                                                                                        Maintenance Alert
+                                                                                        Expiry Alert
                                                                                     </span>
                                                                                 )}
 
@@ -2002,7 +2064,7 @@ export default function DocVersion() {
 
                                                                         <div className="vr" style={{ height: "12px" }}></div>
 
-                                                                        <div className="d-flex align-items-center">
+                                                                        <div className="d-flex align-items-center" title="Created on">
                                                                             <i className={`bi bi-calendar-event me-1 ${isInactive ? "text-muted" : "text-primary"}`}></i>
                                                                             <span>{formatToDDMMYYYY(item.CreatedOn) || "N/A"}</span>
                                                                         </div>
@@ -2422,7 +2484,7 @@ export default function DocVersion() {
             <EntityLogs entityObj={entityItem} />
             <AddDocVersion docObj={docItem} />
             <ViewAlert alertObj={selectedAlert} />
-            <AddAlert machineId={docId} versionId={docVersions[0]?.Id} deptId={docDetails?.DeptId} entityType="Documents" />
+            <AddAlert machineId={docVersions[0]?.Id} versionId={docVersions[0]?.Id} deptId={docDetails?.DeptId} entityType="Documents" />
             <RegisterMasterTypes typeCategory={3} />
             <DocumentPreview
                 isOpen={previewModal.show}

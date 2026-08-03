@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { message } from 'antd';
 import { BASE_API } from "../Config/Config";
 import Img1 from '../Assests/SigninImages/im1.png';
 import Img2 from '../Assests/SigninImages/im2.png';
@@ -11,11 +12,12 @@ import Img7 from '../Assests/SigninImages/im7.png';
 import Img8 from '../Assests/SigninImages/im8.png';
 import Img9 from '../Assests/SigninImages/image8.png';
 import Img10 from '../Assests/SigninImages/image10.png';
-// import Img11 from '../Assests/SigninImages/image20.png';
 import Img12 from '../Assests/SigninImages/image22.png';
 import CWIImg from '../Assests/SigninImages/cwinew.png';
 import WaterMarkLogo from '../Assests/SigninImages/cwilogo.png';
-import { message } from 'antd';
+// import CWIImg from '../Assests/SigninImages/andisologo.png';
+// import WaterMarkLogo from '../Assests/SigninImages/andisologo.png';
+// import Img11 from '../Assests/SigninImages/image20.png';
 
 export default function NewSignIn() {
 
@@ -68,7 +70,7 @@ export default function NewSignIn() {
 
     useEffect(() => {
         sessionStorage.clear();
-        localStorage.clear();
+        // localStorage.clear();
     }, []);
 
     const navigate = useNavigate();

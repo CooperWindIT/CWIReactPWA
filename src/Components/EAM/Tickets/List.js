@@ -5,7 +5,7 @@ import { Popover, Tooltip, Select } from 'antd';
 import '../../Config/Pagination.css';
 import Swal from 'sweetalert2';
 import '../../Config/Loader.css';
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import RegisterTicket from "./Add";
 import EditTicket from "./Edit";
 import AssignTechnician from "./AssignTech";
@@ -20,6 +20,8 @@ import TechnicianList from "./Technicians/Tech";
 export default function EAMTicketsList() {
 
     const navigate = useNavigate();
+    const location = useLocation();
+
     const [sessionUserData, setSessionUserData] = useState([]);
     const [ticketsData, setTicketsData] = useState([]);
     const [ticketsCache, setTicketsCache] = useState({});
@@ -72,7 +74,7 @@ export default function EAMTicketsList() {
     const [selectedToDt, setSelectedToDt] = useState(
         savedTicketFilters?.toDate ||
         new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
-    );    
+    );
 
     const [approveSubmitLoading, SetApproveSubmitLoading] = useState(null);
     const [usersData, setUsersData] = useState([]);
@@ -222,7 +224,7 @@ export default function EAMTicketsList() {
                 UnitId: unitId,
                 DeptId: deptId,
                 TechId: 0,
-                TicketCode: selectedTicketCode || "ALL",   
+                TicketCode: selectedTicketCode || "ALL",
             },
         };
 
@@ -829,6 +831,7 @@ export default function EAMTicketsList() {
     const showCloseBtn = sessionActionIds?.includes(10);
     const showDeleteBtn = sessionActionIds?.includes(11);
     const showDeptDwn = sessionActionIds?.includes(25);
+    const addTech = sessionActionIds?.includes(35);
 
 
     return (
@@ -852,14 +855,21 @@ export default function EAMTicketsList() {
                     </div>
 
                     <div className="bg-white p-2 rounded-3 shadow-sm border d-flex flex-wrap align-items-center gap-2">
-                        <a
-                            className="btn btn-info btn-sm shadow-sm custom-btn"
-                            data-bs-toggle="offcanvas"
-                            data-bs-target="#offcanvasRightTech"
-                            aria-controls="offcanvasRightTech"
-                        >
-                            <i className="fa-solid fa-user-gear"></i><span className="d-none d-md-inline">Technicians</span>
-                        </a>
+                        <Link className="btn btn-warning btn-sm shadow-sm custom-btn" to="/eam/my-tickets">
+                            <i className="fa-solid fa-user-gear"></i><span className="d-none d-md-inline">My Tickets</span>
+                        </Link>
+
+                        {addTech && (
+                            <a
+                                className="btn btn-info btn-sm shadow-sm custom-btn"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#offcanvasRightTech"
+                                aria-controls="offcanvasRightTech"
+                            >
+                                <i className="fa-solid fa-user-gear"></i><span className="d-none d-md-inline">Add Technician</span>
+                            </a>
+                        )}
+
                         {showAddBtn && (
                             <a
                                 className="btn btn-primary btn-sm shadow-sm custom-btn"
@@ -1000,27 +1010,27 @@ export default function EAMTicketsList() {
                                     >
                                         <Option value="0">ALL</Option>
                                         {departmentsData?.map((dep) => {
-                                        // Check if this department matches the logged-in user's department
-                                        const isUserDept = dep.ItemId === sessionUserData?.DeptId;
+                                            // Check if this department matches the logged-in user's department
+                                            const isUserDept = dep.ItemId === sessionUserData?.DeptId;
 
-                                        return (
-                                            <Option key={dep.ItemId} value={dep.ItemId}>
-                                                <div className="d-flex justify-content-between align-items-center w-100">
-                                                    <span className={isUserDept ? "fw-bolder text-primary" : ""}>
-                                                        {dep.ItemValue}
-                                                    </span>
-                                                    {isUserDept && (
-                                                        <span
-                                                            className="badge badge-light-primary fw-bold"
-                                                            style={{ fontSize: '10px', padding: '2px 6px' }}
-                                                        >
-                                                            MY DEPT
+                                            return (
+                                                <Option key={dep.ItemId} value={dep.ItemId}>
+                                                    <div className="d-flex justify-content-between align-items-center w-100">
+                                                        <span className={isUserDept ? "fw-bolder text-primary" : ""}>
+                                                            {dep.ItemValue}
                                                         </span>
-                                                    )}
-                                                </div>
-                                            </Option>
-                                        );
-                                    })}
+                                                        {isUserDept && (
+                                                            <span
+                                                                className="badge badge-light-primary fw-bold"
+                                                                style={{ fontSize: '10px', padding: '2px 6px' }}
+                                                            >
+                                                                MY DEPT
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </Option>
+                                            );
+                                        })}
                                     </Select>
                                 </div>
 
@@ -1128,24 +1138,24 @@ export default function EAMTicketsList() {
                                         Ticket Code
                                     </label>
                                     <div className="position-relative">
-    <input
-        type="text"
-        className="form-control form-control-sm pe-10"
-        placeholder="Enter ticket code"
-        value={selectedTicketCode}
-        onChange={(e) => setSelectedTicketCode(e.target.value)}
-    />
+                                        <input
+                                            type="text"
+                                            className="form-control form-control-sm pe-10"
+                                            placeholder="Enter ticket code"
+                                            value={selectedTicketCode}
+                                            onChange={(e) => setSelectedTicketCode(e.target.value)}
+                                        />
 
-    {selectedTicketCode && (
-        <span
-            className="position-absolute top-50 end-0 translate-middle-y me-3 cursor-pointer text-gray-400 text-hover-primary"
-            onClick={() => setSelectedTicketCode("")}
-            style={{ transition: "color 0.2s" }}
-        >
-            <i className="fa-solid fa-circle-xmark fs-7"></i>
-        </span>
-    )}
-</div>
+                                        {selectedTicketCode && (
+                                            <span
+                                                className="position-absolute top-50 end-0 translate-middle-y me-3 cursor-pointer text-gray-400 text-hover-primary"
+                                                onClick={() => setSelectedTicketCode("")}
+                                                style={{ transition: "color 0.2s" }}
+                                            >
+                                                <i className="fa-solid fa-circle-xmark fs-7"></i>
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
                                 <div className="col-auto mb-2 d-flex">
                                     <button
@@ -1220,12 +1230,15 @@ export default function EAMTicketsList() {
                                                         {(currentPage - 1) * pageSize + index + 1}
                                                     </td>
                                                     <td>
-                                                        <Link
-                                                            to={`/eam/ticket-view/${item.OrgId}/${item.Id}`}
-                                                            className="fw-bold text-dark text-hover-primary text-decoration-underline"
-                                                        >
-                                                            {item.TicketCode}
-                                                        </Link>
+                                                    <Link
+  to={`/eam/ticket-view/${item.OrgId}/${item.Id}`}
+  state={{
+    from: `${location.pathname}${location.search}`,
+  }}
+  className="fw-bold text-dark text-hover-primary text-decoration-underline"
+>
+  {item.TicketCode}
+</Link>
                                                     </td>
                                                     <td>
                                                         <Tooltip
@@ -1252,40 +1265,40 @@ export default function EAMTicketsList() {
                                                     <td>{formatDate(item.CreatedOn) || 'N/A'}</td>
                                                     <td>{item.Technician || 'N/A'}</td>
                                                     <td className="text-center">
-    {item.Priority === 1 && (
-        <span
-            className="badge badge-light-danger d-inline-flex align-items-center justify-content-center"
-            style={{ width: "80px" }}
-        >
-            High
-        </span>
-    )}
-    {item.Priority === 2 && (
-        <span
-            className="badge badge-light-warning d-inline-flex align-items-center justify-content-center"
-            style={{ width: "80px" }}
-        >
-            Medium
-        </span>
-    )}
-    {item.Priority === 3 && (
-        <span
-            className="badge badge-light-primary d-inline-flex align-items-center justify-content-center"
-            style={{ width: "80px" }}
-        >
-            Low
-        </span>
-    )}
-</td>
+                                                        {item.Priority === 1 && (
+                                                            <span
+                                                                className="badge badge-light-danger d-inline-flex align-items-center justify-content-center"
+                                                                style={{ width: "80px" }}
+                                                            >
+                                                                High
+                                                            </span>
+                                                        )}
+                                                        {item.Priority === 2 && (
+                                                            <span
+                                                                className="badge badge-light-warning d-inline-flex align-items-center justify-content-center"
+                                                                style={{ width: "80px" }}
+                                                            >
+                                                                Medium
+                                                            </span>
+                                                        )}
+                                                        {item.Priority === 3 && (
+                                                            <span
+                                                                className="badge badge-light-primary d-inline-flex align-items-center justify-content-center"
+                                                                style={{ width: "80px" }}
+                                                            >
+                                                                Low
+                                                            </span>
+                                                        )}
+                                                    </td>
 
-<td className="text-center">
-    <span
-        className={`badge ${getStatusBadgeClass(item.Status)} d-inline-flex align-items-center justify-content-center`}
-        style={{ width: "80px" }}
-    >
-        {item.Status}
-    </span>
-</td>
+                                                    <td className="text-center">
+                                                        <span
+                                                            className={`badge ${getStatusBadgeClass(item.Status)} d-inline-flex align-items-center justify-content-center`}
+                                                            style={{ width: "80px" }}
+                                                        >
+                                                            {item.Status}
+                                                        </span>
+                                                    </td>
                                                     <td className="text-info">
                                                         <Tooltip
                                                             title={getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
@@ -1293,7 +1306,7 @@ export default function EAMTicketsList() {
                                                             color="blue"
                                                         >
                                                             <span
-                                                                 style={{
+                                                                style={{
                                                                     display: "inline-block",
                                                                     maxWidth: "100px",
                                                                     whiteSpace: "nowrap",
@@ -1326,12 +1339,16 @@ export default function EAMTicketsList() {
                                                         )}
                                                     </td>
                                                     <td>
-  <Tooltip title="Coming soon">
-    <span className="blur-cell">
-      Employee Name
-    </span>
-  </Tooltip>
-</td>
+                                                        <div className="d-flex align-items-center gap-2">
+                                                            <span className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
+                                                                style={{ width: "28px", height: "28px", flexShrink: 0 }}
+                                                            >
+                                                                <i className="fa-solid fa-user"></i>
+                                                            </span>
+
+                                                            <span>{item.ActionRequired || '---'}</span>
+                                                        </div>
+                                                    </td>
                                                     {/* <td>
                                                         <Popover
                                                             placement="bottom"
@@ -1510,7 +1527,7 @@ export default function EAMTicketsList() {
                                                                     pointerEvents: canEdit ? 'auto' : 'none',
                                                                     filter: canEdit ? 'none' : 'blur(1px)',
                                                                 }}
-                                                                onClick={() => {setIsModalOpen(true); setEditTicketId(item.Id);}}
+                                                                onClick={() => { setIsModalOpen(true); setEditTicketId(item.Id); }}
                                                             ></i>
                                                             <i
                                                                 className="fa-solid fa-check"

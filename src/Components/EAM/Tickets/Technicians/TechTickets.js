@@ -3,12 +3,12 @@ import React, { useState, useEffect } from "react";
 import { Popover, Select, Tooltip } from 'antd';
 import '../../../Config/Pagination.css';
 import '../../../Config/Loader.css';
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { fetchWithAuth } from "../../../../utils/api";
 import LogoImg from '../../../Assests/Images/cwilogo.png';
 import { formatToDDMMYYYY } from './../../../../utils/dateFunc';
 import TicketViewDetails from "./ViewTicketDetails";
-import TicketViewComments from "./TicketComments";
+// import TicketViewComments from "./TicketComments";
 import Swal from "sweetalert2";
 
 export default function TechTicketsList() {
@@ -18,10 +18,8 @@ export default function TechTicketsList() {
     const [dataLoading, setDataLoading] = useState(false);
     const [usersData, setUsersData] = useState([]);
     const [techTicketsData, setTechTicketsData] = useState([]);
-    const [selectedUserId, setSelectedUserId] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [viewData, setsetViewData] = useState([]);
-    const [commentData, setCommentData] = useState([]);
     const [recordsPerPage, setRecordsPerPage] = useState(10);
 
     // Helper to get YYYY-MM-DD in local time
@@ -117,27 +115,54 @@ export default function TechTicketsList() {
         }
     }, [sessionUserData]);
 
+    useEffect(() => {
+        if (!selectedFromDt || !selectedToDt) return;
+    
+        sessionStorage.setItem(
+            "techTicketFilters",
+            JSON.stringify({
+                fromDate: selectedFromDt,
+                toDate: selectedToDt,
+                currentPage,
+            })
+        );
+    
+    }, [selectedFromDt, selectedToDt, currentPage]);
+
     const fetchTechtickets = async (ovrFrom = null, ovrTo = null) => {
         setDataLoading(true);
 
         const fromDate = ovrFrom !== null ? ovrFrom : selectedFromDt;
         const toDate = ovrTo !== null ? ovrTo : selectedToDt;
 
+        // Save current filters
+        sessionStorage.setItem(
+            "techTicketFilters",
+            JSON.stringify({
+                fromDate,
+                toDate,
+                currentPage,
+            })
+        );
+
         try {
             const response = await fetchWithAuth(
                 `PMMS/GetTechnicianTickets?OrgId=${sessionUserData?.OrgId}&FromDate=${fromDate}&ToDate=${toDate}&CreatedBy=0&TechnicianId=${sessionUserData?.Id}`,
                 {
                     method: "GET",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
                 }
             );
 
-            if (!response.ok) throw new Error("Network response was not ok");
+            if (!response.ok) throw new Error();
 
             const data = await response.json();
+
             setTechTicketsData(data.ResultData || []);
-        } catch (error) {
-            console.error("Failed to fetch tickets:", error);
+        } catch (err) {
+            console.error(err);
             setTechTicketsData([]);
         } finally {
             setDataLoading(false);
@@ -145,12 +170,58 @@ export default function TechTicketsList() {
     };
 
     useEffect(() => {
-        if (sessionUserData?.OrgId && sessionUserData?.Id) {
-            // Initial fetch using current state values
+        const filters =
+            JSON.parse(sessionStorage.getItem("techTicketFilters")) || {};
+
+        sessionStorage.setItem(
+            "techTicketFilters",
+            JSON.stringify({
+                ...filters,
+                currentPage,
+            })
+        );
+    }, [currentPage]);
+
+    useEffect(() => {
+        const saved = JSON.parse(
+            sessionStorage.getItem("techTicketFilters")
+        );
+
+        if (saved) {
+            setSelectedFromDt(saved.fromDate);
+            setSelectedToDt(saved.toDate);
+            setCurrentPage(saved.currentPage || 1);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!sessionUserData?.OrgId || !sessionUserData?.Id) return;
+
+        const saved = JSON.parse(
+            sessionStorage.getItem("techTicketFilters")
+        );
+
+        if (saved) {
+            fetchTechtickets(saved.fromDate, saved.toDate);
+        } else {
             fetchTechtickets();
         }
     }, [sessionUserData?.OrgId, sessionUserData?.Id]);
-    // Dependency on IDs ensures it runs as soon as user login data is confirmed
+
+    const handleApply = () => {
+        setCurrentPage(1);
+
+        sessionStorage.setItem(
+            "techTicketFilters",
+            JSON.stringify({
+                fromDate: selectedFromDt,
+                toDate: selectedToDt,
+                currentPage: 1,
+            })
+        );
+
+        fetchTechtickets();
+    };
 
     const filteredTickets = Array.isArray(techTicketsData)
         ? techTicketsData.filter((item) => {
@@ -238,9 +309,9 @@ export default function TechTicketsList() {
         setsetViewData(data);
     };
 
-    const handleCommentClick = (data) => {
-        setCommentData(data);
-    };
+    // const handleCommentClick = (data) => {
+    //     setCommentData(data);
+    // };
 
     const handleLogout = async () => {
         sessionStorage.clear();
@@ -367,64 +438,64 @@ export default function TechTicketsList() {
             console.error("Fetch Error:", err);
             Swal.fire("Error", "Something went wrong while connecting to the server", "error");
         }
-    }; 
-    
+    };
+
     const formatDuration = (totalSeconds) => {
         const seconds = Math.max(0, totalSeconds);
         const hrs = Math.floor(seconds / 3600);
         const mins = Math.floor((seconds % 3600) / 60);
         return `${hrs}h ${mins}m`;
     };
-    
+
     const getAgingLabel = (item) => {
         if (!item?.CreatedOnTime) return "N/A";
-    
+
         const priorityHoursMap = {
             High: 2,
             Medium: 5,
             Low: 8,
         };
-    
+
         const slaHours = priorityHoursMap[item?.Priority];
         if (!slaHours) return "N/A";
-    
+
         // ✅ FIX: Strip the 'Z' so JS treats it as LOCAL time, not UTC
         const rawTime = String(item.CreatedOnTime).trim().replace("Z", "");
         const created = new Date(rawTime);
         const now = new Date();
-    
+
         if (isNaN(created.getTime())) return "N/A";
-    
+
         const totalElapsedSeconds = Math.max(
             0,
             Math.floor((now.getTime() - created.getTime()) / 1000)
         );
-    
+
         const pausedSeconds = Math.max(0, Number(item?.TotalPauseSeconds) || 0);
-    
+
         const effectiveElapsedSeconds = Math.max(
             0,
             totalElapsedSeconds - pausedSeconds
         );
-    
+
         const slaSeconds = slaHours * 3600;
         const remainingSeconds = slaSeconds - effectiveElapsedSeconds;
-    
+
         if (item?.Status === "TECH_FIXED") {
             return `Stopped at ${formatDuration(effectiveElapsedSeconds)}`;
         }
-    
+
         if (item?.Status === "PENDING_WITH_CLIENT") {
             return remainingSeconds < 0
                 ? `Paused | ${formatDuration(Math.abs(remainingSeconds))} overdue`
                 : `Paused | ${formatDuration(remainingSeconds)} left`;
         }
-    
+
         return remainingSeconds < 0
             ? `${formatDuration(Math.abs(remainingSeconds))} overdue`
             : `${formatDuration(remainingSeconds)} left`;
     };
-    
+
     const getAgingStatus = (item) => {
         const label = getAgingLabel(item);
         if (!label || label === "N/A") return { label, type: "neutral" };
@@ -432,10 +503,10 @@ export default function TechTicketsList() {
         if (label.includes("overdue")) return { label, type: "overdue" };
         return { label, type: "left" };
     };
-    
+
     const AgingBadge = ({ item }) => {
         const { label, type } = getAgingStatus(item);
-    
+
         const styles = {
             left: {
                 background: "var(--color-background-success)",
@@ -462,9 +533,9 @@ export default function TechTicketsList() {
                 dot: "#B4B2A9",
             },
         };
-    
+
         const s = styles[type];
-    
+
         return (
             <span style={{
                 display: "inline-flex",
@@ -499,7 +570,7 @@ export default function TechTicketsList() {
             </span>
         );
     };
-    
+
     return (
         <div className="tech-tickets-page">
             <div id="kt_app_header" className="app-header text-white shadow-sm fixed-top" data-kt-sticky="true" style={{ backgroundColor: '#90e0ef' }}
@@ -577,6 +648,7 @@ export default function TechTicketsList() {
                             <li className="breadcrumb-item text-muted">Tickets</li>
                         </ul>
                     </div>
+                    <Link to="/service-requests/tech-tickets">General Tickets</Link>
                 </div>
             </div>
 
@@ -609,32 +681,11 @@ export default function TechTicketsList() {
                                         />
                                     </div>
                                 </div>
-                                {/* <div className="col-12 col-md-4 mb-3">
-                                    <label className="filter-label">Raised User</label>
-                                    <Select
-                                        placeholder="Select user by name or email"
-                                        showSearch
-                                        allowClear
-                                        className="modern-select"
-                                        optionFilterProp="label" // Search against the label property
-                                        filterOption={(input, option) =>
-                                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                        }
-                                        value={selectedUserId || undefined}
-                                        onChange={(value) => setSelectedUserId(value)}
-                                        style={{ width: '100%' }}
-                                        // Map the data to show: "Name (email)"
-                                        options={usersData?.map(item => ({
-                                            value: item.ItemId,
-                                            label: `${item.ItemValue} (${item.DisplayValue})`
-                                        }))}
-                                    />
-                                </div> */}
                                 <div className="col-12 col-md-2">
                                     <button
                                         className="btn btn-primary modern-btn w-100"
                                         disabled={dataLoading}
-                                        onClick={() => fetchTechtickets()}
+                                        onClick={handleApply}
                                     >
                                         <i className="bi bi-funnel me-2"></i>
                                         {dataLoading ? "Applying..." : "Apply"}
@@ -806,14 +857,13 @@ export default function TechTicketsList() {
                                                             })()}
                                                         </td>
 
-                                                        {/* AGING */}
                                                         <td>
-    <Tooltip title={getAgingLabel(item)}>
-        <span style={{ display: "inline-block" }}>
-            <AgingBadge item={item} />
-        </span>
-    </Tooltip>
-</td>
+                                                            <Tooltip title={getAgingLabel(item)}>
+                                                                <span style={{ display: "inline-block" }}>
+                                                                    <AgingBadge item={item} />
+                                                                </span>
+                                                            </Tooltip>
+                                                        </td>
                                                     </tr>
                                                 ))
                                             ) : (
@@ -847,10 +897,6 @@ export default function TechTicketsList() {
                                                                         data-bs-target="#offcanvasRightViewMore" onClick={() => handleViewClick(item)}>
                                                                         <i className="bi bi-eye"></i> <span>View Detail</span>
                                                                     </div>
-                                                                    <div className="action-badge bg-light-info text-info" data-bs-toggle="offcanvas"
-                                                                        data-bs-target="#offcanvasRightComponents" onClick={() => handleCommentClick(item)}>
-                                                                        <i className="bi bi-chat-dots"></i> <span>Comments</span>
-                                                                    </div>
                                                                     {["ASSIGNED"].includes(item.Status?.toUpperCase()) && (
                                                                         <div className="action-badge bg-light-success text-success" onClick={() => handleIsFixedClick(item)}>
                                                                             <i className="bi bi-person-gear"></i> <span>Is Fixed</span>
@@ -871,7 +917,6 @@ export default function TechTicketsList() {
                                                     <div className="row g-2 bg-light rounded-3 p-3 mb-3">
                                                         <div className="col-6">
                                                             <span className="text-gray-500 fs-8 text-uppercase d-block fw-bold">Status</span>
-                                                            {/* <span className={`badge ${getStatusBadgeClass(item.Status)} mt-1`}>{item.Status}</span> */}
                                                             {(() => {
                                                                 const config = getStatusBadgeConfig(item.Status);
                                                                 return (
@@ -949,8 +994,68 @@ export default function TechTicketsList() {
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <style>
+
+            {/* View profile offcanvas */}
+            <div
+                className="offcanvas offcanvas-end custom-offcanvas"
+                tabIndex="-1"
+                id="offcanvasRightViewProfile"
+                aria-labelledby="offcanvasLeftLabel"
+            >
+                <div className="offcanvas-header border-bottom px-4 py-3">
+                    <h5 id="offcanvasProfileLabel" className="mb-0">
+                        <i className="fa-regular fa-user me-2"></i> My Profile
+                    </h5>
+                    <button
+                        type="button"
+                        className="btn-close"
+                        data-bs-dismiss="offcanvas"
+                        aria-label="Close"
+                    ></button>
+                </div>
+
+                <div className="offcanvas-body">
+                    <div className="card border-0 shadow-sm">
+                        <div className="card-body">
+                            <div className="d-flex align-items-center mb-3">
+                                <div
+                                    className="avatar bg-light-primary text-dark rounded-circle d-flex align-items-center justify-content-center me-3"
+                                    style={{ width: "50px", height: "50px", fontSize: "20px" }}
+                                >
+                                    {sessionUserData?.Name?.charAt(0).toUpperCase() || "?"}
+                                </div>
+
+                                <div>
+                                    <h6 className="mb-0">{sessionUserData?.Name}</h6>
+                                </div>
+
+                            </div>
+
+                            <ul className="list-group list-group-flush">
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-id-badge icon-animate text-primary me-2"></i> Org ID</span>
+                                    <span className="fw-bold">{sessionUserData?.OrgId}</span>
+                                </li>
+
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-envelope icon-animate text-primary me-2"></i> Email</span>
+                                    <span className="fw-bold">{sessionUserData?.Email}</span>
+                                </li>
+
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-phone icon-animate text-primary me-2"></i> Mobile</span>
+                                    <span className="fw-bold">{sessionUserData?.PhoneNumber || '--'}</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <style>
                     {`
                     .hover-link {
                             transition: all 0.2s ease;
@@ -1181,82 +1286,10 @@ export default function TechTicketsList() {
                     }
 
                 `}
-                </style>
-            </div>
-
-
-            {/* View profile offcanvas */}
-            <div
-                className="offcanvas offcanvas-end custom-offcanvas"
-                tabIndex="-1"
-                id="offcanvasRightViewProfile"
-                aria-labelledby="offcanvasLeftLabel"
-            >
-                <div className="offcanvas-header border-bottom px-4 py-3">
-                    <h5 id="offcanvasProfileLabel" className="mb-0">
-                        <i className="fa-regular fa-user me-2"></i> My Profile
-                    </h5>
-                    <button
-                        type="button"
-                        className="btn-close"
-                        data-bs-dismiss="offcanvas"
-                        aria-label="Close"
-                    ></button>
-                </div>
-
-                <div className="offcanvas-body">
-                    <div className="card border-0 shadow-sm">
-                        <div className="card-body">
-                            <div className="d-flex align-items-center mb-3">
-                                <div
-                                    className="avatar bg-light-primary text-dark rounded-circle d-flex align-items-center justify-content-center me-3"
-                                    style={{ width: "50px", height: "50px", fontSize: "20px" }}
-                                >
-                                    {sessionUserData?.Name?.charAt(0).toUpperCase() || "?"}
-                                </div>
-
-                                <div>
-                                    <h6 className="mb-0">{sessionUserData?.Name}</h6>
-                                </div>
-
-                            </div>
-
-                            <ul className="list-group list-group-flush">
-                                <li className="list-group-item d-flex justify-content-between">
-                                    <span><i className="fa-solid fa-id-badge icon-animate text-primary me-2"></i> Org ID</span>
-                                    <span className="fw-bold">{sessionUserData?.OrgId}</span>
-                                </li>
-
-                                <li className="list-group-item d-flex justify-content-between">
-                                    <span><i className="fa-solid fa-envelope icon-animate text-primary me-2"></i> Email</span>
-                                    <span className="fw-bold">{sessionUserData?.Email}</span>
-                                </li>
-
-                                <li className="list-group-item d-flex justify-content-between">
-                                    <span><i className="fa-solid fa-phone icon-animate text-primary me-2"></i> Mobile</span>
-                                    <span className="fw-bold">{sessionUserData?.PhoneNumber || '--'}</span>
-                                </li>
-
-                                {/* <li className="list-group-item d-flex justify-content-between">
-                                    <span><i className="fa-solid fa-calendar icon-animate text-primary me-2"></i> Created On</span>
-                                    <span className="fw-bold">
-                                        {new Date(sessionUserData?.CreatedOn).toLocaleString("en-GB", {
-                                            day: "2-digit",
-                                            month: "2-digit",
-                                            year: "numeric",
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                        })}
-                                    </span>
-                                </li> */}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </style>
 
             <TicketViewDetails ticObj={viewData} />
-            <TicketViewComments ticObj={commentData} />
+            {/* <TicketViewComments ticObj={commentData} /> */}
         </div>
     )
 }

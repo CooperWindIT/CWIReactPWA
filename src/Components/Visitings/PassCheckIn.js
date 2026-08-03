@@ -31,12 +31,12 @@ export default function PassCheckIn() {
     setSubmitLoading(true);
     setStatus('');
   
-    const payload = {
-      OrgId: sessionUserData.OrgId,
-      VisitorId: enterPassNo || 0,
-      Email: enterEmail || null,
-      UserId: sessionUserData.Id,
-    };
+      const payload = {
+        OrgId: sessionUserData.OrgId,
+        VisitorId: enterPassNo || 0,
+        Email: enterEmail || null,
+        UserId: sessionUserData.Id,
+      };
   
     try {
       const response = await fetchWithAuth(`visitor/QrCheckinCheckOut`, {

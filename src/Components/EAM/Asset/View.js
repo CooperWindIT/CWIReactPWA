@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { BASE_IMAGE_API_GET, BASE_IMG_DOC_DELETE, BASE_IMG_UPLOAD, MACHINE_INFO_HTML_API } from "../../Config/Config";
 import '../../Config/Pagination.css';
 import '../../Config/Loader.css';
 import { Link, useParams } from "react-router-dom";
-import { Button, Upload, Select, Tooltip } from 'antd';
+import { Button, Upload, Select, Tooltip, Modal, message, Input, Checkbox } from 'antd';
 import Swal from 'sweetalert2';
 import { fetchWithAuth } from "../../../utils/api";
 import { EyeOutlined, UploadOutlined } from "@ant-design/icons";
@@ -13,9 +13,9 @@ import { formatToDDMMYYYY, formatToDDMMYYYY_HHMM } from "../../../utils/dateFunc
 import Base1 from "../../Config/Base1";
 import RegisterMasterTypes from "../../Config/MasterTypes";
 import { Collapse } from "antd";
-import ViewAlert from "../Alerts/View";
 import AddAlert from "../../MasterAlerts/Add";
 import RegisterTicket from "../Tickets/Add";
+import ViewAlert from "../../MasterAlerts/View";
 
 export default function AssetDetailsView() {
 
@@ -29,6 +29,10 @@ export default function AssetDetailsView() {
 
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1; // 1–12
+    const [isOperatorModalOpen, setIsOperatorModalOpen] = useState(false);
+    const [selectedOperatorIds, setSelectedOperatorIds] = useState([]);
+    const [operatorSearch, setOperatorSearch] = useState("");
+    const [savingOperators, setSavingOperators] = useState(false);
     const [sessionUserData, setSessionUserData] = useState([]);
     const [departmentsData, setDepartmentsData] = useState([]);
     const [mcnAlertsLoading, setMcnAlertsLoading] = useState(false);
@@ -62,6 +66,7 @@ export default function AssetDetailsView() {
     const [selectedDeptId, setSelectedDeptId] = useState(null);
     const [previewImage, setPreviewImage] = useState(null);
     const [assetTypesData, setAssetTypesData] = useState([]);
+    const [assetOperators, setAssetOperators] = useState([]);
     const [selectedAssetTypeId, setSelectedAssetTypeId] = useState(null);
     const [selectedUnitId, setSelectedUnitId] = useState(null);
     const [removedImages, setRemovedImages] = useState([]);
@@ -164,6 +169,27 @@ export default function AssetDetailsView() {
             setAssetTypesData([]);
         }
     };
+    const fetchAssetOperators = async () => {
+        try {
+            const response = await fetchWithAuth(
+                `PMMS/getAssetOperators?OrgId=${sessionUserData?.OrgId}&MachineId=${machineId}`,
+                {
+                    method: "GET",
+                    headers: { "Content-Type": "application/json" },
+                }
+            );
+
+            if (!response.ok) throw new Error("Network response was not ok");
+
+            const data = await response.json();
+
+            setAssetOperators(data.ResultData || []);
+
+        } catch (error) {
+            console.error("Failed to fetch types data:", error);
+            setAssetOperators([]);
+        }
+    };
 
     useEffect(() => {
         if (sessionUserData?.OrgId && selectedDeptId) {
@@ -176,6 +202,12 @@ export default function AssetDetailsView() {
             fetchDDLData();
         }
     }, [sessionUserData]);
+
+    useEffect(() => {
+        if (sessionUserData.OrgId && machineId) {
+            fetchAssetOperators();
+        }
+    }, [sessionUserData, machineId]);
 
     const fetchDDLData = async () => {
         try {
@@ -347,6 +379,18 @@ export default function AssetDetailsView() {
             setDataLoading(false);
         }
     };
+
+    const filteredUsersList = useMemo(() => {
+        const search = operatorSearch.trim().toLowerCase();
+
+        if (!search) return usersList || [];
+
+        return (usersList || []).filter((item) => {
+            const name = item.ItemValue?.toLowerCase() || "";
+            const email = item.DisplayValue?.toLowerCase() || "";
+            return name.includes(search) || email.includes(search);
+        });
+    }, [usersList, operatorSearch]);
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem("userData");
@@ -1540,152 +1584,12 @@ export default function AssetDetailsView() {
         ctx.font = "bold 18px Arial";
         ctx.fillText(`Machine Code: ${machineData.MachineCode || "Code"}`, canvas.width / 2, bottomY);
 
-        // bottomY += 25;
-        // ctx.font = "16px Arial";
-        // ctx.fillText(`Supplier: ${machineData.SupplierName || "N/A"}`, canvas.width / 2, bottomY);
-
         bottomY += 22;
         const date = machineData.PurchaseDate ? new Date(machineData.PurchaseDate).toLocaleDateString("en-GB") : "N/A";
         ctx.fillText(`Purchase: ${date}`, canvas.width / 2, bottomY);
 
         return canvas.toDataURL("image/png", 1.0);
     };
-
-    // QR
-    // const generateQRImage = async (theme = "green") => {
-    //     const url = `${MACHINE_INFO_HTML_API}${sessionUserData?.OrgId}/${machineData.MachineId}`;
-    //     const isGreen = theme === "green";
-
-    //     // Generate QR Data URL
-    //     const qrDataUrl = await QRCode.toDataURL(url, {
-    //         width: 250,
-    //         color: {
-    //             dark: isGreen ? "#ffffff" : "#000000", // text color
-    //             light: isGreen ? "#00a651" : "#ffffff", // background color
-    //         },
-    //         margin: 1,
-    //     });
-
-    //     // Load QR image
-    //     const qrImage = new Image();
-    //     qrImage.src = qrDataUrl;
-    //     await new Promise((resolve) => (qrImage.onload = resolve));
-
-    //     // Canvas setup
-    //     const qrSize = 250;
-    //     const padding = 25;
-    //     const borderRadius = 20;
-    //     const topMargin = 40;
-    //     const lineHeight = 26;
-
-    //     // Helper to wrap text
-    //     function wrapText(ctx, text, maxWidth) {
-    //         const words = (text || "").split(" ");
-    //         const lines = [];
-    //         let line = "";
-    //         for (let n = 0; n < words.length; n++) {
-    //             const testLine = line + words[n] + " ";
-    //             const metrics = ctx.measureText(testLine);
-    //             const testWidth = metrics.width;
-    //             if (testWidth > maxWidth && n > 0) {
-    //                 lines.push(line.trim());
-    //                 line = words[n] + " ";
-    //             } else {
-    //                 line = testLine;
-    //             }
-    //         }
-    //         lines.push(line.trim());
-    //         return lines;
-    //     }
-
-    //     const tempCanvas = document.createElement("canvas");
-    //     const tempCtx = tempCanvas.getContext("2d");
-    //     tempCtx.font = "bold 22px Arial";
-    //     const maxTextWidth = qrSize + padding * 2 - padding * 2;
-    //     const nameLines = wrapText(tempCtx, machineData.MachineName || "Machine Name", maxTextWidth);
-
-    //     const spacing = 20;
-    //     const bottomTextLines = 3;
-    //     const totalHeight =
-    //         topMargin + nameLines.length * lineHeight + spacing + qrSize + bottomTextLines * 25 + 40;
-
-    //     const canvas = document.createElement("canvas");
-    //     canvas.width = qrSize + padding * 2;
-    //     canvas.height = totalHeight;
-    //     const ctx = canvas.getContext("2d");
-
-    //     // Background
-    //     ctx.fillStyle = isGreen ? "#00a651" : "#ffffff";
-    //     ctx.beginPath();
-    //     ctx.moveTo(borderRadius, 0);
-    //     ctx.lineTo(canvas.width - borderRadius, 0);
-    //     ctx.quadraticCurveTo(canvas.width, 0, canvas.width, borderRadius);
-    //     ctx.lineTo(canvas.width, canvas.height - borderRadius);
-    //     ctx.quadraticCurveTo(canvas.width, canvas.height, canvas.width - borderRadius, canvas.height);
-    //     ctx.lineTo(borderRadius, canvas.height);
-    //     ctx.quadraticCurveTo(0, canvas.height, 0, canvas.height - borderRadius);
-    //     ctx.lineTo(0, borderRadius);
-    //     ctx.quadraticCurveTo(0, 0, borderRadius, 0);
-    //     ctx.closePath();
-    //     ctx.fill();
-
-    //     // Text color
-    //     ctx.fillStyle = isGreen ? "#ffffff" : "#000000";
-    //     ctx.font = "bold 22px Arial";
-    //     ctx.textAlign = "center";
-
-    //     nameLines.forEach((line, i) => {
-    //         ctx.fillText(line, canvas.width / 2, topMargin + i * lineHeight);
-    //     });
-
-    //     // QR image
-    //     const qrY = topMargin + nameLines.length * lineHeight + spacing;
-    //     const qrX = padding;
-    //     ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
-
-    //     // White or Black borders
-    //     ctx.strokeStyle = isGreen ? "#ffffff" : "#000000";
-    //     const lineLength = 25;
-    //     const lineWidth = 4;
-    //     ctx.lineWidth = lineWidth;
-
-    //     const drawCorner = (x1, y1, x2, y2, x3, y3) => {
-    //         ctx.beginPath();
-    //         ctx.moveTo(x1, y1);
-    //         ctx.lineTo(x2, y2);
-    //         ctx.lineTo(x3, y3);
-    //         ctx.stroke();
-    //     };
-
-    //     drawCorner(qrX, qrY + lineLength, qrX, qrY, qrX + lineLength, qrY);
-    //     drawCorner(qrX + qrSize - lineLength, qrY, qrX + qrSize, qrY, qrX + qrSize, qrY + lineLength);
-    //     drawCorner(qrX, qrY + qrSize - lineLength, qrX, qrY + qrSize, qrX + lineLength, qrY + qrSize);
-    //     drawCorner(
-    //         qrX + qrSize - lineLength,
-    //         qrY + qrSize,
-    //         qrX + qrSize,
-    //         qrY + qrSize,
-    //         qrX + qrSize,
-    //         qrY + qrSize - lineLength
-    //     );
-
-    //     let bottomY = qrY + qrSize + 30;
-    //     ctx.font = "18px Arial";
-    //     ctx.fillText(`Machie Code: ${machineData.MachineCode || "Code"}`, canvas.width / 2, bottomY);
-
-    //     bottomY += 25;
-    //     ctx.font = "16px Arial";
-    //     ctx.fillText(`Supplier: ${machineData.SupplierName || "N/A"}`, canvas.width / 2, bottomY);
-
-    //     bottomY += 22;
-    //     const formattedDate = machineData.PurchaseDate
-    //         ? new Date(machineData.PurchaseDate).toLocaleDateString("en-GB")
-    //         : "N/A";
-    //     ctx.fillText(`Purchase: ${formattedDate}`, canvas.width / 2, bottomY);
-
-    //     return canvas.toDataURL("image/png", 1.0);
-
-    // };
 
     const generateQR = async (machineData, theme = "green") => {
         return await generateQRImage(theme);
@@ -1786,7 +1690,7 @@ export default function AssetDetailsView() {
                 return value;
             }
         });
-    
+
         if (!reason) return;
         const cleanReason = reason.replace(/[\r\n]+/gm, " ").trim();
 
@@ -1824,10 +1728,82 @@ export default function AssetDetailsView() {
 
     const handleAlertClick = (alert) => {
         setSelectedAlert(alert);
-        const offcanvasEl = document.getElementById("offcanvasRightViewEAMAlert");
+        const offcanvasEl = document.getElementById("offcanvasRightViewMasterAlert");
         if (offcanvasEl) {
             const bsOffcanvas = new window.bootstrap.Offcanvas(offcanvasEl);
             bsOffcanvas.show();
+        }
+    };
+
+    const handleOpenOperatorModal = () => {
+        setSelectedOperatorIds((assetOperators || []).map((item) => item.OperatorId));
+        setIsOperatorModalOpen(true);
+    };
+
+    const handleSaveOperators = async () => {
+        // if (!selectedOperatorIds.length) {
+        //     message.warning("Please select at least one operator");
+        //     return;
+        // }
+
+        try {
+            setSavingOperators(true);
+
+            const existingOperators = assetOperators || [];
+
+            const existingMap = new Map(
+                existingOperators.map((item) => [item.OperatorId, item])
+            );
+
+            const allOperatorIds = [
+                ...new Set([
+                    ...existingOperators.map((item) => item.OperatorId),
+                    ...selectedOperatorIds,
+                ]),
+            ];
+
+            const jsonData = allOperatorIds.map((operatorId) => {
+                const existing = existingMap.get(operatorId);
+                const isSelected = selectedOperatorIds.includes(operatorId);
+
+                return {
+                    Id: existing ? existing.Id : 0,
+                    OperatorId: operatorId,
+                    IsActive: isSelected ? 1 : 0,
+                };
+            });
+
+            const payload = {
+                OrgId: sessionUserData?.OrgId,
+                UserId: sessionUserData?.Id,
+                MachineId: machineId,
+                JsonData: jsonData,
+            };
+
+            const response = await fetchWithAuth("PMMS/SaveAssetOperators", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const result = await response.json();
+            const responseCode = result?.data?.result?.[0]?.ResponseCode;
+
+            if (responseCode === 1) {
+                message.success(result?.data?.result?.[0]?.Message || "Saved Successfully");
+                setIsOperatorModalOpen(false);
+                setOperatorSearch("");
+                fetchAssetOperators();
+            } else {
+                message.error(result?.data?.result?.[0]?.Message || "Failed to save operators");
+            }
+        } catch (error) {
+            console.error("SaveAssetOperators error:", error);
+            message.error("Something went wrong while saving operators");
+        } finally {
+            setSavingOperators(false);
         }
     };
 
@@ -1880,16 +1856,17 @@ export default function AssetDetailsView() {
     const showApproveBtn = sessionActionIds?.includes(4);
     const ShowRejectBtn = sessionActionIds?.includes(5);
     const showDownQRBtn = sessionActionIds?.includes(9);
-    // const showDeleteBtn = sessionActionIds?.includes(11);
-    const showReqApproval = sessionActionIds?.includes(23);
     const showActivebtn = sessionActionIds?.includes(23);
     const showDeptEdit = sessionActionIds?.includes(30);
+    const showAddOperators = sessionActionIds?.includes(36);
+    // const showDeleteBtn = sessionActionIds?.includes(11);
+    // const showReqApproval = sessionActionIds?.includes(23);
 
     const isQRAllowed = ["APPROVED", "ACTIVE", "OUTOFSERVICE"].includes(machineData?.Status) && showDownQRBtn
     const isApprove = ["PENDING APPROVAL"].includes(machineData?.Status) && showApproveBtn;
     const isRejected = machineData?.Status === "PENDING APPROVAL" && ShowRejectBtn;
     const isActive = machineData?.Status === "APPROVED" && showActivebtn;
-    const isRequestApproval = ["DRAFT", "REJECTED"].includes(machineData?.Status) && !!machineData?.UpcomingMaintenanceDate && showReqApproval;
+    const isRequestApproval = ["DRAFT", "REJECTED"].includes(machineData?.Status) && !!machineData?.UpcomingMaintenanceDate && machineData?.OperatorId == sessionUserData?.Id;
 
     return (
         <>
@@ -1934,7 +1911,7 @@ export default function AssetDetailsView() {
                                 </div>
                             </div>
                         </nav>
-                        <div className="d-flex align-items-center justify-content-end order-2 order-lg-2 gap-2">
+                        <div className="d-flex align-items-center justify-content-end order-2 order-lg-2 gap-2 bg-white shadow-sm p-3 rounded-3">
                             <button
                                 type="button"
                                 className="btn btn-sm d-flex align-items-center text-white border-0 position-relative overflow-hidden text-nowrap"
@@ -2052,38 +2029,53 @@ export default function AssetDetailsView() {
                                                                     )}
                                                                 </div>
                                                                 <div className="d-flex flex-wrap gap-2 bg-white p-3 rounded shadow-sm">
-                                                                    <button
-                                                                        className="btn btn-light-success btn-sm px-3 flex-fill flex-md-grow-0"
-                                                                        onClick={() => handleApprove(machineId)}
-                                                                        disabled={!isApprove}
-                                                                    >
-                                                                        <i className="bi bi-patch-check fs-5 me-1"></i>Approve
-                                                                    </button>
-
-                                                                    <button
-                                                                        className="btn btn-light-warning btn-sm px-3 flex-fill flex-md-grow-0"
-                                                                        onClick={() => handleReject(machineId)}
-                                                                        disabled={!isRejected}
-                                                                    >
-                                                                        <i className="bi bi-x-circle fs-5 me-1"></i>Reject
-                                                                    </button>
-
-                                                                    <button
-                                                                        className="btn btn-light-info btn-sm px-3 flex-fill flex-md-grow-0"
-                                                                        onClick={() => handleActive(machineId)}
-                                                                        disabled={!isActive}
-                                                                    >
-                                                                        <i className="bi bi-building-check fs-5 me-1"></i>Active
-                                                                    </button>
-
-                                                                    <button
-                                                                        className="btn btn-light-primary btn-sm px-3 flex-fill flex-md-grow-0"
-                                                                        type="button"
-                                                                        onClick={() => handleReqApprovalSubmit("PENDING APPROVAL")}
-                                                                        disabled={!isRequestApproval || editSubmitLoading}
-                                                                    >
-                                                                        <i className="bi bi-send-exclamation fs-5 me-1"></i>Request for Approval
-                                                                    </button>
+                                                                    {isApprove && (
+                                                                        <button
+                                                                            className="btn btn-light-success btn-sm px-3 flex-fill flex-md-grow-0"
+                                                                            onClick={() => handleApprove(machineId)}
+                                                                            disabled={!isApprove}
+                                                                        >
+                                                                            <i className="bi bi-patch-check fs-5 me-1"></i>Approve
+                                                                        </button>
+                                                                    )}
+                                                                    {isRejected && (
+                                                                        <button
+                                                                            className="btn btn-light-warning btn-sm px-3 flex-fill flex-md-grow-0"
+                                                                            onClick={() => handleReject(machineId)}
+                                                                            disabled={!isRejected}
+                                                                        >
+                                                                            <i className="bi bi-x-circle fs-5 me-1"></i>Reject
+                                                                        </button>
+                                                                    )}
+                                                                    {isActive && (
+                                                                        <button
+                                                                            className="btn btn-light-info btn-sm px-3 flex-fill flex-md-grow-0"
+                                                                            onClick={() => handleActive(machineId)}
+                                                                            disabled={!isActive}
+                                                                        >
+                                                                            <i className="bi bi-building-check fs-5 me-1"></i>Active
+                                                                        </button>
+                                                                    )}
+                                                                    {isRequestApproval && (
+                                                                        <button
+                                                                            className="btn btn-light-primary btn-sm px-3 flex-fill flex-md-grow-0"
+                                                                            type="button"
+                                                                            onClick={() => handleReqApprovalSubmit("PENDING APPROVAL")}
+                                                                            disabled={!isRequestApproval || editSubmitLoading}
+                                                                        >
+                                                                            <i className="bi bi-send-exclamation fs-5 me-1"></i>Request for Approval
+                                                                        </button>
+                                                                    )}
+                                                                    {showAddOperators && (
+                                                                        <button
+                                                                            className="btn btn-light-primary btn-sm px-3 flex-fill flex-md-grow-0"
+                                                                            type="button"
+                                                                            onClick={handleOpenOperatorModal}
+                                                                        >
+                                                                            <i className="bi bi-person-gear fs-5 me-1"></i>
+                                                                            Assign Operators
+                                                                        </button>
+                                                                    )}
                                                                     <button
                                                                         className="btn btn-light-danger btn-sm px-3 flex-fill flex-md-grow-0"
                                                                         type="button"
@@ -2318,7 +2310,7 @@ export default function AssetDetailsView() {
                                                                 <Tooltip title="Coming Soon">
                                                                     <button
                                                                         className="btn btn-primary d-flex align-items-center justify-content-center flex-grow-1 opacity-50 cursor-help"
-                                                                        // disabled={!isQRAllowed}
+                                                                    // disabled={!isQRAllowed}
                                                                     >
                                                                         <i className="fa-solid fa-download fs-4 me-2"></i> Download
                                                                     </button>
@@ -2327,7 +2319,7 @@ export default function AssetDetailsView() {
                                                                 <Tooltip title="Coming Soon">
                                                                     <button
                                                                         className="btn btn-primary d-flex align-items-center justify-content-center flex-grow-1 opacity-50 cursor-help"
-                                                                        // disabled={!isQRAllowed}
+                                                                    // disabled={!isQRAllowed}
                                                                     >
                                                                         <i className="fa-solid fa-print fs-4 me-2"></i> Print
                                                                     </button>
@@ -3273,6 +3265,12 @@ export default function AssetDetailsView() {
                                                                                                 <i className="bi bi-arrow-repeat me-1"></i>
                                                                                                 {item.OcurrenceTypeNames || "N/A"}
                                                                                             </span>
+                                                                                            {item.IsMaintenance && (
+                                                                                                <span className="badge bg-warning text-info-emphasis border border-info fs-9 capitalize">
+                                                                                                    <i className="bi bi-tools me-1 text-dark"></i>
+                                                                                                    Maintenance
+                                                                                                </span>
+                                                                                            )}
                                                                                         </div>
 
                                                                                         <div className="d-flex gap-1 ms-2">
@@ -3864,13 +3862,110 @@ export default function AssetDetailsView() {
                 `}
                 </style>
 
+                {/* Add Assign operators modal */}
+                <Modal
+                    title={
+                        <div className="d-flex align-items-center justify-content-between pe-4">
+                            <div className="d-flex align-items-center gap-2">
+                                <span
+                                    className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
+                                    style={{ width: "34px", height: "34px" }}
+                                >
+                                    <i className="bi bi-people-fill"></i>
+                                </span>
+                                <span className="fw-bold">Assign Operators</span>
+                            </div>
+
+                            <span className="badge bg-light-primary text-primary rounded-pill px-3 py-2">
+                                {selectedOperatorIds.length} Selected
+                            </span>
+                        </div>
+                    }
+                    open={isOperatorModalOpen}
+                    onCancel={() => {
+                        setIsOperatorModalOpen(false);
+                        setSelectedOperatorIds([]);
+                        setOperatorSearch("");
+                    }}
+                    onOk={handleSaveOperators}
+                    okText="Submit"
+                    confirmLoading={savingOperators}
+                    width={720}
+                    destroyOnHidden
+                >
+                    <div className="mb-3">
+                        <label className="form-label fw-semibold">Search Operator</label>
+                        <Input
+                            placeholder="Search by name or email"
+                            value={operatorSearch}
+                            onChange={(e) => setOperatorSearch(e.target.value)}
+                            prefix={<i className="bi bi-search text-muted"></i>}
+                        />
+                    </div>
+
+                    <div
+                        className="border rounded-4 p-2"
+                        style={{
+                            maxHeight: "360px",
+                            overflowY: "auto",
+                            background: "#f8fbff",
+                        }}
+                    >
+                        <div className="row g-2">
+                            {filteredUsersList.length > 0 ? (
+                                filteredUsersList.map((item) => {
+                                    const isChecked = selectedOperatorIds.includes(item.ItemId);
+
+                                    return (
+                                        <div className="col-12 col-md-6" key={item.ItemId}>
+                                            <label
+                                                className={`w-100 border rounded-4 p-3 d-flex align-items-start gap-3 ${isChecked ? "border-primary bg-white shadow-sm" : "bg-white"
+                                                    }`}
+                                                style={{
+                                                    cursor: "pointer",
+                                                    transition: "all 0.2s ease",
+                                                }}
+                                            >
+                                                <Checkbox
+                                                    checked={isChecked}
+                                                    onChange={(e) => {
+                                                        if (e.target.checked) {
+                                                            setSelectedOperatorIds((prev) => [...prev, item.ItemId]);
+                                                        } else {
+                                                            setSelectedOperatorIds((prev) =>
+                                                                prev.filter((id) => id !== item.ItemId)
+                                                            );
+                                                        }
+                                                    }}
+                                                />
+
+                                                <div className="flex-grow-1">
+                                                    <div className="fw-bold text-dark">{item.ItemValue}</div>
+                                                    <div className="text-muted small">{item.DisplayValue}</div>
+                                                </div>
+                                            </label>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="col-12">
+                                    <div className="text-center text-muted py-5">
+                                        <i className="bi bi-inbox fs-3 d-block mb-2 opacity-50"></i>
+                                        No operators found
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Modal>
+
                 <RegisterTicket
                     assetID={targetAsset.id}
                     assetName={targetAsset.name}
                     deptId={targetAsset.deptId}
                 />
+                                <ViewAlert alertObj={selectedAlert} />
                 <RegisterMasterTypes typeCategory={3} />
-                <ViewAlert alertObj={selectedAlert} />
                 <AddAlert machineId={machineId} versionId={0} deptId={machineData?.DepartmentId} entityType="MachineReg" />
                 {/* <AddAlert machineId={machineId} deptId={machineData?.DepartmentId} /> */}
             </Base1>

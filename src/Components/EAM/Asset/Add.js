@@ -362,8 +362,7 @@ export default function RegisterAsset() {
         const payload = {
             ...formData,
             OrgId: sessionUserData?.OrgId,
-            UpdatedBy: sessionUserData?.Id,
-            // Ensure IsActive is boolean or 1/0 based on your API needs
+            CreatedBy: sessionUserData?.Id,
             IsActive: formData.IsActive === "true" || formData.IsActive === true ? 1 : 0
         };
 
@@ -376,7 +375,7 @@ export default function RegisterAsset() {
 
             const result = await response.json();
 
-            if (response.ok && result.status === "success") {
+            if (response.ok && result.ResultData.Status === "Success") {
                 Swal.fire("Success", "Supplier created successfully!", "success");
                 sessionStorage.removeItem("ddlAssetAddData");
                 await fetchDDLData();
@@ -464,7 +463,7 @@ export default function RegisterAsset() {
             const result = await response.json();
             setReturnAssetId(result.data.result[0].MachineId)
 
-            if (result.data.result[0].ResponseCode === 2001) {
+            if (result.data.result[0].ResponseCode === 5000) {
                 Swal.fire({
                     title: "Success",
                     text: "Asset has been saved successfully.",

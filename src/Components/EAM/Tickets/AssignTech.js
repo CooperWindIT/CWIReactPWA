@@ -93,7 +93,6 @@ export default function AssignTechnician({ ticketObj }) {
     useEffect(() => {
         if (sessionUserData.OrgId) {
             fetchDDLData();
-            setSelectedDeptId(sessionUserData?.DeptId);
         }
     }, [sessionUserData]);
 
@@ -170,6 +169,8 @@ export default function AssignTechnician({ ticketObj }) {
     useEffect(() => {
         if (sessionUserData.OrgId && ticketObj?.TypeId) {
             fetchTechnicians();
+            setSelectedAssetTypeId(ticketObj?.TypeId);
+            setSelectedDeptId(ticketObj?.DeptId);
         }
     }, [sessionUserData, ticketObj]);
 
@@ -509,7 +510,8 @@ export default function AssignTechnician({ ticketObj }) {
                                                 filterOption={(input, option) =>
                                                     option.children.toLowerCase().includes(input.toLowerCase())
                                                 }
-                                                disabled={!showDeptDwn}
+                                                // disabled={!showDeptDwn}
+                                                disabled={true}
                                             >
                                                 {departmentsData?.map((dep) => {
                                                     // Check if this department matches the logged-in user's department
@@ -546,11 +548,11 @@ export default function AssignTechnician({ ticketObj }) {
                                                 className="w-100"
                                                 value={selectedAssetTypeId || undefined}
                                                 style={{ height: "2.7rem" }}
-                                                onChange={(value) => setSelectedAssetTypeId(value)}
                                                 filterOption={(input, option) => {
                                                     const text = `${option?.children}`.toLowerCase();
                                                     return text.includes(input.toLowerCase());
                                                 }}
+                                                disabled={true}
                                             >
                                                 {assetTypesData?.map((assTyp) => (
                                                     <Option key={assTyp.Id} value={assTyp.Id}>
@@ -568,9 +570,6 @@ export default function AssignTechnician({ ticketObj }) {
                                                 name="Name"
                                                 className="form-control form-control-sm"
                                                 placeholder="Enter technician name"
-                                                onKeyDown={(e) => {
-                                                    if (e.key === ' ') e.preventDefault();
-                                                }}
                                                 value={formData.Name}
                                                 onChange={handleInputChange}
                                                 disabled={addSubmitLoading}

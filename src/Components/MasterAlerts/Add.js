@@ -62,16 +62,16 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
         }
     }, [machineId, machinesData]);
 
-    useEffect(() => {
-        if (machineId && machineId !== 0 && documentsData?.length > 0 && sessionModuleId == 15) {
-            const selectedMachine = documentsData.find(mcn => mcn.ItemId == machineId);
-            setMachineIsMaint(true)
+    // useEffect(() => {
+    //     if (machineId && machineId !== 0 && documentsData?.length > 0 && sessionModuleId == 15) {
+    //         const selectedMachine = documentsData.find(mcn => mcn.ItemId == machineId);
+    //         setMachineIsMaint(true)
 
-            if (selectedMachine) {
-                setMasterName(selectedMachine.ItemValue || '');
-            }
-        }
-    }, [machineId, documentsData]);
+    //         if (selectedMachine) {
+    //             setMasterName(selectedMachine.ItemValue || '');
+    //         }
+    //     }
+    // }, [machineId, documentsData]);
 
     const fetchDDLData = async () => {
         try {
@@ -557,21 +557,120 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
                     .toggle-switch .slider:hover {
                         box-shadow: 0 0 0 4px rgba(25, 135, 84, 0.15);
                     }
+                        /* 1. Header Container */
+.premium-offcanvas-header {
+    padding: 1.5rem 2rem; /* More breathing room */
+    background: #ffffff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05); /* Ultra-faint, elegant border */
+}
+
+/* 2. Hierarchy Typography */
+.premium-title {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #111827; /* Deep slate, instead of pitch black */
+    letter-spacing: -0.01em;
+    margin-bottom: 0.25rem !important;
+}
+
+.premium-subtitle {
+    font-size: 0.8rem;
+    color: #6b7280; /* Soft gray muted subtitle */
+    margin: 0;
+}
+
+/* 3. The Premium Action Button */
+.premium-btn-primary {
+    background-color: #0f172a !important; /* Premium dark luxury tone (or your brand primary) */
+    color: #ffffff !important;
+    border: 1px solid #0f172a !important;
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    padding: 0.5rem 1.25rem !important;
+    border-radius: 8px !important; /* Smooth, modern corner radius */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s ease-in-out !important;
+    display: inline-flex;
+    align-items: center;
+}
+
+.premium-btn-primary:hover:not(:disabled) {
+    background-color: #1e293b !important;
+    border-color: #1e293b !important;
+    transform: translateY(-1px); /* Subtle lift on hover */
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+}
+
+.premium-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.premium-btn-primary:disabled {
+    background-color: #f3f4f6 !important;
+    border-color: #e5e7eb !important;
+    color: #9ca3af !important;
+    cursor: not-allowed;
+}
+
+/* 4. Elegant Custom Close Button */
+.premium-btn-close {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #64748b;
+    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.premium-btn-close i {
+    font-size: 0.85rem;
+}
+
+.premium-btn-close:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    border-color: #cbd5e1;
+}
                 `}
             </style>
             <form autoComplete="off" onSubmit={handleSubmit}>
-                <div className="offcanvas-header d-flex justify-content-between align-items-center">
-                    <h5 id="offcanvasRightLabel" className="mb-0">Add Alert</h5>
-                    <div className="d-flex align-items-center">
-                        <button className="btn btn-primary btn-sm me-2" type="submit" disabled={addSubmitLoading}>
-                            <i className="bi bi-bookmark-check"></i>{addSubmitLoading ? "Submitting..." : "Submit"}
+                <div className="offcanvas-header premium-offcanvas-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h5 id="offcanvasRightLabel" className="premium-title">Add Alert</h5>
+                        <p className="premium-subtitle">Configure your custom notification parameters</p>
+                    </div>
+                    <div className="d-flex align-items-center gap-3">
+                        <button
+                            className="btn premium-btn-primary"
+                            type="submit"
+                            disabled={addSubmitLoading}
+                        >
+                            {addSubmitLoading ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Submitting...
+                                </>
+                            ) : (
+                                <>
+                                    <i className="bi bi-bookmark-check me-2"></i>
+                                    Submit
+                                </>
+                            )}
                         </button>
                         <button
                             type="button"
-                            className="btn-close"
+                            className="premium-btn-close"
                             data-bs-dismiss="offcanvas"
                             aria-label="Close"
-                        ></button>
+                        >
+                            <i className="bi bi-x-lg"></i>
+                        </button>
                     </div>
                 </div>
                 <div className="offcanvas-body" style={{
@@ -580,27 +679,48 @@ export default function AddAlert({ machineId, versionId, deptId, entityType }) {
                     paddingBottom: '2rem',
                     maxHeight: 'calc(100vh - 100px)'
                 }}>
-                    {/* {sessionModuleId != 15 && ( */}
-                    <div className="d-flex justify-content-end align-items-center gap-2 mb-2">
-                        <div className="d-flex align-items-center">
-                            <span className="ms-2 fw-semibold">Is {sessionModuleId != 15 ? "Maintenance" : "Expiry"}</span>
-                            <Tooltip
-                                title="This maintenance option is to create a maintenance alert for assets. Choose this only if creating an alert specifically for maintenance."
-                                placement="top"
-                                overlayStyle={{ maxWidth: '290px' }} // Keeps the tooltip from becoming too wide
-                            >
-                                <i className="bi bi-info-circle ms-2 text-primary cursor-help fa-beat-fade" style={{ fontSize: '1rem' }}></i>
-                            </Tooltip>
+                    {sessionModuleId != 15 && (
+                        <div className="d-flex justify-content-end align-items-center gap-2 mb-2">
+                            <div className="d-flex align-items-center">
+                                <span className="ms-2 fw-semibold">Is Maintenance</span>
+                                <Tooltip
+                                    title="This maintenance option is to create a maintenance alert for assets. Choose this only if creating an alert specifically for maintenance."
+                                    placement="top"
+                                    overlayStyle={{ maxWidth: '290px' }} // Keeps the tooltip from becoming too wide
+                                >
+                                    <i className="bi bi-info-circle ms-2 text-primary cursor-help fa-beat-fade" style={{ fontSize: '1rem' }}></i>
+                                </Tooltip>
+                            </div>
+                            <Switch
+                                checkedChildren="YES"
+                                unCheckedChildren="NO"
+                                onChange={(checked) => setMachineIsMaint(checked)}
+                                disabled={machineIsMaintCheck}
+                                checked={machineIsMaint}
+                            />
                         </div>
-                        <Switch
-                            checkedChildren="YES"
-                            unCheckedChildren="NO"
-                            onChange={(checked) => setMachineIsMaint(checked)}
-                            disabled={machineIsMaintCheck}
-                            checked={machineIsMaint}
-                        />
-                    </div>
-                    {/* )} */}
+                    )}
+                    {/* {sessionModuleId == 15 && (
+                        <div className="d-flex justify-content-end align-items-center gap-2 mb-2">
+                            <div className="d-flex align-items-center">
+                                <span className="ms-2 fw-semibold">Is Expiry</span>
+                                <Tooltip
+                                    title="This maintenance option is to create a maintenance alert for document. Choose this only if creating an alert specifically for maintenance."
+                                    placement="top"
+                                    overlayStyle={{ maxWidth: '290px' }} // Keeps the tooltip from becoming too wide
+                                >
+                                    <i className="bi bi-info-circle ms-2 text-primary cursor-help fa-beat-fade" style={{ fontSize: '1rem' }}></i>
+                                </Tooltip>
+                            </div>
+                            <Switch
+                                checkedChildren="YES"
+                                unCheckedChildren="NO"
+                                onChange={(checked) => setMachineIsMaint(checked)}
+                                disabled={machineIsMaintCheck}
+                                checked={machineIsMaint}
+                            />
+                        </div>
+                    )} */}
 
                     <div className="row">
                         <div className="col-12 col-md-6 mb-2 position-relative">

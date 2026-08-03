@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import NodeShape from './NodeShape';
 import styles from './Node.module.css';
 import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
@@ -22,6 +22,7 @@ export default function Node({
   mode,
   connectFrom,
   onMouseDown,
+  onResizeStart,
   onQuickCreateFromNode,
   onReadModeDoubleClick,
   onSelect,
@@ -56,7 +57,7 @@ export default function Node({
   }, [clearHoverTimeout]);
 
   const handleMouseDown = useCallback((event) => {
-    if (event.target.classList.contains(styles.cp)) return;
+    if (event.target.classList.contains(styles.cp) || event.target.classList.contains(styles.resizeHandle)) return;
 
     if (mode === 'connect') {
       onConnect(node.id);
@@ -64,35 +65,34 @@ export default function Node({
     }
 
     if (mode === 'select' && !readMode) {
-      onSelect(node.id);
+      onSelect(node.id, { additive: event.ctrlKey || event.metaKey });
       onMouseDown(event, node.id);
     }
   }, [mode, node.id, onConnect, onMouseDown, onSelect, readMode]);
 
   const handleDoubleClick = useCallback(() => {
-    // if (mode !== 'select' || readMode) return;
-    if (readMode) {
-      onReadModeDoubleClick(node.id);
-      return;
-    }
-    if (mode !== 'select') return;
-
-
+    if (readMode || mode !== "select") return;
+  
     setEditing(true);
+  
     setTimeout(() => {
       if (!innerRef.current) return;
       innerRef.current.focus();
+  
       const range = document.createRange();
       range.selectNodeContents(innerRef.current);
+  
       const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(range);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
     }, 0);
-  }, [mode, node.id, onReadModeDoubleClick, readMode]);
+  }, [mode, readMode]);
 
   const handleBlur = useCallback(() => {
+    if (innerRef.current) {
+      onLabelChange(node.id, innerRef.current.textContent?.trim() || "");
+    }
     setEditing(false);
-    if (innerRef.current) onLabelChange(node.id, innerRef.current.textContent.trim());
   }, [node.id, onLabelChange]);
 
   const handleKeyDown = useCallback((event) => {
@@ -111,26 +111,75 @@ export default function Node({
   const fontSize = Math.max(10, Number(node.fontSize || 16));
   const shapeClass = styles[`shape_${node.shape}`] || styles.shape_rect;
 
+  useEffect(() => {
+    if (!readMode && mode === "select") return;
+  
+    if (editing && innerRef.current) {
+      onLabelChange(node.id, innerRef.current.textContent?.trim() || "");
+    }
+  
+    setEditing(false);
+    innerRef.current?.blur();
+  
+    try {
+      const sel = window.getSelection?.();
+      sel?.removeAllRanges();
+    } catch (e) {}
+  
+    try {
+      document.activeElement?.blur?.();
+    } catch (e) {}
+  }, [readMode, mode, editing, node.id, onLabelChange]);
+  const isTextShape = node.shape === "text";
+
+const textReadOnlyStyle =
+  readMode && isTextShape
+    ? {
+        width: Math.max(node.w || 0, 130),
+        minHeight: 54,
+        padding: "10px 16px",
+        border: `2px solid ${strokeColor}`,
+        borderRadius: "16px",
+        background: theme === "dark" ? "rgba(30,30,30,0.95)" : "#ffffff",
+        boxShadow: "0 6px 16px rgba(0,0,0,0.10)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }
+    : {};
+    const textReadOnlyInnerStyle =
+    readMode && isTextShape
+      ? {
+          width: "100%",
+          textAlign: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          whiteSpace: "nowrap",
+        }
+      : {};
   return (
     <div
-      className={[
-        styles.node,
-        shapeClass,
-        selected ? styles.selected : '',
-        isConnectSource ? styles.connectSource : '',
-        readMode ? styles.readOnly : '',
-        dimmed ? styles.dimmed : '',
-        searchMatched ? styles.searchMatched : '',
-        searchActive ? styles.searchActive : '',
-      ].join(' ')}
-      style={{
-        left: node.x,
-        top: node.y,
-        width: node.w,
-        height: node.h,
-        '--node-stroke': strokeColor,
-        '--node-fill': fillColor,
-      }}
+    className={[
+      styles.node,
+      shapeClass,
+      selected ? styles.selected : '',
+      isConnectSource ? styles.connectSource : '',
+      readMode ? styles.readOnly : '',
+      isTextShape && readMode ? styles.textShapeReadOnly : '',
+      dimmed ? styles.dimmed : '',
+      searchMatched ? styles.searchMatched : '',
+      searchActive ? styles.searchActive : '',
+    ].join(' ')}
+    style={{
+      left: node.x,
+      top: node.y,
+      width: node.w,
+      height: node.h,
+      '--node-stroke': strokeColor,
+      '--node-fill': fillColor,
+      ...textReadOnlyStyle,
+    }}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       data-nodeid={node.id}
@@ -139,10 +188,11 @@ export default function Node({
         <NodeShape shape={node.shape} w={node.w} h={node.h} strokeColor={strokeColor} fillColor={fillColor} />
       )}
 
-      <div
+      {/* <div
         ref={innerRef}
         className={styles.nodeInner}
-        contentEditable={editing}
+        // contentEditable={editing}
+        contentEditable={editing && !readMode}
         suppressContentEditableWarning
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
@@ -152,7 +202,23 @@ export default function Node({
         }}
       >
         {node.label}
-      </div>
+      </div> */}
+      <div
+  ref={innerRef}
+  className={styles.nodeInner}
+  contentEditable={editing && !readMode}
+  suppressContentEditableWarning
+  onBlur={handleBlur}
+  onKeyDown={handleKeyDown}
+  tabIndex={readMode ? -1 : 0}
+  style={{
+    fontFamily,
+    fontSize: `${fontSize}px`,
+    ...textReadOnlyInnerStyle,
+  }}
+>
+  {node.label}
+</div>
 
       {/* {!readMode && CP_POSITIONS.map((cp) => (
         <div
@@ -202,6 +268,18 @@ export default function Node({
           )}
         </React.Fragment>
       ))}
+
+      {!readMode && selected && mode === 'select' && (
+        <>
+          {['nw', 'ne', 'se', 'sw'].map((handle) => (
+            <div
+              key={handle}
+              className={[styles.resizeHandle, styles[`resizeHandle_${handle}`]].join(' ')}
+              onMouseDown={(event) => onResizeStart(event, node.id, handle)}
+            />
+          ))}
+        </>
+      )}
 
 
       {readMode && sideControls?.map((control) => (

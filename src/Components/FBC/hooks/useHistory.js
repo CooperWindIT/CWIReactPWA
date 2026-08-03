@@ -32,4 +32,6 @@ export function useHistory(nodes, connections, restore) {
   }, [idx, history, restore]);
 
   return { push, undo, redo, canUndo: idx > 0, canRedo: idx < history.length - 1 };
+  
 }
+

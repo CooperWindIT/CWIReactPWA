@@ -28,6 +28,7 @@ export default function ManualTimeLog() {
     const [shiftsData, setShiftsData] = useState([]);
     const [contractorsData, setContactorsData] = useState([]);
     const [selectedContId, setSelectedContId] = useState(null);
+    const [selectedShiftTypeId, setSelectedShiftTypeId] = useState(null);
     const [selectedContCLId, setSelectedContCLId] = useState(null);
     const [selectedShiftId, setSelectedShiftId] = useState(null);
     const [sessionActionIds, setSessionActionIds] = useState([]);
@@ -124,28 +125,30 @@ export default function ManualTimeLog() {
             setEditSubmitLoading(true);
 
             const payload = {
-                Id: formData?.Id,
+                OrgId: sessionUserData?.OrgId,
+                UpdatedBy: sessionUserData?.Id,
+                Id: editObj?.CheckIn ? (formData?.Id || 0) : 0,
+                ContractorId: editObj?.ContractorId || formData?.ContractorId,
                 CheckIn: checkIn,
                 CheckOut: checkOut,
-                UpdatedBy: sessionUserData?.Id,
-            }
+                Date: selectedDate,
+                ShiftTypeId: selectedShiftTypeId || editObj?.ShiftTypeId || formData?.ShiftTypeId,
+                CLId: editObj?.CLId || formData?.CLId || 0,
+                // Date: formData?.CheckInDate || formData?.Date,
+            };
 
-            const response = await fetchWithAuth(
-                `contractor/UpdateCLLog`,
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                }
-            );
+            const response = await fetchWithAuth(`contractor/UpdateCLLog`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
 
             if (response.ok) {
                 const data = await response.json();
-                setEditSubmitLoading(false);
 
-                if (data.ResultData.Status === 'Success') {
+                if (data.ResultData?.Status === "Success") {
                     Swal.fire({
                         title: "Success",
                         text: "The CL details have been updated successfully.",
@@ -197,26 +200,6 @@ export default function ManualTimeLog() {
 
     const today = new Date();
     const [selectedDate, setSelectedDate] = useState(formatTodayDate(today));
-
-    // const fetchCLsDataByDate = async () => {
-    //     setLoading(true);
-    //     try {
-    //         const response = await fetchWithAuth(`contractor/getCLSByDate?ShiftTypeId=0&ContractorId=0&CLId=0&Date=${selectedDate}&OrgId=${sessionUserData?.OrgId}`, {
-    //             method: "GET",
-    //             headers: { "Content-Type": "application/json" },
-    //         });
-    //         if (response.ok) {
-    //             const data = await response.json();
-    //             setCLsCheckInOutData(data.ResultData);
-    //         } else {
-    //             console.error('Failed to fetch attendance data:', response.statusText);
-    //         }
-    //     } catch (error) {
-    //         console.error('Error fetching attendance data:', error.message);
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
 
     const fetchCLsDataByDate = async (page = 1, force = false) => {
         if (!force && clsDataCache[page]) {
@@ -385,6 +368,7 @@ export default function ManualTimeLog() {
                             <li className="breadcrumb-item text-muted">Manage CLs Log</li>
                         </ul>
                     </div>
+                    {/*
                     <div className="d-flex align-items-center gap-2 gap-lg-3">
                         <a
                             className={`btn btn-primary btn-sm d-none d-md-block `}
@@ -392,10 +376,10 @@ export default function ManualTimeLog() {
                             data-bs-target="#offcanvasRightCLTimeUploadExcel"
                             aria-controls="offcanvasRightCLTimeUploadExcel"><span className="d-none d-md-inline">Bulk Upload</span>
                         </a>
-                    </div>
+                    </div> */}
                 </div>
             </div>
-            <div id="kt_app_content" className="app-content flex-column-fluid">
+            <div id="kt_app_content" className="app-content flex-column-fluid pt-2">
                 <div id="kt_app_content_container" className="app-container container-xxl">
                     <div className="card mb-2 shadow-sm">
                         <div className="p-2">
@@ -528,15 +512,15 @@ export default function ManualTimeLog() {
                                                     <i
                                                         className="fa-regular fa-pen-to-square me-2 text-primary text-hover-warning"
                                                         style={{
-                                                            cursor: showEditBtn && item.CheckIn ? "pointer" : "not-allowed",
-                                                            opacity: showEditBtn && item.CheckIn ? 1 : 0.5,
-                                                            pointerEvents: showEditBtn && item.CheckIn ? "auto" : "none",
-                                                            filter: showEditBtn && item.CheckIn ? "none" : "blur(1px)",
+                                                            cursor: showEditBtn ? "pointer" : "not-allowed",
+                                                            opacity: showEditBtn ? 1 : 0.5,
+                                                            pointerEvents: showEditBtn ? "auto" : "none",
+                                                            filter: showEditBtn ? "none" : "blur(1px)",
                                                         }}
                                                         data-bs-toggle="offcanvas"
                                                         data-bs-target="#offcanvasRightCLCheckInOutEdit"
                                                         aria-controls="offcanvasRightCLCheckInOutEdit"
-                                                        onClick={() => showEditBtn && item.CheckIn && handleEdit(item)}
+                                                        onClick={() => showEditBtn && handleEdit(item)}
                                                     ></i>
                                                 </td>
                                             </tr>
@@ -641,165 +625,308 @@ export default function ManualTimeLog() {
                 </div>
             </div>
 
+
             {/* CL Edit CheckIn/Out Offcanvas */}
             <div
-                className="offcanvas offcanvas-end"
+                className="offcanvas offcanvas-end border-0"
                 tabIndex="-1"
                 id="offcanvasRightCLCheckInOutEdit"
-                aria-labelledby="offcanvasRightLabel"
-                style={{ width: '85%' }}
             >
-                <style>
-                    {`
-                        @media (min-width: 768px) { /* Medium devices and up (md) */
-                            #offcanvasRightCLCheckInOutEdit {
-                                width: 30% !important;
-                            }
-                        }
-                    `}
-                </style>
-                <form onSubmit={handleCLChekInOutSubmit}>
-                    <div className="offcanvas-header d-flex justify-content-between align-items-center">
-                        <h5 id="offcanvasRightLabel" className="mb-0">
-                            Edit CL CheckIn/Out
-                        </h5>
-                        <div className="d-flex align-items-center">
-                            <button
-                                type="submit"
-                                className="me-2 d-none d-md-block btn btn-primary px-4 btn-sm"
-                                disabled={editSubmitLoading}
-                            >
-                                <i className="bi bi-check2-circle"></i>{editSubmitLoading ? "Submitting..." : "Submit"}
-                            </button>
+                <form onSubmit={handleCLChekInOutSubmit} className="h-100 d-flex flex-column">
+
+                    <div className="premium-header">
+                        <div className="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 className="mb-1 fw-bold">
+                                    <i className="bi bi-pencil-square text-primary me-2"></i>
+                                    Edit CheckIn / CheckOut
+                                </h5>
+                                <small className="text-muted">
+                                    Update attendance information
+                                </small>
+                            </div>
+
                             <button
                                 type="button"
                                 className="btn-close"
                                 data-bs-dismiss="offcanvas"
-                                aria-label="Close"
                             ></button>
                         </div>
                     </div>
-                    <div
-                        className="offcanvas-body"
-                        style={{
-                            marginTop: "-2rem",
-                            maxHeight: "42rem",
-                            overflowY: "auto",
-                        }}
-                    >
-                        <div className="row">
-                            {/* Display Readonly fields as text */}
-                            <div className="p-3 border rounded bg-light mb-2">
-                                <dl className="row">
-                                    <dt className="col-4 text-muted fw-semibold">Agency Name:</dt>
-                                    <dd className="col-8 fw-bold mb-2">{formData.ContractorName}</dd>
 
-                                    <dt className="col-4 text-muted fw-semibold">CL Name:</dt>
-                                    <dd className="col-8 fw-bold mb-2">{formData.CLName}</dd>
+                    <div className="offcanvas-body premium-body flex-grow-1">
 
-                                    <dt className="col-4 text-muted fw-semibold">CL Aadhar:</dt>
-                                    <dd className="col-8 fw-bold mb-2">{formatAadhar(formData.AadharNo)}</dd>
-
-                                    <dt className="col-4 text-muted fw-semibold">Shift:</dt>
-                                    <dd className="col-8 fw-bold mb-2">{formData.ShiftName || "N/A"}</dd>
-                                </dl>
+                        <div className="info-card">
+                            <div className="info-item">
+                                <span>Agency Name</span>
+                                <strong>{formData.ContractorName}</strong>
                             </div>
 
-                            {/* <hr className="text-primary" /> */}
-                            <div className="col-12 my-5">
-                                <label className="form-label">CheckIn</label>
-                                <div className="d-flex gap-2">
+                            <div className="info-item">
+                                <span>CL Name</span>
+                                <strong>{formData.CLName}</strong>
+                            </div>
+
+                            <div className="info-item">
+                                <span>Aadhar</span>
+                                <strong>{formatAadhar(formData.AadharNo)}</strong>
+                            </div>
+
+                            <div className="info-item">
+                                <span>Shift</span>
+                                <strong>{formData.ShiftName || "N/A"}</strong>
+                            </div>
+                        </div>
+
+                        {!editObj?.CheckIn && (
+                            <div className="section-card">
+                                <div className="section-title">
+                                    <i className="bi bi-clock-history me-2"></i>
+                                    Shift Selection
+                                </div>
+
+                                <label className="form-label">
+                                    Shift <span className="text-danger">*</span>
+                                </label>
+
+                                <Select
+                                    placeholder="Select Shift"
+                                    showSearch
+                                    allowClear
+                                    value={selectedShiftTypeId || undefined}
+                                    onChange={(value) => setSelectedShiftTypeId(value)}
+                                    style={{ width: "100%" }}
+                                >
+                                    {shiftsData?.map((item) => (
+                                        <Option key={item.Id} value={item.Id}>
+                                            {item.ShiftName}
+                                        </Option>
+                                    ))}
+                                </Select>
+                            </div>
+                        )}
+
+                        <div className="section-card">
+                            <div className="section-title">
+                                <i className="bi bi-box-arrow-in-right me-2 text-success"></i>
+                                Check In Details
+                            </div>
+
+                            <label className="form-label">
+                                Check In <span className="text-danger">*</span>
+                            </label>
+
+                            <div className="row g-2">
+                                <div className="col-6">
                                     <input
                                         type="date"
                                         className="form-control"
                                         value={formData.CheckInDate || ""}
                                         max={formData.CheckOutDate || undefined}
-                                        onChange={(e) => setFormData({ ...formData, CheckInDate: e.target.value })}
-                                        disabled={true}
-                                        style={{ height: '2.8rem' }}
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                CheckInDate: e.target.value
+                                            })
+                                        }
                                     />
+                                </div>
+
+                                <div className="col-6">
                                     <input
                                         type="time"
                                         className="form-control"
                                         value={formData.CheckInTime || ""}
-                                        max={
-                                            formData.CheckInDate &&
-                                                formData.CheckOutDate &&
-                                                formData.CheckInDate === formData.CheckOutDate
-                                                ? formData.CheckOutTime || undefined
-                                                : undefined
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                CheckInTime: e.target.value
+                                            })
                                         }
-                                        onChange={(e) => setFormData({ ...formData, CheckInTime: e.target.value })}
-                                        disabled={true}
-                                        style={{ height: '2.8rem' }}
                                     />
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="col-12 mb-3">
-                                <label className="form-label">CheckOut <span className="text-danger">*</span></label>
-                                <div className="d-flex gap-2">
-                                    {/* Date */}
+                        <div className="section-card">
+                            <div className="section-title">
+                                <i className="bi bi-box-arrow-right me-2 text-danger"></i>
+                                Check Out Details
+                            </div>
+
+                            <label className="form-label">
+                                Check Out <span className="text-danger">*</span>
+                            </label>
+
+                            <div className="row g-2">
+                                <div className="col-6">
                                     <input
                                         type="date"
                                         className="form-control"
                                         value={formData.CheckOutDate || ""}
-                                        min={formData.CheckInDate || undefined} // Cannot be before CheckIn date
-                                        max={dayjs().format("YYYY-MM-DD")} // Cannot be after today
-                                        onChange={(e) => setFormData({ ...formData, CheckOutDate: e.target.value })}
-                                        style={{ height: '2.8rem' }}
+                                        min={formData.CheckInDate || undefined}
+                                        max={dayjs().format("YYYY-MM-DD")}
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                CheckOutDate: e.target.value
+                                            })
+                                        }
                                     />
+                                </div>
 
-                                    {/* Time */}
+                                <div className="col-6">
                                     <input
                                         type="time"
                                         className="form-control"
                                         value={formData.CheckOutTime || ""}
                                         max={isToday ? maxTime : undefined}
-                                        style={{ height: '2.8rem' }}
-                                        onChange={(e) => {
-                                            const val = e.target.value; // HH:mm
-                                            const selectedDateTime = dayjs(`${formData.CheckOutDate} ${val}`);
-
-                                            const now = dayjs();
-
-                                            // Prevent future datetime
-                                            if (selectedDateTime.isAfter(now)) {
-                                                alert("CheckOut cannot be in the future");
-                                                return; // ignore the change
-                                            }
-
-                                            // Prevent CheckOut < CheckIn if same day
-                                            if (
-                                                formData.CheckInDate &&
-                                                formData.CheckInTime &&
-                                                formData.CheckOutDate === formData.CheckInDate
-                                            ) {
-                                                const checkInDT = dayjs(`${formData.CheckInDate} ${formData.CheckInTime}`);
-                                                if (selectedDateTime.isBefore(checkInDT)) {
-                                                    alert("CheckOut cannot be earlier than CheckIn");
-                                                    return;
-                                                }
-                                            }
-                                            setFormData({ ...formData, CheckOutTime: val });
-                                        }}
+                                        onChange={(e) =>
+                                            setFormData({
+                                                ...formData,
+                                                CheckOutTime: e.target.value
+                                            })
+                                        }
                                     />
                                 </div>
                             </div>
                         </div>
+
                     </div>
 
-                    <div className="d-md-none d-flex justify-content-center mb-3">
+                    <div className="bottom-action">
                         <button
                             type="submit"
-                            className="btn btn-primary px-4 btn-sm"
+                            className="btn save-btn text-white w-100"
                             disabled={editSubmitLoading}
                         >
-                            <i className="bi bi-check2-circle"></i>{editSubmitLoading ? "Submitting..." : "Submit"}
+                            {editSubmitLoading ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2"></span>
+                                    Saving Changes...
+                                </>
+                            ) : (
+                                <>
+                                    <i className="bi bi-check-circle-fill me-2"></i>
+                                    Save Changes
+                                </>
+                            )}
                         </button>
                     </div>
+
                 </form>
             </div>
+
+            <style>
+                {`
+                #offcanvasRightCLCheckInOutEdit{
+                    width:85% !important;
+                    border-radius:24px 0 0 24px;
+                    overflow:hidden;
+                    background:#f8fafc;
+                }
+
+                @media(min-width:768px){
+                    #offcanvasRightCLCheckInOutEdit{
+                        width:40% !important;
+                    }
+                }
+
+                @media(min-width:1200px){
+                    #offcanvasRightCLCheckInOutEdit{
+                        width:38% !important;
+                    }
+                }
+
+                .premium-header{
+                    position:sticky;
+                    top:0;
+                    z-index:1000;
+                    background:rgba(255,255,255,.95);
+                    backdrop-filter:blur(12px);
+                    padding:20px;
+                    border-bottom:1px solid #e5e7eb;
+                }
+
+                .premium-body{
+                    padding:20px;
+                    background:#f8fafc;
+                }
+
+                .info-card,
+                .section-card{
+                    background:#fff;
+                    border-radius:18px;
+                    padding:18px;
+                    margin-bottom:18px;
+                    box-shadow:0 8px 25px rgba(0,0,0,.06);
+                }
+
+                .info-item{
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    padding:10px 0;
+                    border-bottom:1px solid #f1f5f9;
+                }
+
+                .info-item:last-child{
+                    border-bottom:none;
+                }
+
+                .info-item span{
+                    color:#64748b;
+                    font-size:13px;
+                    font-weight:500;
+                }
+
+                .info-item strong{
+                    color:#0f172a;
+                    text-align:right;
+                }
+
+                .section-title{
+                    font-size:15px;
+                    font-weight:700;
+                    color:#0f172a;
+                    margin-bottom:15px;
+                }
+
+                .form-label{
+                    font-size:13px;
+                    font-weight:600;
+                    color:#334155;
+                }
+
+                .form-control{
+                    height:48px;
+                    border-radius:12px;
+                    border:1px solid #dbe3ee;
+                }
+
+                .form-control:focus{
+                    border-color:#0d6efd;
+                    box-shadow:0 0 0 4px rgba(13,110,253,.15);
+                }
+
+                .bottom-action{
+                    position:sticky;
+                    bottom:0;
+                    background:#fff;
+                    padding:15px 20px;
+                    border-top:1px solid #e5e7eb;
+                }
+
+                .save-btn{
+                    height:50px;
+                    border:none;
+                    border-radius:50px;
+                    font-weight:600;
+                    background:linear-gradient(135deg,#0d6efd,#3b82f6);
+                    box-shadow:0 10px 20px rgba(13,110,253,.25);
+                }
+                `}
+            </style>
 
             <ManageCLAadhar />
             <CLTimeUplaodExcel />

@@ -92,23 +92,6 @@ export default function EditDocument({ editObj }) {
         e.preventDefault();
         setEditSubmitLoading(true);
 
-        // const missingFields = [];
-        // if (!selectedContTypeId) missingFields.push("Document Type");
-        // if (!formData?.DocName) missingFields.push("Document Name");
-        // if (!formData?.Description) missingFields.push("Description");
-
-        // 2. If any are missing, stop and show alert
-        // if (missingFields.length > 0) {
-        //     Swal.fire({
-        //         title: "Mandatory Fields Missing",
-        //         html: `Please provide: <b class="text-danger">${missingFields.join(", ")}</b>`,
-        //         icon: "warning",
-        //         confirmButtonColor: "#009ef7",
-        //     });
-        //     setEditSubmitLoading(false);
-        //     return;
-        // }
-
         const payload = {
             OrgId: sessionUserData?.OrgId,
             UserId: sessionUserData?.Id,

@@ -6,7 +6,7 @@ import { BASE_IMAGE_API_GET } from "../../Config/Config";
 import '../../Config/Pagination.css';
 import Swal from 'sweetalert2';
 import '../../Config/Loader.css';
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import RegisterTicket from "./Add";
 import { InboxOutlined } from '@ant-design/icons';
 import { useParams } from "react-router-dom";
@@ -14,13 +14,23 @@ import { fetchWithAuth } from "../../../utils/api";
 import { MentionsInput, Mention } from "react-mentions";
 import ReactDOM from "react-dom/client";
 import EditTicket from "./Edit";
-import CloseTicket from "./CloseTicket";
 import AssignTechnician from "./AssignTech";
+// import CloseTicket from "./CloseTicket";
 
 
 export default function EAMTicketView() {
 
     const navigate = useNavigate();
+    const location = useLocation();
+
+    const handleBack = () => {
+        if (location.state?.from) {
+            navigate(location.state.from);
+        } else {
+            navigate("/eam/tickets");
+        }
+    };
+
     const { Dragger } = Upload;
     const { orgId, ticketId } = useParams();
     const [sessionUserData, setSessionUserData] = useState([]);
@@ -31,9 +41,6 @@ export default function EAMTicketView() {
     const [ticketLogs, setTicketLogs] = useState([]);
     const [ticketComments, setTicketComments] = useState([]);
     const [ticketRequirements, setTicketRequirements] = useState([]);
-    const [description, setDescription] = useState("");
-    const [quantity, setQuantity] = useState("");
-    const [heading, setHeading] = useState("");
     const [ticketUploadFiles, setTicketUploadFiles] = useState([]);
     const [resolvedDate, setResolvedDate] = useState("");
     const [resolutionDesc, setResolutionDesc] = useState("");
@@ -45,20 +52,15 @@ export default function EAMTicketView() {
     const [commentSubmitLoading, setCommentSubmitLoading] = useState(false);
     const [dleteLoading, setDeleteLoading] = useState(false);
     const [mentionedEmails, setMentionedEmails] = useState("");
-    const [returnedBy, setReturnedBy] = useState("");
-    const [returnedOrg, setReturnedOrg] = useState("");
-    const [pickupDate, setPickupDate] = useState("");
-    const [returnDate, setReturnDate] = useState("");
     const [previewImage, setPreviewImage] = useState(null);
-    const [handedTo, setHandedTo] = useState("");
-    const [pickedBy, setPickedBy] = useState("");
     const [isDirectAssign, setIsDirectAssign] = useState(null);
     const [approveSubmitLoading, SetApproveSubmitLoading] = useState(null);
     const [assetTypeId, setAssetTypeId] = useState(null);
     const [closeData, setCloseData] = useState([]);
     const [editData, setEditData] = useState([]);
     const [ticketData, setTicketData] = useState([]);
-
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editTicketId, setEditTicketId] = useState(null);
 
     const maxFiles = 4;
     const { Option } = Select;
@@ -129,6 +131,7 @@ export default function EAMTicketView() {
             const formattedUsers = data.ResultData
                 .filter((item) => item.DDLName === "Users")
                 .map(u => ({
+                    itemId: u.ItemId,
                     id: u.DisplayValue?.trim(), // Fixed Key
                     display: u.ItemValue?.trim(), // Fixed Key
                 }));
@@ -170,6 +173,7 @@ export default function EAMTicketView() {
                 CommentText: plainTextContent,
                 TablePrimaryId: ticketId, // replace dynamically if needed
                 ToEmails: mentionedEmails.join(","), // 👈 comma separated string
+                CommentId: 0,
             },
         };
 
@@ -437,255 +441,6 @@ export default function EAMTicketView() {
         return `${day}-${month}-${year}`;
     };
 
-    const handlePickup = async (item) => {
-
-        setLoading(true);
-        try {
-            const formPayload = {
-                OrgId: sessionUserData?.OrgId,
-                Priority: ticketDetails?.Priority,
-                TicketStatus: "PICKED UP",
-                TicketId: ticketId,
-                UserId: sessionUserData?.Id,
-                JsonData: {
-                    Logs: `System Engineer ${pickedBy} picked up asset ${ticketDetails?.MachineName} for off-site repairon ${formatDateToDDMMYYYY(pickupDate)}.`,
-                    TicketCode: ticketDetails?.TicketCode,
-                    MachineId: ticketDetails?.MachineId
-                }
-            }
-
-            const response = await fetchWithAuth(`PMMS/TicketsWorkFlow`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formPayload),
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                setLoading(false);
-                if (result.data.result[0].ResponseCode === 3001) {
-                    Swal.fire({
-                        title: "Success",
-                        text: result.data.result[0].Logs || "Request has been approved successfully.",
-                        icon: "success",
-                    }).then(() => fetchTicketData());
-                }
-            } else {
-                setLoading(false);
-                Swal.fire({
-                    title: "Error",
-                    text: result?.ResultData?.ResultMessage || "Something went wrong.",
-                    icon: "error",
-                });
-            }
-        } catch (error) {
-            setLoading(false);
-            console.error("Error during submission:", error.message);
-            Swal.fire({
-                title: "Error",
-                text: "An unexpected error occurred.",
-                icon: "error",
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleReturned = async () => {
-        setLoading(true);
-
-        try {
-            const formPayload = {
-                OrgId: sessionUserData?.OrgId,
-                Priority: ticketDetails?.Priority,
-                TicketStatus: "RETURNED",
-                TicketId: ticketId,
-                UserId: sessionUserData?.Id,
-                JsonData: {
-                    Logs: `Asset ${ticketDetails?.MachineName} repaired and returned by ${returnedBy} on ${formatDateToDDMMYYYY(returnDate)}; handed over to associate ${handedTo}.`,
-                    TicketCode: ticketDetails?.TicketCode,
-                    MachineId: ticketDetails?.MachineId
-                }
-            }
-
-            const response = await fetchWithAuth(`PMMS/TicketsWorkFlow`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formPayload),
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                setLoading(false);
-                if (result.data.result[0].ResponseCode === 3002) {
-                    Swal.fire({
-                        title: "Success",
-                        text: result.data.result[0].Logs || "Request has been approved successfully.",
-                        icon: "success",
-                    }).then(() => fetchTicketData());
-                    setHandedTo("");
-                    setReturnDate(null);
-                    setReturnedBy("");
-                    setReturnedOrg("");
-                }
-            } else {
-                setLoading(false);
-                Swal.fire({
-                    title: "Error",
-                    text: result?.ResultData?.ResultMessage || "Something went wrong.",
-                    icon: "error",
-                });
-            }
-        } catch (error) {
-            setLoading(false);
-            console.error("Error during submission:", error.message);
-            Swal.fire({
-                title: "Error",
-                text: "An unexpected error occurred.",
-                icon: "error",
-            });
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleAddRequirement = async (e) => {
-        e.preventDefault();
-        setReqSubmitLoading(true);
-
-        if (!heading || !description || !quantity) {
-            setReqSubmitLoading(false);
-            Swal.fire({
-                title: "Invalid action",
-                text: "Please enter all required fileds.",
-                icon: "info",
-                confirmButtonText: "OK"
-            });
-            return;
-        }
-        try {
-            const formPayload = {
-                OrgId: orgId,
-                Priority: 1,
-                TicketStatus: "ADDITIONAL REQUIREMENT APPROVAL",
-                TicketId: ticketId,
-                UserId: sessionUserData?.Id,
-                JsonData: {
-                    TicketCode: ticketDetails?.TicketCode,
-                    MachineId: ticketDetails?.MachineId,
-                    CurrentStatus: ticketDetails?.Status,
-                    Requirements: [
-                        {
-                            RequirementName: heading,
-                            Description: description,
-                            Quantity: quantity,
-                        }
-                    ]
-                }
-            }
-
-            const response = await fetchWithAuth(`PMMS/TicketsWorkFlow`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formPayload),
-            });
-
-            const result = await response.json();
-
-            if (result.success) {
-                setReqSubmitLoading(false);
-                if (result.data.result[0].ResponseCode === 2006) {
-                    Swal.fire({
-                        title: "Success",
-                        text: result.data.result[0].Logs || "Request has been raised successfully.",
-                        icon: "success",
-                    }).then(() => {
-                        fetchTicketData();
-                        setDescription('');
-                        setQuantity('');
-                        setHeading('');
-                    });
-                }
-            } else {
-                setReqSubmitLoading(false);
-                Swal.fire({
-                    title: "Error",
-                    text: result?.ResultData?.ResultMessage || "Something went wrong.",
-                    icon: "error",
-                });
-            }
-        } catch (error) {
-            setReqSubmitLoading(false);
-            console.error("Error during submission:", error.message);
-            Swal.fire({
-                title: "Error",
-                text: "An unexpected error occurred.",
-                icon: "error",
-            });
-        } finally {
-            setReqSubmitLoading(false);
-        }
-    };
-
-    const handleDeleteRequirement = async (item) => {
-        const confirmation = await Swal.fire({
-            title: "Are you sure?",
-            text: `Do you want to delete the requirement: "${item.Col1}"?`,
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonText: "Yes, delete it!",
-            cancelButtonText: "No, cancel",
-        });
-
-        // If user confirmed
-        if (confirmation.isConfirmed) {
-
-            try {
-                const formPayload = {
-                    ReqId: item.Label,
-                    TicketId: ticketId,
-                    UserId: sessionUserData?.Id,
-                    RequirementName: item.Col1,
-                };
-
-                const response = await fetchWithAuth(`PMMS/InactiveTicketRequirements`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(formPayload),
-                });
-
-                const result = await response.json();
-
-                if (result.ResultData[0].Status === 'true') {
-                    // Swal.fire({
-                    //     title: "Success",
-                    //     text: "Requirement deleted successfully.",
-                    //     icon: "success",
-                    // }).then(() => {
-                    fetchTicketData();
-                    // });
-                } else {
-                    Swal.fire({
-                        title: "Error",
-                        text: result?.ResultData?.ResultMessage || "Something went wrong.",
-                        icon: "error",
-                    });
-                }
-            } catch (error) {
-                console.error("Error during submission:", error.message);
-                Swal.fire({
-                    title: "Error",
-                    text: "An unexpected error occurred.",
-                    icon: "error",
-                });
-            } finally {
-                setReqSubmitLoading(false);
-            }
-        }
-    };
-
     const handleDeleteFile = async (item) => {
         const confirmation = await Swal.fire({
             title: "Are you sure?",
@@ -793,29 +548,6 @@ export default function EAMTicketView() {
         }
     };
 
-    const handleFormattedInput = (value, setValue) => {
-        // 1. Disallow leading space
-        if (value.length === 1 && value === ' ') return;
-
-        // 2. Filter allowed characters (Letters, numbers, spaces, and periods)
-        // Note: Added '.' to the regex so users can actually type a period
-        if (/[^a-zA-Z0-9 .]/.test(value)) return;
-
-        // 3. Formatting Logic:
-        let formatted = value.toLowerCase();
-
-        // Capitalize the very first character if it's a letter
-        if (formatted.length > 0 && /^[a-z]/.test(formatted)) {
-            formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
-        }
-
-        // Capitalize after period + space (Sentence casing)
-        // Regex explanation: Matches a period, followed by one or more spaces, followed by a letter
-        formatted = formatted.replace(/\.\s+[a-z]/g, (match) => match.toUpperCase());
-
-        setValue(formatted);
-    };
-
     const getAvatarColor = (name) => {
         const pastelColors = [
             "#FADADD", // light pink
@@ -908,12 +640,15 @@ export default function EAMTicketView() {
                                 className="w-100"
                                 dropdownStyle={{ zIndex: 20000 }}
                                 optionFilterProp="label"
+                                // onChange={(id) => {
+                                //     state.selectedUser = usersData.find((u) => u.id === id);
+                                // }}
                                 onChange={(id) => {
-                                    // Match the key 'id' from your sample data
-                                    state.selectedUser = usersData.find((u) => u.id === id);
+                                    const selectedUser = usersData.find((u) => u.id === id);
+                                    state.selectedUser = selectedUser;
+                                    state.selectedUserItemId = selectedUser?.itemId || 0;
                                 }}
                                 options={usersData.map(user => ({
-                                    // Map 'display' to label and 'id' to value
                                     label: user.display,
                                     value: user.id,
                                 }))}
@@ -943,6 +678,7 @@ export default function EAMTicketView() {
         SetApproveSubmitLoading(true);
 
         // From your sample: id is the email, display is the name
+        // console.log(selectedUser)
         const displayName = selectedUser.display;
         const userEmail = selectedUser.id;
 
@@ -967,7 +703,7 @@ export default function EAMTicketView() {
                             AssignedEmail: userEmail,
                             AssignedUser: displayName,
                             DueDate: ticketDetails.DueDate,
-                            AssignedId: selectedUser.ItemId,
+                            AssignedId: selectedUser.itemId,
                         }
                     };
 
@@ -1106,43 +842,62 @@ export default function EAMTicketView() {
         setEditData(item);
     };
 
-    const handleCloseTicket = (item) => {
-        setCloseData(item);
-    };
+    // const handleCloseTicket = (item) => {
+    //     setCloseData(item);
+    // };
 
     const handleAssignTech = (item) => {
         setTicketData(item);
     };
 
-    // const steps = ticketDetails?.DirectAssign
-    // ? ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "TECH_FIXED", "RESOLVED", "CLOSED"]
-    // : ["NEW", "APPROVED", "ASSIGNED", "PICKED UP", "RETURNED", "RESOLVED", "CLOSED"];
+    const steps = [
+        { key: "NEW", label: "New" },
+        { key: "APPROVED_ASSIGNED", label: "Assigned" },
+        { key: "ISSUE_FIXED", label: "Issue Fixed" },
+        { key: "RESOLVED_CLOSED", label: "Resolved / Closed" },
+    ];
 
-    // const activeStepIndex =
-    //     ticketDetails?.Status === "PENDING_WITH_CLIENT"
-    //         ? steps.indexOf("APPROVED")
-    //         : steps.indexOf(ticketDetails?.Status);
+    const normalizeStep = (status) => {
+        if (!status) return "";
 
-    const normalizeStep = (value) => String(value || "").trim().toUpperCase();
+        const value = status.toUpperCase().replace(/\s+/g, "_");
 
-    const steps = ticketDetails?.DirectAssign
-        ? ["NEW", "APPROVED", "ASSIGNED", "TECH_FIXED", "RESOLVED", "CLOSED"]
-        : ["NEW", "APPROVED", "ASSIGNED", "RESOLVED", "CLOSED"];
+        if (value === "PENDING_WITH_CLIENT") return "NEW";
+
+        if (value === "APPROVED" || value === "ASSIGNED") {
+            return "APPROVED_ASSIGNED";
+        }
+
+        if (
+            value === "ISSUE_FIXED" ||
+            value === "TECH FIXED" ||
+            value === "ISSUE FIXED"
+        ) {
+            return "ISSUE_FIXED";
+        }
+
+        if (value === "RESOLVED" || value === "CLOSED" || value === "RESOLVED/CLOSED") {
+            return "RESOLVED_CLOSED";
+        }
+
+        return value;
+    };
 
     const currentStatusForStepper =
         ticketDetails?.Status === "PENDING_WITH_CLIENT"
             ? "NEW"
             : ticketDetails?.Status;
 
-    const activeStepIndex = steps.indexOf(normalizeStep(currentStatusForStepper));
+    const activeStepIndex = steps.findIndex(
+        (step) => step.key === normalizeStep(currentStatusForStepper)
+    );
 
     const enabledStepSet = new Set(
         (ticketLogs || [])
-            .map((item) => normalizeStep(item.Label))
+            .map((item) => normalizeStep(item.Label || item.Status))
             .filter(Boolean)
     );
 
-    // also keep current visible in stepper
     if (currentStatusForStepper) {
         enabledStepSet.add(normalizeStep(currentStatusForStepper));
     }
@@ -1152,7 +907,7 @@ export default function EAMTicketView() {
         delete: ["NEW", "MODIFIED", "REJECTED"],
         approve: ["NEW", "REJECTED", "MODIFIED"],
         reject: ["NEW", "MODIFIED"],
-        assignTech: ["NEW", "APPROVED"],
+        assignTech: ["NEW", "ASSIGNED"],
         close: ["RESOLVED"],
     };
 
@@ -1173,18 +928,21 @@ export default function EAMTicketView() {
         permissionsByStatus.approve.includes(ticketDetails?.Status) &&
         !ticketDetails?.DirectAssign;
     const canReject = showRejectBtn && permissionsByStatus.reject.includes(ticketDetails?.Status);
-    const canAssignTech = (showAssignTechBtn) && (
-        (ticketDetails?.Status === 'NEW' && ticketDetails?.DirectAssign === true) ||
-        (ticketDetails?.Status === 'APPROVED') ||
-        (!['NEW', 'APPROVED'].includes(ticketDetails?.Status) && permissionsByStatus.assignTech.includes(ticketDetails?.Status))
-    );
-    const canClose = showCloseBtn && permissionsByStatus.close.includes(ticketDetails?.Status);
+    const canAssignTech =
+        (
+            (ticketDetails?.Status === "NEW" && ticketDetails?.DirectAssign === true) ||
+            (
+                ticketDetails?.Status === "ASSIGNED" &&
+                ticketDetails?.DirectAssign !== true &&
+                ticketDetails?.TechnicianId == null
+            )
+        );
 
     const allowedStatuses = [
         "ASSIGNED",
         "RETURNED",
         "ADDITIONAL REQUIREMENT APPROVED",
-        "TECH_FIXED",
+        "ISSUE_FIXED",
     ];
 
     const isSubmitDisabled =
@@ -1243,10 +1001,160 @@ export default function EAMTicketView() {
         }
     };
 
+    const handleReAssignTicket = async () => {
+        const result = await Swal.fire({
+            title: "Re-Assign Ticket?",
+            input: "textarea",
+            inputLabel: "Remarks",
+            inputPlaceholder: "Enter remarks here...",
+            inputAttributes: {
+                "aria-label": "Type your remarks here"
+            },
+            inputValidator: (value) => {
+                if (!value?.trim()) {
+                    return "Remarks are required";
+                }
+            },
+            text: "Are you sure you want to re-assign this ticket?",
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: '<i class="bi bi-check-circle text-white me-2"></i>Yes, Re-Assign',
+            cancelButtonText: '<i class="bi bi-x-circle text-white me-2"></i>No, Cancel',
+            confirmButtonColor: "#009ef7",
+            cancelButtonColor: "#6c757d",
+            reverseButtons: true,
+        });
+
+        if (!result.isConfirmed) return;
+
+        const remarks = result.value.trim();
+
+        const assignedTo = ticketDetails?.DirectAssign
+            ? `Tech: ${ticketDetails?.TechnicianName || "-"}`
+            : `User: ${ticketDetails?.UserName || "-"}`;
+
+        const payload = {
+            OrgId: sessionUserData?.OrgId,
+            Priority: 1,
+            TicketStatus: "REASSIGN",
+            TicketId: ticketDetails?.TicketId,
+            UserId: sessionUserData?.Id,
+            JsonData: {
+                TicketId: ticketDetails?.Id,
+                Logs: `Ticket reassigned to ${assignedTo}. Remarks: ${remarks}`,
+            },
+        };
+
+        try {
+            Swal.showLoading();
+
+            const res = await fetchWithAuth(`PMMS/TicketsWorkFlow`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json();
+            const responseCode = data?.data?.result?.[0]?.ResponseCode;
+
+            if (data?.success && responseCode === 3007) {
+                fetchTicketDetails();
+                fetchTicketData();
+                Swal.fire("Success", "Ticket reassigned successfully.", "success");
+            } else {
+                Swal.fire("Error", "Failed to reassign.", "error");
+            }
+        } catch (error) {
+            Swal.fire("Error", "Server error", "error");
+        }
+    };
+
+    const handleIssueFixed = async (item) => {
+        const confirmResult = await Swal.fire({
+            title: "Mark issue as fixed?",
+            text: "Please confirm whether this ticket issue has been fixed.",
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: '<i class="bi bi-check-circle text-white me-2"></i>Yes, Issue Fixed',
+            cancelButtonText: '<i class="bi bi-x-circle text-white me-2"></i>No, Cancel',
+            confirmButtonColor: "#009ef7",
+            cancelButtonColor: "#6c757d",
+            reverseButtons: true,
+        });
+
+        if (!confirmResult.isConfirmed) return;
+
+        const logText = `Issue has been fixed by technician ${ticketDetails?.TechnicianName}.`;
+
+        const payload = {
+            OrgId: sessionUserData?.OrgId,
+            Priority: 1,
+            TicketStatus: "ISSUE_FIXED",
+            TicketId: item.Id,
+            UserId: sessionUserData?.Id,
+            JsonData: {
+                TicketCreated: item.CreatedBy,
+                Logs: logText,
+                TicketId: item.Id,
+            },
+        };
+
+        try {
+            Swal.fire({
+                title: "Updating ticket...",
+                text: "Please wait",
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+            });
+
+            const res = await fetchWithAuth(`PMMS/TicketsWorkFlow`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await res.json();
+
+            if (data?.success && data?.data?.result?.[0]?.ResponseCode === 3003) {
+                await fetchTicketDetails();
+                await fetchTicketData();
+
+                Swal.fire({
+                    title: "Updated",
+                    text: "Issue has been marked as fixed.",
+                    icon: "success",
+                    timer: 1800,
+                    showConfirmButton: false,
+                });
+            } else {
+                Swal.fire({
+                    title: "Failed",
+                    text:
+                        data?.data?.result?.[0]?.ResponseMessage ||
+                        "Unable to mark issue as fixed.",
+                    icon: "error",
+                });
+            }
+        } catch (error) {
+            console.error("Issue fixed update failed:", error);
+
+            Swal.fire({
+                title: "Error",
+                text: "Something went wrong while updating the ticket.",
+                icon: "error",
+            });
+        }
+    };
+
+    const createdDateMin = ticketDetails?.CreatedOn
+        ? new Date(ticketDetails.CreatedOn).toISOString().split("T")[0]
+        : "";
+
 
     return (
         <Base1>
-
             <div id="kt_app_content" className="app-content flex-column-fluid mb-4">
                 <div id="kt_app_content_container" className={`app-container container-xxl ${loading ? 'blurred' : ''}`}>
                     {loading && (
@@ -1268,20 +1176,22 @@ export default function EAMTicketView() {
                                             </h5>
                                         </div>
 
-                                        <Link to={`/eam/tickets`}>
-                                            <span
-                                                className={`badge badge-secondary border border-dark`}
-                                                style={{
-                                                    fontSize: "0.95rem",
-                                                    padding: "8px 14px",
-                                                    borderRadius: "20px",
-                                                    fontWeight: 700,
-                                                    letterSpacing: "0.5px",
-                                                }}
-                                            >
-                                                <i className="fa-solid fa-arrow-left me-1"></i> Back to Tickets
-                                            </span>
-                                        </Link>
+                                        <button
+                                            type="button"
+                                            className="badge badge-secondary border border-dark"
+                                            onClick={handleBack}
+                                            style={{
+                                                fontSize: "0.95rem",
+                                                padding: "8px 14px",
+                                                borderRadius: "20px",
+                                                fontWeight: 700,
+                                                letterSpacing: "0.5px",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            <i className="fa-solid fa-arrow-left me-1"></i>
+                                            Back to Tickets
+                                        </button>
                                     </div>
 
                                     <div className="text-center d-lg-none mb-2">
@@ -1356,10 +1266,7 @@ export default function EAMTicketView() {
                                             <div className="btn-group shadow-sm bg-white rounded-pill p-1 border flex-wrap">
                                                 <button
                                                     className="btn btn-sm btn-light-info border-0 rounded-pill px-4 fw-bold mx-1"
-                                                    data-bs-toggle="offcanvas"
-                                                    data-bs-target="#offcanvasRightEdit"
-                                                    aria-controls="offcanvasRightEdit"
-                                                    onClick={() => canEdit && handleEdit(ticketDetails)}
+                                                    onClick={() => { setIsModalOpen(true); setEditTicketId(ticketDetails.Id); }}
                                                     disabled={!canEdit}
                                                 >
                                                     <i className="fa-regular fa-pen-to-square me-1"></i>
@@ -1382,11 +1289,32 @@ export default function EAMTicketView() {
 
                                                 {ticketDetails?.Status === "PENDING_WITH_CLIENT" && (
                                                     <button
+                                                        type="button"
                                                         className="btn btn-sm btn-light-primary border-0 rounded-pill px-4 fw-bold mx-1"
                                                         onClick={handleReAssignTech}
                                                     >
                                                         <i className="bi bi-person-gear fs-5 me-1"></i>
                                                         <span className="d-none d-md-inline">Re-Assign Tech</span>
+                                                    </button>
+                                                )}
+                                                {ticketDetails?.Status === "ISSUE_FIXED" && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-light-primary border-0 rounded-pill px-4 fw-bold mx-1"
+                                                        onClick={handleReAssignTicket}
+                                                    >
+                                                        <i className="bi bi-person-gear fs-5 me-1"></i>
+                                                        <span className="d-none d-md-inline">Re-Assign</span>
+                                                    </button>
+                                                )}
+                                                {ticketDetails?.Status === "ASSIGNED" && ticketDetails?.Status !== "ISSUE_FIXED" && !ticketDetails?.DirectAssign && (
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-sm btn-light-info border-0 rounded-pill px-4 fw-bold mx-1"
+                                                        onClick={() => handleIssueFixed(ticketDetails)}
+                                                    >
+                                                        <i className="fa-solid fa-screwdriver-wrench me-1"></i>
+                                                        <span className="d-none d-md-inline">Issue Fixed</span>
                                                     </button>
                                                 )}
 
@@ -1414,7 +1342,7 @@ export default function EAMTicketView() {
                                                     <span className="d-none d-md-inline">Reject</span>
                                                 </button>
 
-                                                <button
+                                                {/* <button
                                                     className="btn btn-sm btn-light-success border-0 rounded-pill px-4 fw-bold mx-1"
                                                     data-bs-toggle="offcanvas"
                                                     data-bs-target="#offcanvasRightCloseTic"
@@ -1424,7 +1352,7 @@ export default function EAMTicketView() {
                                                 >
                                                     <i className="bi bi-clipboard2-check me-1"></i>
                                                     <span className="d-none d-md-inline">Close</span>
-                                                </button>
+                                                </button> */}
 
                                                 <button
                                                     className="btn btn-sm btn-light-danger border-0 rounded-pill px-4 fw-bold mx-1"
@@ -1441,35 +1369,42 @@ export default function EAMTicketView() {
 
 
                                 {/* Steps */}
-                                <div className="step-container d-flex justify-content-between align-items-center w-100 my-4 pt-2">
+                                <div className="premium-stepper step-container d-flex justify-content-between align-items-start w-100 my-4 pt-2">
                                     {steps.map((step, index) => {
-                                        const normalizedStep = normalizeStep(step);
-                                        const isEnabled = enabledStepSet.has(normalizedStep);
+                                        const isEnabled = enabledStepSet.has(step.key);
                                         const isFilled = isEnabled && index <= activeStepIndex;
                                         const isActive = isEnabled && index === activeStepIndex;
                                         const isMasked = !isEnabled;
 
                                         return (
-                                            <div key={step} className="text-center flex-fill position-relative">
+                                            <div key={step.key} className="text-center flex-fill position-relative">
                                                 <div
                                                     className={`step-circle-horizontal mx-auto
-                        ${isFilled ? "filled" : ""}
-                        ${isActive ? "active" : ""}
-                        ${isMasked ? "opacity-50 bg-light text-muted border" : ""}
-                    `}
+                                                        ${isFilled ? "filled" : ""}
+                                                        ${isActive ? "active" : ""}
+                                                        ${isMasked ? "masked" : ""}
+                                                    `}
                                                 >
-                                                    {isMasked ? <i className="bi bi-x-lg"></i> : index + 1}
+                                                    {isMasked ? (
+                                                        <i className="bi bi-lock"></i>
+                                                    ) : isFilled && !isActive ? (
+                                                        <i className="bi bi-check-lg"></i>
+                                                    ) : (
+                                                        index + 1
+                                                    )}
                                                 </div>
-
                                                 {index !== steps.length - 1 && (
                                                     <div
                                                         className={`step-line-horizontal ${isEnabled && index < activeStepIndex ? "filled" : ""
                                                             } ${isMasked ? "opacity-25" : ""}`}
                                                     ></div>
                                                 )}
-
-                                                <div className={`step-label mt-2 fw-semibold ${isMasked ? "text-muted" : ""}`}>
-                                                    {step}
+                                                <div
+                                                    className={`premium-step-label mt-3 ${isActive ? "active" : isFilled ? "completed" : isMasked ? "masked" : ""
+                                                        }`}
+                                                >
+                                                    <span className="premium-step-label-dot"></span>
+                                                    <span>{step.label}</span>
                                                 </div>
                                             </div>
                                         );
@@ -1486,10 +1421,10 @@ export default function EAMTicketView() {
                                                         <th style={{ minWidth: "100px" }}>When</th>
                                                         <th style={{ minWidth: "200px" }}>Action</th>
                                                         <th style={{ minWidth: "200px" }}>Status</th>
-                                                        <th style={{ minWidth: "120px" }}>Performed By</th>
+                                                        <th style={{ minWidth: "120px" }} className="text-start">Performed By</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody>
+                                                {/* <tbody>
                                                     {Array.isArray(ticketLogs) && ticketLogs.length > 0 ? (
                                                         ticketLogs.map((item, indx) => (
                                                             <tr key={indx} className="transition-row">
@@ -1518,8 +1453,7 @@ export default function EAMTicketView() {
 
                                                                 <td className="fw-semibold text-info text-start">
                                                                     <div className="d-inline-flex align-items-start justify-content-start w-100">
-                                                                        <i className="bi bi-person-circle me-2 flex-shrink-0"></i>
-                                                                        {item.Col3 && item.Col3.length > 5 ? (
+                                                                        <i className="bi bi-person-circle me-2 flex-shrink-0 mt-1"></i>
                                                                             <Tooltip title={item.Col3} placement="top">
                                                                                 <span
                                                                                     className="text-truncate cursor-pointer"
@@ -1528,9 +1462,6 @@ export default function EAMTicketView() {
                                                                                     {item.Col3}
                                                                                 </span>
                                                                             </Tooltip>
-                                                                        ) : (
-                                                                            <span>{item.Col3 || "N/A"}</span>
-                                                                        )}
                                                                     </div>
                                                                 </td>
                                                             </tr>
@@ -1540,6 +1471,186 @@ export default function EAMTicketView() {
                                                             <td colSpan={4} className="text-center py-5 text-muted">
                                                                 <i className="bi bi-inbox fs-2 d-block mb-2 opacity-25"></i>
                                                                 No logs found
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody> */}
+                                                <tbody>
+                                                    {Array.isArray(ticketLogs) && ticketLogs.length > 0 ? (
+                                                        ticketLogs.map((item, indx) => (
+                                                            <tr key={indx}>
+                                                                <td
+                                                                    className="text-center border-0"
+                                                                    style={{
+                                                                        background: "#ffffff",
+                                                                        borderTopLeftRadius: "16px",
+                                                                        borderBottomLeftRadius: "16px",
+                                                                        padding: "16px 12px",
+                                                                        boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+                                                                    }}
+                                                                >
+                                                                    <div className="d-inline-flex align-items-center justify-content-center gap-2">
+                                                                        <span
+                                                                            className="d-inline-flex align-items-center justify-content-center rounded-circle"
+                                                                            style={{
+                                                                                width: "34px",
+                                                                                height: "34px",
+                                                                                background: "#eef6ff",
+                                                                                color: "#0d6efd",
+                                                                            }}
+                                                                        >
+                                                                            <i className="bi bi-clock-history"></i>
+                                                                        </span>
+
+                                                                        <span className="text-primary fw-semibold fs-7">
+                                                                            {formatDate(item.Col2)}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+
+                                                                <td
+                                                                    className="border-0"
+                                                                    style={{
+                                                                        background: "#ffffff",
+                                                                        padding: "16px 12px",
+                                                                        boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+                                                                    }}
+                                                                >
+                                                                    <div className="d-flex align-items-start gap-2">
+                                                                        <span
+                                                                            className="d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                                                                            style={{
+                                                                                width: "32px",
+                                                                                height: "32px",
+                                                                                background: "#f3f7fb",
+                                                                                color: "#5b6b7f",
+                                                                            }}
+                                                                        >
+                                                                            <i className="bi bi-lightning-charge"></i>
+                                                                        </span>
+
+                                                                        <Tooltip
+                                                                            placement="topLeft"
+                                                                            color="#163c7a"
+                                                                            overlayInnerStyle={{
+                                                                                borderRadius: "14px",
+                                                                                padding: "12px 14px",
+                                                                                boxShadow: "0 14px 30px rgba(15, 23, 42, 0.22)",
+                                                                                maxWidth: "350px",
+                                                                            }}
+                                                                            title={
+                                                                                <div>
+                                                                                    <div
+                                                                                        className="d-flex align-items-center gap-2 mb-1"
+                                                                                        style={{ color: "#dbeafe", fontWeight: 700, fontSize: "0.78rem" }}
+                                                                                    >
+                                                                                        <i className="bi bi-info-circle-fill"></i>
+                                                                                        Action Details
+                                                                                    </div>
+                                                                                    <div style={{ color: "#f8fbff", fontSize: "0.78rem", lineHeight: 1.5 }}>
+                                                                                        {item.Col1 || "N/A"}
+                                                                                    </div>
+                                                                                </div>
+                                                                            }
+                                                                        >
+                                                                            <span
+                                                                                className="fw-semibold text-dark text-truncate d-inline-block cursor-help"
+                                                                                style={{ maxWidth: "270px" }}
+                                                                            >
+                                                                                {item.Col1 || "N/A"}
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    </div>
+                                                                </td>
+
+                                                                <td
+                                                                    className="text-center border-0"
+                                                                    style={{
+                                                                        background: "#ffffff",
+                                                                        padding: "16px 12px",
+                                                                        boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+                                                                    }}
+                                                                >
+                                                                    <span
+                                                                        className={`badge ${getStatusBadgeClass(item.Label)} d-inline-flex align-items-center justify-content-center rounded-pill fw-bold`}
+                                                                        style={{
+                                                                            minWidth: "190px",
+                                                                            padding: "10px 16px",
+                                                                            fontSize: "0.72rem",
+                                                                            letterSpacing: "0.01em",
+                                                                        }}
+                                                                    >
+                                                                        <i className="bi bi-dot fs-4 me-1"></i>
+                                                                        {item.Label}
+                                                                    </span>
+                                                                </td>
+
+                                                                <td
+                                                                    className="text-start border-0"
+                                                                    style={{
+                                                                        background: "#ffffff",
+                                                                        borderTopRightRadius: "16px",
+                                                                        borderBottomRightRadius: "16px",
+                                                                        padding: "16px 12px",
+                                                                        boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+                                                                    }}
+                                                                >
+                                                                    <div className="d-inline-flex align-items-start justify-content-start w-100 gap-2">
+                                                                        <span
+                                                                            className="d-inline-flex align-items-center justify-content-center rounded-circle flex-shrink-0"
+                                                                            style={{
+                                                                                width: "32px",
+                                                                                height: "32px",
+                                                                                background: "#eefafc",
+                                                                                color: "#0dcaf0",
+                                                                            }}
+                                                                        >
+                                                                            <i className="bi bi-person-circle"></i>
+                                                                        </span>
+
+                                                                        <Tooltip title={item.Col3} placement="top">
+                                                                            <span
+                                                                                className="text-truncate fw-semibold cursor-pointer"
+                                                                                style={{
+                                                                                    maxWidth: "120px",
+                                                                                    display: "inline-block",
+                                                                                    color: "#0f766e",
+                                                                                }}
+                                                                            >
+                                                                                {item.Col3 || "---"}
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    ) : (
+                                                        <tr>
+                                                            <td colSpan={4} className="border-0">
+                                                                <div
+                                                                    className="text-center"
+                                                                    style={{
+                                                                        padding: "48px 20px",
+                                                                        background: "#ffffff",
+                                                                        borderRadius: "18px",
+                                                                        boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)",
+                                                                    }}
+                                                                >
+                                                                    <div
+                                                                        className="d-inline-flex align-items-center justify-content-center rounded-circle mb-3"
+                                                                        style={{
+                                                                            width: "58px",
+                                                                            height: "58px",
+                                                                            background: "#f3f6fa",
+                                                                            color: "#9aa4b2",
+                                                                        }}
+                                                                    >
+                                                                        <i className="bi bi-inbox fs-3"></i>
+                                                                    </div>
+
+                                                                    <div className="fw-bold text-dark mb-1">No activity yet</div>
+                                                                    <div className="text-muted fs-7">Logs will appear here once actions are recorded.</div>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     )}
@@ -2195,10 +2306,16 @@ export default function EAMTicketView() {
                                                 <label className="form-label">Resolved Date<span className="text-danger fw-bold">*</span></label>
                                                 <input
                                                     type="date"
-                                                    className={`form-control form-control-sm w-100 w-md-25 ${ticketDetails?.Status === 'RESOLVED' || ticketDetails?.Status === 'CLOSED' || !showResolveBtn ? 'cursor-not-allowed' : ''}`}
+                                                    className={`form-control form-control-sm w-100 w-md-25 ${ticketDetails?.Status === "RESOLVED" ||
+                                                        ticketDetails?.Status === "CLOSED" ||
+                                                        !showResolveBtn
+                                                        ? "cursor-not-allowed"
+                                                        : ""
+                                                        }`}
                                                     value={resolvedDate}
                                                     onChange={(e) => setResolvedDate(e.target.value)}
-                                                    disabled={ticketDetails?.Status === 'RESOLVED' || ticketDetails?.Status === 'CLOSED'}
+                                                    disabled={ticketDetails?.Status === "RESOLVED" || ticketDetails?.Status === "CLOSED"}
+                                                    min={createdDateMin}
                                                     max={new Date().toISOString().split("T")[0]}
                                                 />
                                             </div>
@@ -2378,7 +2495,6 @@ export default function EAMTicketView() {
                                             </div>
                                         </div>
                                     </div>
-
                                 </div>
                             </div>
                         </div>
@@ -2387,6 +2503,7 @@ export default function EAMTicketView() {
 
                 <style>
                     {`
+                   
                     /* Smooth Hover Effect */
                     .transition-row {
                         transition: all 0.2s ease-in-out;
@@ -2494,6 +2611,75 @@ export default function EAMTicketView() {
                     flex: 0 0 auto;
                     min-width: 90px; /* ensures circles + text fit well */
                     }
+                    .premium-step-label {
+                        width: fit-content;
+                        max-width: 160px;
+                        margin-left: auto;
+                        margin-right: auto;
+                        padding: 7px 12px;
+                        border-radius: 999px;
+                        background: #f8fafc;
+                        border: 1px solid #e5e7eb;
+                        color: #475569;
+                        font-size: 12px;
+                        font-weight: 800;
+                        line-height: 1.2;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 7px;
+                        white-space: nowrap;
+                        box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+                        }
+
+                        .premium-step-label-dot {
+                        width: 7px;
+                        height: 7px;
+                        border-radius: 50%;
+                        background: #cbd5e1;
+                        flex-shrink: 0;
+                        }
+
+                        .premium-step-label.completed {
+                        color: #1d4ed8;
+                        background: #eff6ff;
+                        border-color: #bfdbfe;
+                        }
+
+                        .premium-step-label.completed .premium-step-label-dot {
+                        background: #2563eb;
+                        }
+
+                        .premium-step-label.active {
+                        color: #047857;
+                        background: #ecfdf5;
+                        border-color: #a7f3d0;
+                        box-shadow: 0 8px 20px rgba(5, 150, 105, 0.12);
+                        }
+
+                        .premium-step-label.active .premium-step-label-dot {
+                        background: #059669;
+                        box-shadow: 0 0 0 4px rgba(5, 150, 105, 0.14);
+                        }
+
+                        .premium-step-label.masked {
+                        color: #94a3b8;
+                        background: #f8fafc;
+                        border-color: #eef2f7;
+                        }
+
+                        .premium-step-label.masked .premium-step-label-dot {
+                        background: #e2e8f0;
+                        }
+
+                        @media (max-width: 768px) {
+                        .premium-step-label {
+                            max-width: 130px;
+                            white-space: normal;
+                            text-align: center;
+                            font-size: 11px;
+                        }
+                        }
                     .step-circle-horizontal {
                     width: 38px;
                     height: 38px;
@@ -2708,55 +2894,59 @@ export default function EAMTicketView() {
                     }
 
                     /* Light Pastel Badges */
-.badge-light-skyblue {
-    background-color: #b3ecff;
-    color: #007b8a;
-}
+                        .badge-light-skyblue {
+                            background-color: #b3ecff;
+                            color: #007b8a;
+                        }
 
-.badge-light-purple {
-    background-color: #d6c1ff;
-    color: #4b0082;
-}
+                        .badge-light-purple {
+                            background-color: #d6c1ff;
+                            color: #4b0082;
+                        }
 
-.badge-light-indigo {
-    background-color: #c5cae9;
-    color: #283593;
-}
+                        .badge-light-indigo {
+                            background-color: #c5cae9;
+                            color: #283593;
+                        }
 
-.badge-light-teal {
-    background-color: #b2dfdb;
-    color: #004d40;
-}
+                        .badge-light-teal {
+                            background-color: #b2dfdb;
+                            color: #004d40;
+                        }
 
-.badge-light-pink {
-    background-color: #f8bbd0;
-    color: #880e4f;
-}
+                        .badge-light-pink {
+                            background-color: #f8bbd0;
+                            color: #880e4f;
+                        }
 
-.badge-light-brown {
-    background-color: #d7ccc8;
-    color: #3e2723;
-}
+                        .badge-light-brown {
+                            background-color: #d7ccc8;
+                            color: #3e2723;
+                        }
 
-.badge-light-gray {
-    background-color: #eceff1;
-    color: #37474f;
-}
+                        .badge-light-gray {
+                            background-color: #eceff1;
+                            color: #37474f;
+                        }
 
-.badge-light-gold {
-    background-color: #fff8e1;
-    color: #8d6e00;
-}
-
+                        .badge-light-gold {
+                            background-color: #fff8e1;
+                            color: #8d6e00;
+                        }
+                            
                     `}
                 </style>
-
             </div>
 
             <RegisterTicket />
-            <EditTicket editObj={editData} />
+            {isModalOpen && (
+                <EditTicket
+                    editTicketId={editTicketId}
+                    onClose={() => setIsModalOpen(false)}
+                />
+            )}
             <AssignTechnician ticketObj={ticketData} />
-            <CloseTicket ticketObj={closeData} />
+            {/* <CloseTicket ticketObj={closeData} /> */}
         </Base1>
     )
 }

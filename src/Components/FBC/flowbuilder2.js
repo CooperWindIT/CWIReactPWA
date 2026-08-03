@@ -8,6 +8,9 @@ import { useFiles } from './hooks/useFiles';
 import { uid, snapshot } from './Geometry';
 import './flow.css';
 import { useNavigate } from 'react-router-dom';
+import { exportDiagramAsPdf } from './hooks/pdfUtils';
+import UplaodDocument from '../EDM/Documents/UploadDoc';
+import LZString from "lz-string";
 
 const DEFAULT_STROKE = 'theme-auto';
 const DEFAULT_FILL = 'transparent';
@@ -54,17 +57,6 @@ function createNode(shape, x, y) {
     hexagon: { w: 180, h: 88 },
     cylinder: { w: 160, h: 88 },
     text: { w: 180, h: 42 },
-  };
-
-  const labelMap = {
-    rect: 'Rectangle',
-    rounded: 'Rounded',
-    diamond: 'Decision',
-    circle: 'Circle',
-    parallelogram: 'Input / Output',
-    hexagon: 'Hexagon',
-    cylinder: 'Database',
-    text: 'Text',
   };
 
   const size = sizeMap[shape] || sizeMap.rect;
@@ -207,8 +199,13 @@ export default function FlowBuilderC() {
   const connectionsRef = useRef([]);
 
   const [nodes, setNodes] = useState([]);
+  const [selectedFlowChartName, setSelectedFlowChartName] = useState(null);
+  const [selectedFlowChartUrl, setSelectedFlowChartUrl] = useState(null);
+  const [selectedFlowChartId, setSelectedFlowChartId] = useState(null);
   const [connections, setConnections] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedConnectionId, setSelectedConnectionId] = useState(null);
   const [mode, setMode] = useState('select');
   const [activeShape, setActiveShape] = useState(null);
   const [connectFrom, setConnectFrom] = useState(null);
@@ -219,6 +216,7 @@ export default function FlowBuilderC() {
   const [zoom, setZoom] = useState(0.9);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
+  const [autoArrowEnabled, setAutoArrowEnabled] = useState(true);
   const [canvasBg, setCanvasBg] = useState(null);
   const [sessionUserData, setSessionUserData] = useState(null);
   const [showShapeHint, setShowShapeHint] = useState(false);
@@ -229,6 +227,12 @@ export default function FlowBuilderC() {
   const [searchWholeWord, setSearchWholeWord] = useState(false);
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [focusedBranchRootId, setFocusedBranchRootId] = useState(null);
+  const [isVersionMode, setIsVersionMode] = useState(false);
+  const [isVersionViewMode, setIsVersionViewMode] = useState(false);
+  const [isVersionEditMode, setIsVersionEditMode] = useState(false);
+  const [versionJson, setVersionJson] = useState(null);
+  const [sharedWriteAccess, setSharedWriteAccess] = useState(true);
+
 
   const navigate = useNavigate();
 
@@ -253,6 +257,8 @@ export default function FlowBuilderC() {
     : [];
 
   const allExpanded = nodes.every((node) => !node.collapsed && Object.values(node.collapsedSides || DEFAULT_COLLAPSED_SIDES).every((value) => !value));
+  const skipFileLoadEffect = useRef(false);
+
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -265,6 +271,12 @@ export default function FlowBuilderC() {
       return Math.min(prev, matchedNodeIds.length - 1);
     });
   }, [matchedNodeIds.length, searchQuery]);
+
+  const { files, currentFileId, setCurrentFileId, fetchBackendFiles, loadFileFromServer, saveFile, saveFileWithPdf, newFile, getFile, deleteFile, draftFiles, edmDocuments, sharedDraftFiles, fetchSharedDrafts, fetchEDMDocuments, loadDiagramFromUrl } = useFiles();
+
+  useEffect(() => {
+    fetchBackendFiles();   // populate sidebar on load
+  }, [fetchBackendFiles]);
 
   const pushHistory = useCallback((n, c) => {
     history.current = history.current.slice(0, historyIdx.current + 1);
@@ -280,6 +292,8 @@ export default function FlowBuilderC() {
     setNodes(snap.nodes);
     setConnections(snap.connections);
     setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
   }, []);
 
   const redo = useCallback(() => {
@@ -289,84 +303,157 @@ export default function FlowBuilderC() {
     setNodes(snap.nodes);
     setConnections(snap.connections);
     setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
   }, []);
 
-  const { files, currentFileId, setCurrentFileId, saveFile, saveFileWithPdf, newFile, getFile, deleteFile } = useFiles();
+  const handleSave = useCallback(async () => {
+    const updatedConnections = connections.map((connection) => ({
+      ...connection,
+      isNew: false,
+    }));
 
-  const handleSave = useCallback(() => {
-    const updatedConnections = connections.map((connection) => ({ ...connection, isNew: false }));
     setConnections(updatedConnections);
-    saveFileWithPdf(currentFileId, fileName, nodes, updatedConnections);
-    setToast('Saved as PDF!');
-  }, [connections, currentFileId, fileName, nodes, saveFileWithPdf]);
 
-  const resetWithDefaultDiagram = useCallback((fileId) => {
-    const defaultNodes = DEFAULT_NODES.map((node) => ({ ...node, id: uid() }));
-    const defaultConnections = makeDefaultConnections(defaultNodes);
-    setNodes(defaultNodes);
-    setConnections(defaultConnections);
-    setFileName('Untitled diagram');
-    setSelectedId(null);
+    const savedInfo = await saveFileWithPdf(   // hook alias still named saveFileWithPdf
+      currentFileId,
+      fileName,
+      nodes,
+      updatedConnections,
+    );
 
-    setMode('select');
-    setActiveShape(null);
-    setConnectFrom(null);
-    setFocusedBranchRootId(null);
-    setCurrentFileId(fileId);
-    history.current = [snapshot(defaultNodes, defaultConnections)];
-    historyIdx.current = 0;
-  }, [setCurrentFileId]);
+    if (savedInfo) {
+      // Reload the file we just saved so local state has the server URL
+      await loadFileFromServer(currentFileId);
+    }
+
+    setToast('Saved!');
+  }, [connections, currentFileId, fileName, nodes, saveFileWithPdf, loadFileFromServer]);
+
+  const edmOffcanvasRef = useRef(null);
+  const [edmPdfPayload, setEdmPdfPayload] = useState(null); // { file, name }
 
   const handleNewFile = useCallback(() => {
     if (currentFileId) saveFile(currentFileId, fileName, nodes, connections);
     const file = newFile();
-    resetWithDefaultDiagram(file.id);
-  }, [connections, currentFileId, fileName, newFile, nodes, resetWithDefaultDiagram, saveFile]);
 
-  const handleLoadFile = useCallback((id) => {
-    if (id === currentFileId) return;
-    if (currentFileId) saveFile(currentFileId, fileName, nodes, connections);
-
-    const file = getFile(id);
-    if (!file) return;
-
-    const loadedNodes = (file.nodes || []).map(normalizeNode);
-    const loadedConnections = (file.connections || []).map((connection) => ({ ...connection, isNew: false }));
-
-    setNodes(loadedNodes);
-    setConnections(loadedConnections);
-    setFileName(file.name || 'Untitled diagram');
+    setNodes([]);
+    setConnections([]);
+    setFileName(file.name || "Untitled diagram");
     setSelectedId(null);
-    setMode('select');
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
+    setMode("select");
     setActiveShape(null);
     setConnectFrom(null);
     setFocusedBranchRootId(null);
-    setCurrentFileId(id);
-    history.current = [snapshot(loadedNodes, loadedConnections)];
+    setCurrentFileId(file.id);
+    history.current = [snapshot([], [])];
     historyIdx.current = 0;
-  }, [connections, currentFileId, fileName, getFile, nodes, saveFile, setCurrentFileId]);
+  }, [connections, currentFileId, fileName, newFile, nodes, saveFile, setCurrentFileId]);
+
+  const handleLoadFile = useCallback(
+    (fileId) => {
+      const file =
+        draftFiles.find((f) => f.id === fileId) ||
+        files.find((f) => f.id === fileId);
+
+      if (!file) return;
+
+      skipFileLoadEffect.current = true;
+
+      setCurrentFileId(fileId);
+      setNodes((file.nodes || []).map(normalizeNode));
+      setConnections(
+        (file.connections || []).map((c) => ({
+          ...c,
+          isNew: false,
+        }))
+      );
+      setFileName(file.name || "Untitled diagram");
+      setSelectedId(null);
+      setSelectedIds([]);
+      setSelectedConnectionId(null);
+      setMode("select");
+      setConnectFrom(null);
+
+      history.current = [
+        snapshot(
+          (file.nodes || []).map(normalizeNode),
+          file.connections || []
+        ),
+      ];
+      historyIdx.current = 0;
+    },
+    [files, draftFiles]
+  );
+
+  const handleLoadDiagram = useCallback((diagram) => {
+    if (!diagram) return;
+  
+    skipFileLoadEffect.current = true;
+  
+    setNodes((diagram.nodes || []).map(normalizeNode));
+  
+    setConnections(
+      (diagram.connections || []).map((c) => ({
+        ...c,
+        isNew: false,
+      }))
+    );
+  
+    setFileName(diagram.name || "Untitled diagram");
+  
+    setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
+  
+    setMode("select");
+    setConnectFrom(null);
+  
+    history.current = [
+      snapshot(
+        (diagram.nodes || []).map(normalizeNode),
+        diagram.connections || []
+      ),
+    ];
+  
+    historyIdx.current = 0;
+  }, []);
 
   useEffect(() => {
-    if (files.length > 0 && currentFileId) {
+    if (skipFileLoadEffect.current) {
+      skipFileLoadEffect.current = false;
+      return;
+    }
+
+    if (currentFileId) {
       const file = getFile(currentFileId);
       if (file) {
         const loadedNodes = (file.nodes || []).map(normalizeNode);
+        const loadedConnections = (file.connections || []).map((connection) => ({
+          ...connection,
+          isNew: false,
+        }));
+
         setNodes(loadedNodes);
-        setConnections(file.connections || []);
-        setFileName(file.name || 'Untitled diagram');
-        history.current = [snapshot(loadedNodes, file.connections || [])];
+        setConnections(loadedConnections);
+        setFileName(file.name || "Untitled diagram");
+        history.current = [snapshot(loadedNodes, loadedConnections)];
         historyIdx.current = 0;
         return;
       }
     }
 
-    const defaultNodes = DEFAULT_NODES.map((node) => ({ ...node, id: uid() }));
-    const defaultConnections = makeDefaultConnections(defaultNodes);
-    setNodes(defaultNodes);
-    setConnections(defaultConnections);
-    history.current = [snapshot(defaultNodes, defaultConnections)];
+    setNodes([]);
+    setConnections([]);
+    setFileName("Untitled diagram");
+    setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
+    history.current = [snapshot([], [])];
     historyIdx.current = 0;
-  }, [currentFileId, files.length, getFile]);
+  }, [currentFileId, getFile]);
 
   const handleGridToggle = () => {
     setShowGrid((prev) => !prev);
@@ -375,6 +462,7 @@ export default function FlowBuilderC() {
   const handleModeChange = useCallback((nextMode) => {
     setMode(nextMode);
     setActiveShape(null);
+    setSelectedConnectionId(null);
     if (nextMode === 'select' || nextMode === 'pan') {
       setConnectFrom(null);
     }
@@ -389,6 +477,8 @@ export default function FlowBuilderC() {
     setMode('select');
     setConnectFrom(null);
     setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
   }, []);
 
   const expandNodes = useCallback((inputNodes) => inputNodes.map((node) => ({
@@ -399,15 +489,13 @@ export default function FlowBuilderC() {
 
   const appendNode = useCallback((newNode) => {
     setNodes((prevNodes) => {
-      // const nextNodes = [...prevNodes, newNode];
-
       const expandedPrevNodes = expandNodes(prevNodes);
       const nextNodes = [...expandedPrevNodes, { ...newNode, collapsed: false, collapsedSides: { ...DEFAULT_COLLAPSED_SIDES } }];
 
       setConnections((prevConnections) => {
         let nextConnections = prevConnections;
 
-        if (expandedPrevNodes.length > 0) {
+        if (autoArrowEnabled && expandedPrevNodes.length > 0) {
           const lastNodeId = expandedPrevNodes[expandedPrevNodes.length - 1].id;
           const alreadyExists = prevConnections.some((connection) => connection.from === lastNodeId && connection.to === newNode.id);
 
@@ -428,7 +516,10 @@ export default function FlowBuilderC() {
 
       return nextNodes;
     });
-  }, [expandNodes, pushHistory]);
+    setSelectedId(newNode.id);
+    setSelectedIds([newNode.id]);
+    setSelectedConnectionId(null);
+  }, [autoArrowEnabled, expandNodes, pushHistory]);
 
   const handleCanvasCreateNode = useCallback((shape, position) => {
     if (readMode) return;
@@ -438,7 +529,6 @@ export default function FlowBuilderC() {
 
   const handleCanvasCreateTextNode = useCallback((position) => {
     if (readMode) return;
-    // const newNode = createNode('text', position.x, position.y);
     const newNode = { ...createNode('text', position.x, position.y), collapsed: false, collapsedSides: { ...DEFAULT_COLLAPSED_SIDES } };
     setNodes((prevNodes) => {
       const nextNodes = [...expandNodes(prevNodes), newNode];
@@ -446,6 +536,8 @@ export default function FlowBuilderC() {
       return nextNodes;
     });
     setSelectedId(newNode.id);
+    setSelectedIds([newNode.id]);
+    setSelectedConnectionId(null);
     setFocusedBranchRootId(null);
   }, [expandNodes, pushHistory, readMode]);
 
@@ -471,12 +563,16 @@ export default function FlowBuilderC() {
 
       return nextNodes;
     });
+    setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
     setFocusedBranchRootId(null);
   }, [expandNodes, pushHistory, readMode]);
 
   const handleConnect = useCallback((nodeId) => {
     setMode('connect');
     setActiveShape(null);
+    setSelectedConnectionId(null);
     setConnectFrom((prev) => {
       if (!prev) return nodeId;
       if (prev === nodeId) return null;
@@ -505,6 +601,10 @@ export default function FlowBuilderC() {
     setNodes((prev) => (typeof updater === 'function' ? updater(prev) : updater));
   }, []);
 
+  const handleConnectionsChange = useCallback((updater) => {
+    setConnections((prev) => (typeof updater === 'function' ? updater(prev) : updater));
+  }, []);
+
   const handleNodeDrop = useCallback((newNode) => {
     if (readMode) return;
     setShowShapeHint(false);
@@ -514,17 +614,6 @@ export default function FlowBuilderC() {
     });
   }, [appendNode, readMode]);
 
-  const handleNodeDragEnd = useCallback(() => {
-    const currentNodes = nodesRef.current;
-    const currentConnections = connectionsRef.current;
-    if (currentNodes.length === 0) return;
-
-    const latest = history.current[historyIdx.current];
-    const nextSnap = snapshot(currentNodes, currentConnections);
-    if (latest && JSON.stringify(latest) === JSON.stringify(nextSnap)) return;
-    pushHistory(currentNodes, currentConnections);
-  }, [pushHistory]);
-
   const handleLabelChange = useCallback((id, label) => {
     setNodes((prev) => {
       const next = prev.map((node) => (node.id === id ? { ...node, label } : node));
@@ -533,9 +622,44 @@ export default function FlowBuilderC() {
     });
   }, [connections, pushHistory]);
 
-  const handleSelectNode = useCallback((id) => {
+  const handleSelectNode = useCallback((id, options = {}) => {
     if (readMode) return;
-    setSelectedId(id);
+    const { additive = false } = options;
+
+    if (id == null) {
+      setSelectedId(null);
+      setSelectedIds([]);
+      setSelectedConnectionId(null);
+      return;
+    }
+
+    setSelectedConnectionId(null);
+    setSelectedIds((prev) => {
+      let next;
+      if (additive) {
+        next = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      } else if (prev.includes(id)) {
+        next = prev;
+      } else {
+        next = [id];
+      }
+      setSelectedId(next.length === 1 ? next[0] : (next[0] || null));
+      return next;
+    });
+  }, [readMode]);
+
+  const handleSelectNodes = useCallback((ids) => {
+    if (readMode) return;
+    setSelectedIds(ids);
+    setSelectedId(ids.length === 1 ? ids[0] : (ids[0] || null));
+    setSelectedConnectionId(null);
+  }, [readMode]);
+
+  const handleSelectConnection = useCallback((connectionId) => {
+    if (readMode) return;
+    setSelectedConnectionId(connectionId);
+    setSelectedId(null);
+    setSelectedIds([]);
   }, [readMode]);
 
   const handleUpdateNode = useCallback((updates) => {
@@ -551,12 +675,13 @@ export default function FlowBuilderC() {
   }, [connections, pushHistory, selectedId]);
 
   const handleDeleteNode = useCallback(() => {
-    if (!selectedId) return;
+    const idsToDelete = selectedIds.length > 0 ? selectedIds : (selectedId ? [selectedId] : []);
+    if (idsToDelete.length === 0) return;
 
     setNodes((prevNodes) => {
-      const nextNodes = prevNodes.filter((node) => node.id !== selectedId);
+      const nextNodes = prevNodes.filter((node) => !idsToDelete.includes(node.id));
       setConnections((prevConnections) => {
-        const nextConnections = prevConnections.filter((connection) => connection.from !== selectedId && connection.to !== selectedId);
+        const nextConnections = prevConnections.filter((connection) => !idsToDelete.includes(connection.from) && !idsToDelete.includes(connection.to));
         pushHistory(nextNodes, nextConnections);
         return nextConnections;
       });
@@ -564,7 +689,8 @@ export default function FlowBuilderC() {
     });
 
     setSelectedId(null);
-  }, [pushHistory, selectedId]);
+    setSelectedIds([]);
+  }, [pushHistory, selectedId, selectedIds]);
 
   const handleDeleteConnection = useCallback((id) => {
     setConnections((prevConnections) => {
@@ -574,7 +700,17 @@ export default function FlowBuilderC() {
       pushHistory(nodes, nextConnections);
       return nextConnections;
     });
+    setSelectedConnectionId((prev) => (prev === id ? null : prev));
   }, [nodes, pushHistory]);
+
+  const commitCurrentSnapshot = useCallback(() => {
+    const currentNodes = nodesRef.current;
+    const currentConnections = connectionsRef.current;
+    const latest = history.current[historyIdx.current];
+    const nextSnap = snapshot(currentNodes, currentConnections);
+    if (latest && JSON.stringify(latest) === JSON.stringify(nextSnap)) return;
+    pushHistory(currentNodes, currentConnections);
+  }, [pushHistory]);
 
   const expandAll = useCallback(() => {
     setNodes((prev) => prev.map((node) => ({
@@ -612,21 +748,33 @@ export default function FlowBuilderC() {
   }, [readMode]);
 
   const handleToggleReadMode = useCallback(() => {
+    try {
+      document.activeElement?.blur?.();
+      const sel = window.getSelection?.();
+      sel?.removeAllRanges();
+    } catch (e) { }
+
     setReadMode((prev) => {
       const nextReadMode = !prev;
+
       setSelectedId(null);
-      setMode('select');
+      setSelectedIds([]);
+      setSelectedConnectionId(null);
+      setMode("select");
       setActiveShape(null);
       setConnectFrom(null);
       setFocusedBranchRootId(null);
+
       if (nextReadMode) {
         collapseAll();
       } else {
         expandAll();
       }
+
       return nextReadMode;
     });
   }, [collapseAll, expandAll]);
+
 
   const handleToggleNode = useCallback((id, side) => {
     setNodes((prev) => prev.map((node) => {
@@ -684,8 +832,20 @@ export default function FlowBuilderC() {
         handleSave();
       }
 
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'a' && !readMode) {
+        event.preventDefault();
+        const allIds = nodesRef.current.map((node) => node.id);
+        setSelectedIds(allIds);
+        setSelectedId(allIds.length === 1 ? allIds[0] : null);
+        setSelectedConnectionId(null);
+      }
+
       if (event.key === 'Delete' || event.key === 'Backspace') {
-        if (selectedId && !readMode) handleDeleteNode();
+        if (selectedConnectionId && !readMode) {
+          handleDeleteConnection(selectedConnectionId);
+        } else if ((selectedIds.length > 0 || selectedId) && !readMode) {
+          handleDeleteNode();
+        }
       }
 
       if (event.key === 'v' || event.key === 'V') handleModeChange('select');
@@ -695,6 +855,8 @@ export default function FlowBuilderC() {
       if (event.key === 'Escape') {
         handleModeChange('select');
         setSelectedId(null);
+        setSelectedIds([]);
+        setSelectedConnectionId(null);
         setActiveShape(null);
         setShowShapeHint(false);
         setFocusedBranchRootId(null);
@@ -703,9 +865,9 @@ export default function FlowBuilderC() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleDeleteNode, handleModeChange, handleSave, readMode, redo, selectedId, undo]);
+  }, [handleDeleteConnection, handleDeleteNode, handleModeChange, handleSave, readMode, redo, selectedConnectionId, selectedId, selectedIds.length, undo]);
 
-  const selectedNode = nodes.find((node) => node.id === selectedId) || null;
+  const selectedNode = selectedIds.length === 1 ? (nodes.find((node) => node.id === selectedIds[0]) || null) : null;
   const canUndo = historyIdx.current > 0;
   const canRedo = historyIdx.current < history.current.length - 1;
 
@@ -743,6 +905,10 @@ export default function FlowBuilderC() {
     }
   }, [navigate]);
 
+  useEffect(() => {
+    setReadMode(!sharedWriteAccess);
+}, [sharedWriteAccess]);
+
 
   const handleSearchChange = useCallback((value) => {
     setSearchQuery(value);
@@ -762,12 +928,132 @@ export default function FlowBuilderC() {
     setActiveSearchIndex((prev) => (prev - 1 + matchedNodeIds.length) % matchedNodeIds.length);
   }, [matchedNodeIds.length]);
 
+  const handleGetFileData = useCallback((fileId) => {
+    if (fileId === currentFileId) {
+      // Return live state for current file
+      return { nodes, connections };
+    }
+    return getFile(fileId);
+  }, [currentFileId, nodes, connections, getFile]);
+
+  const handleUploadToEdm = useCallback(async (file) => {
+
+    setSelectedFlowChartName(file.filename);
+    setSelectedFlowChartUrl(file.jsonData);
+    setSelectedFlowChartId(file.id);
+    const data = handleGetFileData(file.id);
+
+    // Generate PDF doc
+    const doc = await exportDiagramAsPdf({
+      name: file.name || 'diagram',
+      nodes: data?.nodes || file.nodes || [],
+      connections: data?.connections || file.connections || [],
+    });
+
+    // Convert to File object
+    const pdfBlob = doc.output('blob');
+    const pdfFile = new File(
+      [pdfBlob],
+      `${file.name || 'diagram'}.pdf`,
+      { type: 'application/pdf' }
+    );
+
+    // Store payload so offcanvas can pick it up
+    setEdmPdfPayload({ file: pdfFile, name: file.name || 'diagram' });
+
+    // Open the offcanvas
+    const offcanvasEl = document.getElementById('offcanvasRightUploadDoc');
+    if (offcanvasEl) {
+      const bsOffcanvas = new window.bootstrap.Offcanvas(offcanvasEl);
+      bsOffcanvas.show();
+    }
+  }, [handleGetFileData]);
+
+  const handleLoadDocument = useCallback(async (doc) => {
+    const diagram = await loadDiagramFromUrl(doc.url);
+
+    if (!diagram) return;
+
+    skipFileLoadEffect.current = true;
+
+    setNodes(diagram.nodes.map(normalizeNode));
+    setConnections(
+      diagram.connections.map(c => ({
+        ...c,
+        isNew: false,
+      }))
+    );
+
+    setFileName(diagram.name);
+    setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
+    setMode("select");
+    setConnectFrom(null);
+
+    history.current = [
+      snapshot(
+        diagram.nodes.map(normalizeNode),
+        diagram.connections
+      ),
+    ];
+
+    historyIdx.current = 0;
+  }, [loadDiagramFromUrl]);
+
+  const handleSubmitVersion = () => {
+    const diagram = {
+      name: fileName,
+      nodes,
+      connections,
+      savedAt: Date.now(),
+      version: 1,
+  };
+  
+  const compressedJson = LZString.compressToBase64(
+      JSON.stringify(diagram)
+  );
+  
+  setVersionJson(compressedJson);
+  };
+
+  const handleSubmitEditVersion = () => {
+    const diagram = {
+      name: fileName,
+      nodes,
+      connections,
+      savedAt: Date.now(),
+      version: 1,
+  };
+  
+  const compressedJson = LZString.compressToBase64(
+      JSON.stringify(diagram)
+  );
+  
+  setVersionJson(compressedJson);
+  };
+
+  
   return (
     <div className="fc-app" data-theme={theme}>
       <Sidebar
         open={menuOpen}
         onToggle={() => setMenuOpen((prev) => !prev)}
+
         files={files}
+        draftFiles={draftFiles}
+        sharedDraftFiles={sharedDraftFiles}
+        edmDocuments={edmDocuments}
+        fetchEDMDocuments={fetchEDMDocuments}
+        fetchSharedDrafts={fetchSharedDrafts}
+        // onLoadDocument={handleLoadDocument}
+        onLoadDocument={handleLoadDiagram}
+        onStartVersion={() => setIsVersionMode(true)}
+        onViewVersion={() => setIsVersionViewMode(true)}
+        onStartEditVersion={() => setIsVersionEditMode(true)}
+        versionJson={versionJson}
+        onSharedPermission={setSharedWriteAccess}
+
         currentFileId={currentFileId}
         onNewFile={handleNewFile}
         onLoadFile={handleLoadFile}
@@ -776,7 +1062,11 @@ export default function FlowBuilderC() {
         onThemeChange={setTheme}
         handleGridToggle={handleGridToggle}
         showGrid={showGrid}
+        autoArrowEnabled={autoArrowEnabled}
+        onToggleAutoArrow={() => setAutoArrowEnabled((prev) => !prev)}
         onChangeCanvasBg={setCanvasBg}
+        onGetFileData={handleGetFileData}
+        onUploadToEdm={handleUploadToEdm}
       />
 
       <div className="fc-main">
@@ -796,9 +1086,6 @@ export default function FlowBuilderC() {
           collapseAll={collapseAll}
           allExpanded={allExpanded}
           onToggleAll={handleToggleAll}
-
-          allExpanded={allExpanded}
-          onToggleAll={allExpanded ? collapseAll : expandAll}
           searchQuery={searchQuery}
           onSearchQueryChange={handleSearchChange}
           searchCaseSensitive={searchCaseSensitive}
@@ -809,6 +1096,13 @@ export default function FlowBuilderC() {
           activeSearchIndex={activeSearchNodeId ? activeSearchIndex : -1}
           onSearchNext={handleSearchNext}
           onSearchPrev={handleSearchPrev}
+
+          isVersionViewMode={isVersionViewMode}
+          isVersionMode={isVersionMode}
+          onSubmitVersion={handleSubmitVersion}
+          isVersionEditMode={isVersionEditMode}
+          onSubmitEditVersion={handleSubmitEditVersion}
+          sharedWriteAccess={sharedWriteAccess}
         />
 
         {mode === 'connect' && !readMode && (
@@ -820,7 +1114,7 @@ export default function FlowBuilderC() {
         )}
 
         {activeShape && !readMode && showShapeHint && (
-          <div className="fc-connect-hint fc-shape-hint">
+          <div className="fc-connect-hint">
             Click on the canvas to place a new {activeShape} shape, or drag the tool into the diagram.
           </div>
         )}
@@ -830,23 +1124,30 @@ export default function FlowBuilderC() {
             nodes={nodes}
             connections={connections}
             selectedId={selectedId}
+            selectedIds={selectedIds}
+            selectedConnectionId={selectedConnectionId}
             mode={readMode ? 'view' : mode}
             activeShape={readMode ? null : activeShape}
+            setActiveShape={setActiveShape}
             connectFrom={readMode ? null : connectFrom}
             matchedNodeIds={matchedNodeIds}
             activeSearchNodeId={activeSearchNodeId}
             focusedNodeIds={focusedNodeIds}
             onNodesChange={readMode ? () => { } : handleNodesChange}
+            onConnectionsChange={readMode ? () => { } : handleConnectionsChange}
             onNodeDrop={readMode ? () => { } : handleNodeDrop}
             onCreateNode={handleCanvasCreateNode}
             onCreateTextNode={readMode ? () => { } : handleCanvasCreateTextNode}
-            onNodeDragEnd={readMode ? () => { } : handleNodeDragEnd}
+            onNodeDragEnd={readMode ? () => { } : commitCurrentSnapshot}
             onToggle={handleToggleNode}
             onSelectNode={handleSelectNode}
+            onSelectNodes={handleSelectNodes}
+            onSelectConnection={handleSelectConnection}
             onConnect={readMode ? () => { } : handleConnect}
             onQuickCreateFromNode={readMode ? () => { } : handleQuickCreateFromNode}
             onFocusBranch={focusBranch}
             onLabelChange={readMode ? () => { } : handleLabelChange}
+            onConnectionControlEnd={readMode ? () => { } : commitCurrentSnapshot}
             onDeleteConnection={readMode ? () => { } : handleDeleteConnection}
             readMode={readMode}
             zoom={zoom}
@@ -887,6 +1188,15 @@ export default function FlowBuilderC() {
       </div>
 
       <Toast message={toast} theme={theme} onDone={() => setToast('')} />
+
+      <UplaodDocument
+        autoAttachFile={edmPdfPayload}        // ✅ new prop
+        onAutoAttachConsumed={() => setEdmPdfPayload(null)}  // ✅ clear after use
+        flowChartName={selectedFlowChartName}
+        flowChartUrl={selectedFlowChartUrl}
+        flowChartId={selectedFlowChartId}
+      />
     </div>
+
   );
 }

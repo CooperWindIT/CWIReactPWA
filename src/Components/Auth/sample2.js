@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { fetchWithAuth } from "../../utils/api";
 import '../Assests/CSS/samplescreen2.css';
-import { useNavigate } from "react-router-dom";
-// import WaterMarkLogo from '../Assests/SigninImages/cwilogo.png';
-// import CWIImg from '../Assests/SigninImages/cwinew.png';
+import { useNavigate, Link } from "react-router-dom";
 import Swal from "sweetalert2";
 import greytHRLogoVar from "../Assests/Images/greytip_logo.svg";
 import { BASE_IMAGE_API_GET } from "../Config/Config";
+// import WaterMarkLogo from '../Assests/SigninImages/cwilogo.png';
+// import CWIImg from '../Assests/SigninImages/cwinew.png';
 
 export default function SampleScreen2() {
 
@@ -131,7 +131,7 @@ export default function SampleScreen2() {
 
     const handleLogout = () => {
         sessionStorage.clear();
-        localStorage.clear();
+        // localStorage.clear();
         navigate("/");
     };
 
@@ -246,24 +246,22 @@ export default function SampleScreen2() {
                                             <p>Access Payslips, Leave & Attendance</p>
                                         </div>
                                     </a>
-
-                                    {sessionUserData?.RoleId === 1 && (
-                                        <a href={`https://betasuperportal.cooperwind.online/`} target="_blank">
-                                            <div className="service-card">
-                                                <div className="service-icon">
-                                                    <i
-                                                        className={`fa-solid fa-user-tie`}
-                                                        style={{
-                                                            color: '#c8e6c9',
-                                                            textShadow: '1px 1px 3px rgba(0, 0, 0, 0.5)',
-                                                        }}
-                                                    ></i>
-                                                </div>
-                                                <h3>Super Portal</h3>
-                                                <p>Access to all Modules</p>
+                                    
+                                    <Link
+                                        className="text-decoration-none"
+                                        to="/kpi/my-kpis"
+                                    >
+                                        <div className="service-card">
+                                            <div className="service-icon">
+                                                <i
+                                                    className="fas fa-chart-line"
+                                                    style={{fontSize: '1.7rem'}}
+                                                ></i>
                                             </div>
-                                        </a>
-                                    )}
+                                            <h3>KPI</h3>
+                                            <p>My KPI's</p>
+                                        </div>
+                                    </Link>
                                 </>
                             ) : (
                                 <div className="no-modules-message text-center">

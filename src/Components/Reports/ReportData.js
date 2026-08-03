@@ -7,6 +7,7 @@ import Swal from "sweetalert2";
 import { Select } from "antd";
 import { fetchWithAuth } from "../../utils/api";
 import { Dropdown, Menu, Tooltip } from 'antd';
+import { getPerformancePeriods, getReviewCycles } from "../KPI/services/kpiServices";
 
 export default function ReportData() {
 
@@ -55,6 +56,10 @@ export default function ReportData() {
     const [sessionModuleId, setSessionModuleId] = useState("");
     const [assetTypesData, setAssetTypesData] = useState([]);
     const [docTypesData, setDocTypesData] = useState([]);
+    const [periodsData, setPeriodsData] = useState([]);
+    const [cyclesData, setCyclesData] = useState([]);
+    const [selectedPeriodId, setSelectedPeriodId] = useState(null);
+    const [selectedCycleId, setSelectedCycleId] = useState(null);
 
     const shouldHideSidebar = location.pathname.includes("=21");
     const searchParams = new URLSearchParams(location.search);
@@ -70,6 +75,7 @@ export default function ReportData() {
             setSessionUserData(userData);
             setNavigationPath(navigationString);
             setSessionModuleId(moduleId);
+            setSelectedPeriodId(userData?.PeriodId);
         } else {
             navigate("/");
         }
@@ -299,6 +305,56 @@ export default function ReportData() {
             console.error("Failed to fetch DDL data:", error);
         }
     };
+
+    const fetchPerformancePeriods = async () => {
+            try {    
+                const sessionKey = `performancePeriods_${sessionUserData?.OrgId}`;
+    
+                // Check session storage first
+                const storedPeriods = sessionStorage.getItem(sessionKey);
+    
+                if (storedPeriods) {
+                    setPeriodsData(JSON.parse(storedPeriods));
+                    return;
+                }
+    
+                // Fetch from API if not available
+                const response = await getPerformancePeriods({
+                    orgId: sessionUserData?.OrgId,
+                });
+    
+                const periods = response?.data || [];
+    
+                // Save to session storage
+                sessionStorage.setItem(sessionKey, JSON.stringify(periods));
+    
+                // Update state
+                setPeriodsData(periods);
+    
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        const fetchReviewCycles = async () => {
+            try {    
+                const response = await getReviewCycles({
+                    orgId: sessionUserData?.OrgId,
+                    periodId: selectedPeriodId,
+                });
+    
+                setCyclesData(response?.data || []);
+    
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        useEffect(() => {
+            if (selectedPeriodId) {
+                fetchReviewCycles();
+            };
+        }, [selectedPeriodId]);
 
     const fetchAssetsByDeptAndUnit = async () => {
         if (sessionUserData.OrgId && selectedDepId && selectedUnitId) {
@@ -533,6 +589,7 @@ export default function ReportData() {
             fetchShiftsData();
             fetchContractorsData();
             fetchDDLData();
+            fetchPerformancePeriods();
         }
         if (sessionUserData?.DeptId) {
             setSelectedDepId(sessionUserData.DeptId);
@@ -556,7 +613,7 @@ export default function ReportData() {
 
     useEffect(() => {
         setPageCache({}); // clear cache
-    }, [selectedFromDt, selectedEndDt, selectedShiftId, selectedDepId, selectedContId, selectedContCLId, selectedMCStatus, selectedTICStatus, selectedMCNId, selectedMonth, selectedYear, selectedUnitId, selectedTypeId, selectedVersnStatus, selectedCreatedUserId]);
+    }, [selectedFromDt, selectedEndDt, selectedShiftId, selectedDepId, selectedContId, selectedContCLId, selectedMCStatus, selectedTICStatus, selectedMCNId, selectedMonth, selectedYear, selectedUnitId, selectedTypeId, selectedVersnStatus, selectedCreatedUserId, selectedCycleId]);
 
     const fetchReport = async (page = 1) => {
         if (pageCache[page]) {
@@ -602,6 +659,7 @@ export default function ReportData() {
                 ContentTypeId: 0,
                 CreatedBy: selectedCreatedUserId || 0,
                 VersionStatus: selectedVersnStatus || "ALL",
+                CycleId: selectedCycleId || 0,
             },
             PageNumber: page,
             PageSize: recordsPerPage,
@@ -716,6 +774,7 @@ export default function ReportData() {
                     ContentTypeId: 0,
                     CreatedBy: selectedCreatedUserId || 0,
                     VersionStatus: selectedVersnStatus || "ALL",
+                    CycleId: selectedCycleId || 0,
                 },
                 PageNumber: 0,
                 PageSize: 0,
@@ -830,7 +889,7 @@ export default function ReportData() {
                             </a>
                         </div>
 
-                        {sessionModuleId === '15' && (
+                        {sessionModuleId === '15' || sessionModuleId === '16'  && (
                             <div className="d-flex flex-column w-100">
                                 <div className="d-flex align-items-center mb-4">
                                     {menuData?.map((menu) => {
@@ -931,7 +990,7 @@ export default function ReportData() {
                             </div>
                         )}
 
-                        <div className={`page-title mt-4 d-md-none ${(shouldHideSidebar || reportId === '3') ? 'd-block' : 'd-none'}`}>
+                        <div className={`page-title mt-4 d-md-none ${(shouldHideSidebar || reportId === '3' ) ? 'd-block' : 'd-none'}`}>
                             <div className="dropdown d-inline-block">
                                 <span
                                     className="menu-link bg-white shadow-sm me-2 dropdown-toggle"
@@ -994,7 +1053,7 @@ export default function ReportData() {
                             </a>
                         </div>
 
-                        {sessionModuleId !== '15' && (
+                        {sessionModuleId !== '15' || sessionModuleId !== '16' && (
                             <>
                                 <div className={`page-title d-flex flex-column justify-content-center flex-wrap me-3 ${(shouldHideSidebar || reportId === '3') ? 'd-none' : 'd-block'}`}>
                                     <h1 className="page-heading d-flex text-gray-900 fw-bold fs-3 flex-column justify-content-center my-0">{reportHead && reportHead?.ReportTitle}</h1>
@@ -1137,7 +1196,6 @@ export default function ReportData() {
                                     )}
 
 
-
                                     {reportFilters.some(rf => ["AssetTypeId", "AlertTypeId"].includes(rf)) && (
                                         <div className="col-6 col-md-3">
                                             <label className="form-label fw-bold fs-8 text-uppercase">
@@ -1168,6 +1226,7 @@ export default function ReportData() {
                                             </Select>
                                         </div>
                                     )}
+
                                     {reportFilters.includes("ContentTypeId") && (
                                         <div className="col-6 col-md-3">
                                             <label className="form-label fw-bold fs-8 text-uppercase">
@@ -1187,6 +1246,52 @@ export default function ReportData() {
                                                 {docTypesData?.map((docTyp) => (
                                                     <Option key={docTyp.MasterTypeId} value={docTyp.MasterTypeId}>
                                                         {docTyp.TypeName}
+                                                    </Option>
+                                                ))}
+                                            </Select>
+                                        </div>
+                                    )}
+                                    {reportFilters.includes("PeriodId") && (
+                                        <div className="col-6 col-md-3">
+                                            <label className="form-label fw-bold fs-8 text-uppercase">
+                                                Performance Periods
+                                            </label>
+
+                                            <Select
+                                                showSearch
+                                                allowClear
+                                                placeholder="Select Period"
+                                                value={selectedPeriodId ?? undefined}
+                                                style={{ width: "100%", height: "3rem" }}
+                                                onChange={(value) => setSelectedPeriodId(value)}
+                                                optionFilterProp="children"
+                                            >
+                                                {periodsData?.map((period) => (
+                                                    <Option key={period.Id} value={period.Id}>
+                                                        {period.PeriodName}
+                                                    </Option>
+                                                ))}
+                                            </Select>
+                                        </div>
+                                    )}
+                                    {reportFilters.includes("CycleId") && (
+                                        <div className="col-6 col-md-3">
+                                            <label className="form-label fw-bold fs-8 text-uppercase">
+                                                Review Cycles<span className="text-danger">*</span>
+                                            </label>
+
+                                            <Select
+                                                showSearch
+                                                allowClear
+                                                placeholder="Select Cycle"
+                                                value={selectedCycleId ?? undefined}
+                                                style={{ width: "100%", height: "3rem" }}
+                                                onChange={(value) => setSelectedCycleId(value)}
+                                                optionFilterProp="children"
+                                            >
+                                                {cyclesData?.map((cycle) => (
+                                                    <Option key={cycle.Id} value={cycle.Id}>
+                                                        {cycle.CycleName}-{cycle.Status}
                                                     </Option>
                                                 ))}
                                             </Select>

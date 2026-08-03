@@ -29,10 +29,12 @@ export default function AssetsList() {
     const [selectedAssetTypeId, setSelectedAssetTypeId] = useState(null);
     const [selectedUnitId, setSelectedUnitId] = useState(null);
     const [selectedAssetId, setSelectedAssetId] = useState(null);
+    const [selectedStatus, setSelectedStatus] = useState("ALL");
     const [navigationPath, setNavigationPath] = useState("");
     const [sessionActionIds, setSessionActionIds] = useState([]);
     const [totalRecords, setTotalRecords] = useState(0);
     const [selectedDeptId, setSelectedDeptId] = useState(null);
+    const [selectedCode, setSelectedCode] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [qrAssetsData, setQRAssetsData] = useState([]);
     const [selectedAssetIds, setSelectedAssetIds] = useState([]);
@@ -304,6 +306,8 @@ export default function AssetsList() {
                 DeptId: deptId || 0,
                 AssetTypeId: assetTypeId || 0,
                 MachineId: assetId || 0,
+                MachineCode: selectedCode || "ALL",
+                Status: selectedStatus || "ALL",
             },
         };
 
@@ -479,9 +483,6 @@ export default function AssetsList() {
     const renderStatusCounts = () => {
         const totalAssets = Object.values(statusCounts)
             .reduce((a, b) => a + b, 0);
-        const total = statusCounts.active + statusCounts.outofservice;
-        const activePercent = total ? (statusCounts.active / total) * 100 : 0;
-
 
         return (
             <div className="d-flex align-items-center gap-3 flex-wrap mt-3 mt-md-0">
@@ -744,6 +745,12 @@ export default function AssetsList() {
                         </ul>
                     </div>
                     <div className="bg-white p-2 rounded-3 shadow-sm border d-flex flex-wrap align-items-center gap-2">
+                                <Link
+                                    className="btn btn-sm btn-light d-flex align-items-center px-3 py-2 border border-info-subtle text-info custom-btn"
+                                    to="/eam/my-assets"
+                                    type="button"
+                                ><i class="bi bi-list-check"></i>My Assets
+                                </Link>
 
                         {showAddBtn && (
                             <Link
@@ -815,7 +822,22 @@ export default function AssetsList() {
                                     </h5>
                                 </div>
 
-                                <div className="d-flex align-items-center gap-2 flex-wrap mt-3 mt-md-0 d-none d-md-block">
+                                <div className="d-flex align-items-center gap-2 flex-wrap mt-3 mt-md-0 d-none d-md-flex">
+                                    <Tooltip
+                                        title="Asset counts are fetched based on the selected department. Department selection is mandatory. Counts will not be fetched when Department is set to ALL."
+                                        placement="top"
+                                    >
+                                        <span
+                                            className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
+                                            style={{
+                                                width: "28px",
+                                                height: "28px",
+                                                cursor: "pointer",
+                                            }}
+                                        >
+                                            <i className="bi bi-info-circle fa-fade"></i>
+                                        </span>
+                                    </Tooltip>
                                     {renderStatusCounts()}
                                 </div>
 
@@ -970,6 +992,42 @@ export default function AssetsList() {
                                             ))
                                         }
                                     </Select>
+                                </div>
+                                <div className="col-12 col-md-3 mb-md-0 mb-3">
+                                    <label className="form-label">
+                                        Code
+                                    </label>
+                                    <input
+                                        className="form-control form-control-sm"
+                                        type="text"
+                                        placeholder="AST-1000"
+                                        value={selectedCode}
+                                        onChange={(e) => setSelectedCode(e.target.value)}
+                                    />
+                                </div>
+                                <div className="col-12 col-md-3 mb-md-0 mb-3">
+                                    <label className="form-label">
+                                        Status
+                                    </label>
+                                    <Select
+                                        showSearch
+                                        allowClear
+                                        placeholder="Select Status"
+                                        className="w-100"
+                                        value={selectedStatus || undefined}
+                                        style={{ height: "2.6rem" }}
+                                        onChange={(value) => setSelectedStatus(value)}
+                                        filterOption={(input, option) =>
+                                            (option?.label || "").toLowerCase().includes(input.toLowerCase())
+                                        }
+                                        options={[
+                                            { label: "DRAFT", value: "DRAFT" },
+                                            { label: "APPROVED", value: "APPROVED" },
+                                            { label: "PENDING FOR APPROVAL", value: "PENDING APPROVAL" },
+                                            { label: "REJECTED", value: "REJECTED" },
+                                            { label: "ACTIVE", value: "ACTIVE" },
+                                        ]}
+                                    />
                                 </div>
                                 <div className="col-auto d-flex">
                                     <button

@@ -158,6 +158,7 @@ export default function TicketScanview() {
                 CommentText: plainTextContent,
                 TablePrimaryId: viewData?.Id, // replace dynamically if needed
                 ToEmails: mentionedEmails.join(","), // 👈 comma separated string
+                CommentId: 0,
             },
         };
 

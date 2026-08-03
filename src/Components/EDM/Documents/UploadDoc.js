@@ -6,7 +6,13 @@ import { Upload } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 
 
-export default function UplaodDocument() {
+export default function UplaodDocument({
+    autoAttachFile,           // { file: File, name: string } | null
+    onAutoAttachConsumed,     // () => void  — clears payload after use
+    flowChartName = null,
+    flowChartUrl = null,
+    flowChartId = null,
+}) {
 
     const [sessionUserData, setsessionUserData] = useState({});
     const [departmentsData, setDepartmentsData] = useState([]);
@@ -18,7 +24,7 @@ export default function UplaodDocument() {
     const [selectedContentType, setSelectedContentType] = useState(null);
     const [uploadLoading, setUploadLoading] = useState(false);
     const [sessionActionIds, setSessionActionIds] = useState([]);
-    const [sessionModuleId, setSessionModuleId] = useState(null);
+    const [sessionModuleId, setSessionModuleId] = useState(15);
     const [alertTypesData, setAlertTypesData] = useState([]);
     const [isExpiry, setIsExpiry] = useState(true);
     const [fileList, setFileList] = useState([]);
@@ -28,6 +34,34 @@ export default function UplaodDocument() {
 
     const { Option } = Select;
     const { Dragger } = Upload;
+
+    useEffect(() => {
+        if (!autoAttachFile) return;
+
+        // ✅ Ant Design Upload needs this specific shape
+        const antFile = {
+            uid: `-${Date.now()}`,           // required unique id
+            name: autoAttachFile.file.name,  // filename shown in dragger
+            status: 'done',                  // shows as uploaded, not pending
+            originFileObj: autoAttachFile.file, // actual File blob
+            size: autoAttachFile.file.size,
+            type: autoAttachFile.file.type,
+        };
+
+        setFileList([antFile]);
+
+        // Pre-fill DocName
+        const formattedName = autoAttachFile.name
+            .replace(/\b\w/g, (c) => c.toUpperCase());
+
+        setFormDataDocUpload((prev) => ({
+            ...prev,
+            DocName: formattedName,
+        }));
+
+        if (onAutoAttachConsumed) onAutoAttachConsumed();
+
+    }, [autoAttachFile]);
 
     const [formDataDocUpload, setFormDataDocUpload] = useState({
         DocName: "",
@@ -221,6 +255,7 @@ export default function UplaodDocument() {
     };
 
     const handleDocUploadSubmit = async (status) => {
+        console.log("edm func")
         setAddSubmitLoading(true);
 
         const missingFields = [];
@@ -230,15 +265,16 @@ export default function UplaodDocument() {
         if (isExpiry && !formDataDocUpload?.ExpiryDate) missingFields.push("Expiry Date");
         if (!selectedDeptId) missingFields.push("Department");
 
-        const selectedFile = fileList.length > 0 ? fileList[0] : null;
+        // const selectedFile = fileList.length > 0 ? fileList[0] : null;
+        const selectedFile = fileList.length > 0
+            ? (fileList[0].originFileObj || fileList[0])  // ✅ unwrap Ant Design wrapper
+            : null;
         if (!selectedFile) missingFields.push("File Attachment");
 
         const docNameInput = formDataDocUpload?.DocName?.trim().toLowerCase();
+        const uploadedFileName = (fileList[0]?.name || fileList[0]?.originFileObj?.name || '')
+            .split('.').slice(0, -1).join('.').toLowerCase();  // strip extension
 
-        // 2. Get the uploaded file name (removing the extension like .pdf or .docx)
-        const uploadedFileName = fileList[0]?.name?.split('.').slice(0, -1).join('.').toLowerCase();
-
-        // 3. Compare them
         if (docNameInput && uploadedFileName && docNameInput !== uploadedFileName) {
             Swal.fire({
                 title: "Name Mismatch",
@@ -290,7 +326,7 @@ export default function UplaodDocument() {
                     {
                         AlertTypeId: directAssignAlertTypeId,
                         TableId: 0,
-                        ModuleId: parseInt(sessionModuleId),
+                        ModuleId: parseInt(sessionModuleId) || 15,
                         AlertTitle: "Document Expiry Alert",
                         Message: `Your document ${formDataDocUpload.DocName} is expiring on ${formDataDocUpload.ExpiryDate}.`,
                         OcurrenceType: 1,
@@ -332,6 +368,10 @@ export default function UplaodDocument() {
         // Append the actual file
         formData.append("ImageUrl", selectedFile);
 
+        for (let [key, value] of formData.entries()) {
+            console.log(key, value);
+        }
+
         try {
             const response = await fetchWithAuth(`file_upload/DocRegCycle`, {
                 method: "POST",
@@ -357,9 +397,123 @@ export default function UplaodDocument() {
         }
     };
 
+    const handleFCDocUploadSubmit = async (status) => {
+        setAddSubmitLoading(true);
+
+        const missingFields = [];
+        if (!selectedUnitId) missingFields.push("Unit");
+        if (!selectedContentType) missingFields.push("Document Type");
+        if (!formDataDocUpload?.DocName) missingFields.push("Document Name");
+        if (isExpiry && !formDataDocUpload?.ExpiryDate) missingFields.push("Expiry Date");
+        if (!selectedDeptId) missingFields.push("Department");
+
+        // const selectedFile = fileList.length > 0 ? fileList[0] : null;
+        const selectedFile = fileList.length > 0
+            ? (fileList[0].originFileObj || fileList[0])  // ✅ unwrap Ant Design wrapper
+            : null;
+        if (!selectedFile) missingFields.push("File Attachment");
+
+        if (missingFields.length > 0) {
+            Swal.fire({
+                title: "Mandatory Fields Missing",
+                html: `Please provide: <b class="text-danger">${missingFields.join(", ")}</b>`,
+                icon: "warning",
+                confirmButtonColor: "#009ef7",
+            });
+            setAddSubmitLoading(false);
+            return;
+        }
+
+        // Prepare AlertsJson logic
+        const cleanEmail = sessionUserData?.Email?.match(
+            /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+        )?.[0];
+
+        const directAssignAlertTypeId =
+            Array.isArray(alertTypesData)
+                ? alertTypesData.find(item => item.DirectAssign)?.Id
+                : null;
+
+        // Create FormData Object
+        const payload = {
+            OrgId: String(sessionUserData?.OrgId ?? "").trim(),
+            UserId: String(sessionUserData?.Id ?? "").trim(),
+            Type: "ADDVERSION",
+            Priority: 1,
+            JsonData: {
+                UnitId: selectedUnitId,
+                ContentTypeId: selectedContentType.MasterTypeId,
+                DocName: formDataDocUpload?.DocName,
+                Description: formDataDocUpload?.Description,
+                Comments: formDataDocUpload?.Comments,
+                VersionNumber: "1.00",
+                Status: status,
+                DeptId: selectedDeptId,
+                ExpiryDate: isExpiry ? formDataDocUpload?.ExpiryDate : null,
+                Filename: flowChartName || null,
+                DocId: 0,
+                JsonData: flowChartUrl,
+                FlowChartId: flowChartId,
+            },
+            AlertsJson: isExpiry
+                ? {
+                    Alerts: [
+                        {
+                            AlertTypeId: directAssignAlertTypeId,
+                            TableId: 0,
+                            ModuleId: parseInt(sessionModuleId) || 15,
+                            AlertTitle: "Document Expiry Alert",
+                            Message: `Your document ${formDataDocUpload.DocName} is expiring on ${formDataDocUpload.ExpiryDate}.`,
+                            OcurrenceType: 1,
+                            ToUsers: cleanEmail,
+                            StartDate: formDataDocUpload.ExpiryDate,
+                            EndDate: formDataDocUpload.ExpiryDate,
+                            IsMaintenance: 1,
+                            ScheduledAlerts: [
+                                {
+                                    ScheduledDate: formDataDocUpload.ExpiryDate
+                                }
+                            ]
+                        },
+                        ...alertsData
+                    ]
+                }
+                : {
+                    Alerts: [...alertsData]
+                },
+        };
+
+        try {
+            const response = await fetchWithAuth(`EDM/DocRegCycle`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+            const result = await response.json();
+
+            if (result.data.result[0].ResponseCode === 2001) {
+                Swal.fire({
+                    title: "Success",
+                    text: "Document saved successfully.",
+                    icon: "success",
+                }).then(() => window.location.reload());
+            } else {
+                Swal.fire({ title: "Error", text: result.message || "Submission failed", icon: "error" });
+            }
+        } catch (error) {
+            console.error("Submission error:", error);
+            Swal.fire({ title: "Error", text: "An unexpected error occurred.", icon: "error" });
+        } finally {
+            setAddSubmitLoading(false);
+        }
+    };
+
     const offcanvasRef = useRef(null);
 
     const fetchContentTypes = useCallback(async () => {
+
         try {
             const response = await fetchWithAuth(
                 `EDM/GetUserDocTypePermissions?OrgId=${sessionUserData?.OrgId}&UserId=${sessionUserData?.Id}&MasterTypeId=0&Type=DocTypes`,
@@ -373,13 +527,25 @@ export default function UplaodDocument() {
 
             const data = await response.json();
 
-            setTypesData(data.ResultData || []);
+            const resultData = data.ResultData || [];
+
+            if (flowChartId > 0) {
+                setTypesData(resultData.filter(item => item.IsFlowChart));
+            } else {
+                setTypesData(resultData);
+            }
 
         } catch (error) {
             console.error("Failed to fetch data:", error);
             setTypesData([]);
         }
-    }, [sessionUserData]); // Dependencies
+    }, [sessionUserData, flowChartId]);
+
+    useEffect(() => {
+        if (flowChartId) {
+            fetchContentTypes();
+        }
+    }, [flowChartId]);
 
     useEffect(() => {
         const offcanvasEl = offcanvasRef.current;
@@ -470,12 +636,6 @@ export default function UplaodDocument() {
                 i === index ? { ...item, [field]: value } : item
             )
         );
-    };
-
-    // Get day name (e.g., Monday)
-    const getDayName = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString("en-US", { weekday: "long" });
     };
 
     // Add months helper
@@ -574,7 +734,7 @@ export default function UplaodDocument() {
             AlertTitle: alert.AlertTitle,
             Message: alert.Message,
             OcurrenceType: Number(alert.OcurrenceType) || 0,
-            ToUsers: alert.ToUsers || "",
+            ToUsers: sessionUserData?.Email || "",
             StartDate: alert.StartDate || "",
             EndDate: alert.EndDate || "",
             IsMaintenance: 0,
@@ -739,15 +899,22 @@ export default function UplaodDocument() {
                 <div className="offcanvas-header d-flex justify-content-between align-items-center mb-3">
                     <h5 id="offcanvasRightLabel" className="mb-0">Register Document</h5>
                     <div className="d-flex align-items-center">
-                        <button className="btn btn-warning btn-sm me-2 shadow-sm"
+                        <button
+                            className="btn btn-warning btn-sm me-2 shadow-sm"
                             type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                handleDocUploadSubmit("DRAFT");
+
+                                if (flowChartName) {
+                                    handleFCDocUploadSubmit("DRAFT");
+                                } else {
+                                    handleDocUploadSubmit("DRAFT");
+                                }
                             }}
                             disabled={addSubmitLoading}
                         >
-                            <i className="bi bi-bookmark-check"></i>{addSubmitLoading ? "Submitting..." : "Save as Draft"}
+                            <i className="bi bi-bookmark-check me-1"></i>
+                            {addSubmitLoading ? "Submitting..." : "Save as Draft"}
                         </button>
                         <button
                             type="button"
@@ -986,7 +1153,6 @@ export default function UplaodDocument() {
                                         </label>
                                         <Dragger
                                             {...draggerProps}
-                                            disabled={uploadLoading}
                                             accept=".pdf, .doc, .docx, .xls, .xlsx"
                                             style={{
                                                 minHeight: "90px",
@@ -994,6 +1160,7 @@ export default function UplaodDocument() {
                                                 borderRadius: "10px",
                                                 background: "#fafafa",
                                             }}
+                                            disabled={flowChartUrl?.length > 1 || uploadLoading}
                                         >
                                             <div style={{ marginTop: "-10px" }}>
                                                 <p
@@ -1365,7 +1532,6 @@ export default function UplaodDocument() {
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 </div>

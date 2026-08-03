@@ -6,13 +6,12 @@ import { fetchWithAuth } from "../../../utils/api";
 import { Upload, Tooltip, Collapse } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 
-export default function AddDocVersion({ docObj }) {
+export default function AddDocVersion({ docObj, versionJson }) {
 
     const { Dragger } = Upload;
     const [sessionUserData, setsessionUserData] = useState({});
     const [sessionModuleId, setSessionModuleId] = useState(null);
     const [editSubmitLoading, setEditSubmitLoading] = useState(false);
-    const [selectedTypeId, setSelectedTypeId] = useState(null);
     const [isExpiry, setIsExpiry] = useState(true);
     const [fileList, setFileList] = useState([]);
     const [alertTypesData, setAlertTypesData] = useState([]);
@@ -227,6 +226,117 @@ export default function AddDocVersion({ docObj }) {
         }
     };
 
+    const handleAddVersionFCSubmit = async (e) => {
+        e.preventDefault();
+        setEditSubmitLoading(true);
+
+        if (isExpiry && (!formDataDocUpload.ExpiryDate)) {
+            Swal.fire({ title: "Warning", text: "Please select Expiry Date.", icon: "warning" });
+            setEditSubmitLoading(false);
+            return;
+        }
+
+        // 4. Calculate Next Version and Extension
+        const nextVersionNum = (parseFloat(docObj?.CurrentVersion || 0) + 1.00).toFixed(2);
+
+        const cleanEmail = sessionUserData?.Email?.match(
+            /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
+        )?.[0];
+
+        const directAssignAlertTypeId = alertTypesData?.find(
+            (item) => item.DirectAssign === true
+        )?.Id;
+
+        const payload = {
+                    OrgId: String(sessionUserData?.OrgId ?? "").trim(),
+                    UserId: String(sessionUserData?.Id ?? "").trim(),
+                    Type: "ADDVERSION",
+                    Priority: 1,
+                    JsonData: {
+                        ContentTypeId: docObj?.ContentTypeId,
+                        DocName: formDataDocUpload?.DocName,
+                        Description: formDataDocUpload?.Description,
+                        Comments: formDataDocUpload?.Comments,
+                        VersionNumber: nextVersionNum,
+                        Status: "DRAFT",
+                        ExpiryDate: isExpiry ? formDataDocUpload?.ExpiryDate : null,
+                        Filename: docObj?.filename
+                            ? `${docObj.filename}_V${nextVersionNum}`
+                            : null,
+                        DocId: docObj?.Id,
+                        JsonData: versionJson,
+                        FlowChartId: 0,
+                    },
+                    AlertsJson: isExpiry
+                        ? {
+                            Alerts: [
+                                {
+                                    AlertTypeId: directAssignAlertTypeId,
+                                    TableId: 0,
+                                    ModuleId: parseInt(sessionModuleId) || 15,
+                                    AlertTitle: "Document Expiry Alert",
+                                    Message: `Your document ${formDataDocUpload.DocName} is expiring on ${formDataDocUpload.ExpiryDate}.`,
+                                    OcurrenceType: 1,
+                                    ToUsers: cleanEmail,
+                                    StartDate: formDataDocUpload.ExpiryDate,
+                                    EndDate: formDataDocUpload.ExpiryDate,
+                                    IsMaintenance: 1,
+                                    ScheduledAlerts: [
+                                        {
+                                            ScheduledDate: formDataDocUpload.ExpiryDate
+                                        }
+                                    ]
+                                },
+                                ...alertsData
+                            ]
+                        }
+                        : {
+                            Alerts: [...alertsData]
+                        },
+                };
+        
+                try {
+                    const response = await fetchWithAuth(`EDM/DocRegCycle`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(payload),
+                    });
+
+            const result = await response.json();
+
+            if (result?.data?.result[0]?.ResponseCode === 2001) {
+                Swal.fire({
+                    title: "Success",
+                    text: "Version has been added successfully.",
+                    icon: "success",
+                }).then(() => window.location.reload());
+            } else {
+                Swal.fire({
+                    title: "Error",
+                    text: result?.data?.result[0]?.ResponseMessage || "Something went wrong.",
+                    icon: "error",
+                });
+            }
+        } catch (error) {
+            console.error("Error during submission:", error);
+            Swal.fire({ title: "Error", text: "An unexpected error occurred.", icon: "error" });
+        } finally {
+            setEditSubmitLoading(false);
+        }
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+    
+        if (docObj?.JsonData) {
+            handleAddVersionFCSubmit(e);
+        } else {
+            handleAddVersionSubmit(e);
+        }
+    };
+
     const getFirstReminderDate = (dateString) => {
         if (!dateString) return "unselected";
 
@@ -300,12 +410,6 @@ export default function AddDocVersion({ docObj }) {
                 i === index ? { ...item, [field]: value } : item
             )
         );
-    };
-
-    // Get day name (e.g., Monday)
-    const getDayName = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString("en-US", { weekday: "long" });
     };
 
     // Add months helper
@@ -471,6 +575,8 @@ export default function AddDocVersion({ docObj }) {
         setAlertDates([]);
     }, [formData.OcurrenceType]);
 
+    // console.log(docObj)
+
     return (
         <div
             className="offcanvas offcanvas-end"
@@ -497,7 +603,7 @@ export default function AddDocVersion({ docObj }) {
                         }
                 `}
             </style>
-            <form autoComplete="off" onSubmit={handleAddVersionSubmit}>
+            <form autoComplete="off" onSubmit={handleSubmit}>
                 <div className="offcanvas-header d-flex justify-content-between align-items-center">
                     <h5 id="offcanvasRightLabel" className="mb-0">Add new version</h5>
                     <div className="d-flex align-items-center">
@@ -648,11 +754,12 @@ export default function AddDocVersion({ docObj }) {
                             <label className="form-label">Description</label>
                             <textarea
                                 className="form-control"
-                                value={docObj.Description}
+                                value={docObj?.Description}
                                 readOnly
+                                disabled={true}
                             />
                         </div>
-                        <div className="my-5">
+                        <div className={`my-5 ${docObj?.JsonData?.length > 1 ? 'd-none' : 'd-block'}`}>
                             <Dragger
                                 {...draggerProps}
                                 accept=".pdf, .doc, .docx, .xls, .xlsx"
@@ -702,6 +809,7 @@ export default function AddDocVersion({ docObj }) {
                     </div>
                 </div>
             </form>
+
             {showAlertModal && (
                 <div
                     className="modal fade show"
@@ -1001,4 +1109,5 @@ export default function AddDocVersion({ docObj }) {
 
 AddDocVersion.propTypes = {
     docObj: PropTypes.object.isRequired,
+    versionJson: PropTypes.string,
 };

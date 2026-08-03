@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BASE_DOC_UPLOAD, BASE_IMG_DOC_DELETE } from "../../Config/Config";
+import { BASE_IMG_DOC_DELETE } from "../../Config/Config";
 import Swal from 'sweetalert2';
 import PropTypes from "prop-types";
 import { fetchWithAuth } from "../../../utils/api";
@@ -8,20 +8,18 @@ import { formatToDDMMYYYY } from "../../../utils/dateFunc";
 import { InboxOutlined } from "@ant-design/icons";
 
 
-export default function EditDocVersion({ editObj }) {
+export default function EditDocVersion({ editObj, versionJson }) {
 
     const [sessionUserData, setsessionUserData] = useState({});
     const [sessionModuleId, setSessionModuleId] = useState(null);
     const [editSubmitLoading, setEditSubmitLoading] = useState(false);
     const [existingDoc, setExistingDoc] = useState(editObj?.DocUrl || null);
-    const [selectedFile, setSelectedFile] = useState(null);
     const [uploadLoading, setUploadLoading] = useState(false);
     const [fileList, setFileList] = useState([]);
     const [isExpiry, setIsExpiry] = useState(false);
     const [deletedFilePath, setDeletedFilePath] = useState(null);
     const [alertData, setAlertData] = useState([]);
     const { Dragger } = Upload;
-
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem("userData");
@@ -127,7 +125,6 @@ export default function EditDocVersion({ editObj }) {
                 // 4. Success UI updates
                 Swal.fire("Deleted", "Document and logs updated successfully", "success");
                 setExistingDoc(null);
-                setSelectedFile(null);
                 setFormData(prev => ({ ...prev, FilePath: "" }));
             } else {
                 throw new Error("Failed to create audit log. Deletion aborted.");
@@ -174,16 +171,10 @@ export default function EditDocVersion({ editObj }) {
 
         // Validation
         const selectedFile = fileList.length > 0 ? fileList[0] : null;
-        // if (!formData?.Comments) {
-        //     Swal.fire({ title: "Warning", text: "Comments are mandatory.", icon: "warning" });
-        //     setEditSubmitLoading(false);
-        //     return;
-        // }
 
         // Prepare JsonData
         const jsonData = {
             Comments: formData?.Comments,
-            // FilePath: existingDoc, // Current file path (from state)
             InactiveFile: deletedFilePath || "", // The filename passed from handleDeleteDocument
             Status: editObj?.VersionStatus,
             VersionId: editObj?.Id,
@@ -244,6 +235,98 @@ export default function EditDocVersion({ editObj }) {
         }
     };
 
+    const handleEditFCSubmit = async (e) => {
+        e.preventDefault();
+        setEditSubmitLoading(true);
+
+        if (isExpiry && (!formData.ExpiryDate)) {
+            Swal.fire({ title: "Warning", text: "Please select Expiry Date.", icon: "warning" });
+            setEditSubmitLoading(false);
+            return;
+        }
+
+        const payload = {
+            OrgId: String(sessionUserData?.OrgId ?? "").trim(),
+            UserId: String(sessionUserData?.Id ?? "").trim(),
+            Type: "EDITVERSION",
+            Priority: 1,
+            JsonData: {
+                Comments: formData?.Comments,
+                InactiveFile: "",
+                Status: editObj?.VersionStatus,
+                ExpiryDate: isExpiry ? formData?.ExpiryDate : null,
+                VersionId: editObj?.VersionId,
+                ScheduledAlertId: alertData?.ScheduledAlertId,
+                Filename: editObj?.filename || null,
+                JsonData: versionJson,
+                FlowChartId: editObj?.FlowChartId,
+                ContentTypeId: editObj?.ContentTypeId,
+            },
+            AlertsJson: isExpiry
+                ? {
+                    Alert: {
+                        AlertTypeId: null,
+                        TableId: editObj?.Id || 0,
+                        ModuleId: parseInt(sessionModuleId) || 15,
+                        AlertTitle: "Document Expiry Updated",
+                        Message: `Document ${editObj?.DocName} has a revised expiry: ${formData.ExpiryDate}`,
+                        OcurrenceType: 1,
+                        ToUsers: sessionUserData?.Email,
+                        StartDate: formData.ExpiryDate,
+                        EndDate: formData.ExpiryDate,
+                        IsMaintenance: 1,
+                    },
+                    ScheduledAlerts: [
+                        {
+                            ScheduledDate: formData.ExpiryDate,
+                        },
+                    ],
+                }
+                : null,
+        };
+
+        try {
+            const response = await fetchWithAuth(`EDM/DocRegCycle`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const result = await response.json();
+
+            if (result?.data?.result[0]?.ResponseCode === 2003) {
+                Swal.fire({
+                    title: "Success",
+                    text: "Version has been updated successfully.",
+                    icon: "success",
+                }).then(() => window.location.reload());
+            } else {
+                Swal.fire({
+                    title: "Error",
+                    text: result?.data?.result[0]?.ResponseMessage || "Something went wrong.",
+                    icon: "error",
+                });
+            }
+        } catch (error) {
+            console.error("Error during submission:", error);
+            Swal.fire({ title: "Error", text: "An unexpected error occurred.", icon: "error" });
+        } finally {
+            setEditSubmitLoading(false);
+        }
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+
+        if (editObj?.JsonData) {
+            handleEditFCSubmit(e);
+        } else {
+            handleEditSubmit(e);
+        }
+    };
+
     const getFirstReminderDate = (dateString) => {
         if (!dateString) return "unselected";
         const date = new Date(dateString);
@@ -261,7 +344,10 @@ export default function EditDocVersion({ editObj }) {
     const isExpiryUnchanged = formData.ExpiryDate === (editObj?.ExpiryDate || "");
     const isFileUnchanged = (existingDoc === editObj?.FilePath) && (!formData.FilePath);
     const isUnchanged = isCommentsUnchanged && isFileUnchanged && isExpiryUnchanged;
-    const isFileMissing = !existingDoc && !formData.FilePath;
+    const isFileMissing =
+        !existingDoc &&
+        !formData.FilePath &&
+        !editObj?.JsonData?.trim();
 
     return (
         <div
@@ -284,7 +370,7 @@ export default function EditDocVersion({ editObj }) {
                     }
                 `}
             </style>
-            <form autoComplete="off" onSubmit={handleEditSubmit}>
+            <form autoComplete="off" onSubmit={handleSubmit}>
                 <div className="offcanvas-header d-flex justify-content-between align-items-center">
                     <h5 id="offcanvasRightLabel" className="mb-0">Edit Document Version</h5>
                     <div className="d-flex align-items-center">
@@ -327,7 +413,7 @@ export default function EditDocVersion({ editObj }) {
                                     Document Version
                                 </div>
                                 <div className="fw-bold fs-6">
-                                    v{editObj?.VersionNumber}
+                                    v{editObj?.VersionNumber || editObj?.CurrentVersion}
                                 </div>
                             </div>
                         </div>
@@ -338,7 +424,7 @@ export default function EditDocVersion({ editObj }) {
                                     Created On
                                 </div>
                                 <div className="fw-semibold">
-                                    {formatToDDMMYYYY(editObj?.CreatedOn)}
+                                    {formatToDDMMYYYY(editObj?.CreatedOn || editObj?.VersionCreated)}
                                 </div>
                             </div>
                         </div>
@@ -419,7 +505,7 @@ export default function EditDocVersion({ editObj }) {
                         </div>
                     )}
 
-                    {!existingDoc && (
+                    {!existingDoc && (!editObj?.JsonData || editObj.JsonData.length === 0) && (
                         <div className="border rounded p-3 mb-3 bg-white shadow-sm">
                             <label className="form-label fw-semibold">
                                 Upload New Document
@@ -518,7 +604,7 @@ export default function EditDocVersion({ editObj }) {
                                         <div>
                                             Document
                                             <span className="fw-semibold text-primary">
-                                                {" "}{editObj.DocName || "..."}{" "}
+                                                {" "}{editObj?.DocName || "..."}{" "}
                                             </span>
                                             expires on
                                             <span className="text-danger fw-semibold">
@@ -550,4 +636,5 @@ export default function EditDocVersion({ editObj }) {
 
 EditDocVersion.propTypes = {
     editObj: PropTypes.object.isRequired,
+    versionJson: PropTypes.string,
 };

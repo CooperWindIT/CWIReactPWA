@@ -8,6 +8,7 @@ export default function EditTicket({ editTicketId, onClose }) {
 
     const [sessionUserData, setsessionUserData] = useState({});
     const [addSubmitLoading, setAddSubmitLoading] = useState(false);
+    const [ticketLoading, setTicketLoading] = useState(true);
     const [issues, setIssues] = useState([]);
     const [previewImage, setPreviewImage] = useState(null);
     const [ticketDetails, setTicketDetails] = useState({});
@@ -67,6 +68,7 @@ export default function EditTicket({ editTicketId, onClose }) {
 
     const fetchticketDetails = async () => {
         try {
+            setTicketLoading(true);
             const response = await fetchWithAuth(`PMMS/GetTicketsBYId?TicketId=${editTicketId}&OrgId=${sessionUserData?.OrgId}`, {
                 method: "GET",
                 headers: { "Content-Type": "application/json" },
@@ -74,12 +76,15 @@ export default function EditTicket({ editTicketId, onClose }) {
             if (response.ok) {
                 const data = await response.json();
                 setTicketDetails(data.ResultData[0]);
+                setTicketLoading(false);
             } else {
                 setTicketDetails([]);
                 console.error('Failed to fetch mcn tickets data:', response.statusText);
+                setTicketLoading(false);
             }
         } catch (error) {
             setTicketDetails([]);
+            setTicketLoading(false);
             console.error('Error fetching mcn tickets data:', error.message);
         }
     };
@@ -325,16 +330,23 @@ export default function EditTicket({ editTicketId, onClose }) {
                                         ></button>
                                     </div>
                                 </div>
-
                                 <div
-                                    className="modal-body premium-ticket-modal-body"
-                                    style={{
-                                        maxHeight: "75vh",
-                                        overflowY: "auto",
-                                        overflowX: "hidden",
-                                    }}
-                                >
-                                    <div className="premium-form-card">
+    className="modal-body premium-ticket-modal-body position-relative"
+    style={{
+        maxHeight: "75vh",
+        overflowY: "auto",
+        overflowX: "hidden",
+    }}
+>
+    {ticketLoading && (
+        <div className="premium-ticket-loader">
+            <div className="spinner-border text-primary" role="status" />
+            <div className="premium-ticket-loader-text">Loading ticket details...</div>
+        </div>
+    )}
+
+    <div className={ticketLoading ? "premium-ticket-content loading-blur" : "premium-ticket-content"}>
+    <div className="premium-form-card">
                                         <div className="premium-form-section-title">Ticket Information</div>
 
                                         <div className="row">
@@ -437,43 +449,45 @@ export default function EditTicket({ editTicketId, onClose }) {
                                         </div>
                                     </div>
 
-                                    {formData?.ImageUrl && (
-                                        <div className="premium-form-card mt-4">
-                                            <div className="premium-form-section-title">Uploaded Images</div>
+        {formData?.ImageUrl && (
+            <div className="premium-form-card mt-4">
+            <div className="premium-form-section-title">Uploaded Images</div>
 
-                                            <div className="d-flex flex-wrap gap-3 mt-3">
-                                                {formData.ImageUrl.split(",").map((url, index) => (
-                                                    <div
-                                                        key={index}
-                                                        className="premium-image-tile position-relative"
-                                                    >
-                                                        <img
-                                                            src={`${BASE_IMAGE_API_GET}${url.trim()}`}
-                                                            alt={`Uploaded ${index + 1}`}
-                                                            className="img-fluid"
-                                                        />
+            <div className="d-flex flex-wrap gap-3 mt-3">
+                {formData.ImageUrl.split(",").map((url, index) => (
+                    <div
+                        key={index}
+                        className="premium-image-tile position-relative"
+                    >
+                        <img
+                            src={`${BASE_IMAGE_API_GET}${url.trim()}`}
+                            alt={`Uploaded ${index + 1}`}
+                            className="img-fluid"
+                        />
 
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-sm premium-image-btn premium-image-btn-view position-absolute top-0 end-0 m-2 rounded-circle"
-                                                            onClick={() => setPreviewImage(`${BASE_IMAGE_API_GET}${url.trim()}`)}
-                                                        >
-                                                            <i className="fa fa-eye"></i>
-                                                        </button>
+                        <button
+                            type="button"
+                            className="btn btn-sm premium-image-btn premium-image-btn-view position-absolute top-0 end-0 m-2 rounded-circle"
+                            onClick={() => setPreviewImage(`${BASE_IMAGE_API_GET}${url.trim()}`)}
+                        >
+                            <i className="fa fa-eye"></i>
+                        </button>
 
-                                                        <button
-                                                            type="button"
-                                                            className="btn btn-sm premium-image-btn premium-image-btn-delete position-absolute top-0 start-0 m-2 rounded-circle"
-                                                            onClick={() => handleRemoveOldImage(url.trim())}
-                                                        >
-                                                            <i className="fa fa-times"></i>
-                                                        </button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
+                        <button
+                            type="button"
+                            className="btn btn-sm premium-image-btn premium-image-btn-delete position-absolute top-0 start-0 m-2 rounded-circle"
+                            onClick={() => handleRemoveOldImage(url.trim())}
+                        >
+                            <i className="fa fa-times"></i>
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+        )}
+    </div>
+</div>
+                               
                             </form>
                         </div>
                     </div>
@@ -510,125 +524,150 @@ export default function EditTicket({ editTicketId, onClose }) {
             <style>
                 {`
                     .premium-ticket-modal {
-    border: 0;
-    border-radius: 24px;
-    overflow: hidden;
-    background: linear-gradient(180deg, #ffffff, #f9fbff);
-    box-shadow: 0 30px 70px rgba(15, 23, 42, 0.16);
-}
+                    border: 0;
+                    border-radius: 24px;
+                    overflow: hidden;
+                    background: linear-gradient(180deg, #ffffff, #f9fbff);
+                    box-shadow: 0 30px 70px rgba(15, 23, 42, 0.16);
+                }
 
-.premium-ticket-modal-header {
-    padding: 20px 24px;
-    background:
-        radial-gradient(circle at top right, rgba(59, 130, 246, 0.10), transparent 28%),
-        linear-gradient(145deg, #ffffff, #f6faff);
-    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
-}
+                .premium-ticket-modal-header {
+                    padding: 20px 24px;
+                    background:
+                        radial-gradient(circle at top right, rgba(59, 130, 246, 0.10), transparent 28%),
+                        linear-gradient(145deg, #ffffff, #f6faff);
+                    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+                }
 
-.premium-ticket-modal-icon {
-    width: 46px;
-    height: 46px;
-    border-radius: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(145deg, #2563eb, #0f766e);
-    color: #fff;
-    font-size: 18px;
-    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.20);
-}
+                .premium-ticket-modal-icon {
+                    width: 46px;
+                    height: 46px;
+                    border-radius: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: linear-gradient(145deg, #2563eb, #0f766e);
+                    color: #fff;
+                    font-size: 18px;
+                    box-shadow: 0 14px 28px rgba(37, 99, 235, 0.20);
+                }
 
-.premium-ticket-code-mini {
-    display: inline-flex;
-    align-items: center;
-    padding: 5px 10px;
-    border-radius: 999px;
-    background: linear-gradient(145deg, #eef4ff, #dbeafe);
-    color: #1d4ed8;
-    font-size: 12px;
-    font-weight: 800;
-}
+                .premium-ticket-code-mini {
+                    display: inline-flex;
+                    align-items: center;
+                    padding: 5px 10px;
+                    border-radius: 999px;
+                    background: linear-gradient(145deg, #eef4ff, #dbeafe);
+                    color: #1d4ed8;
+                    font-size: 12px;
+                    font-weight: 800;
+                }
 
-.premium-submit-btn {
-    border: none !important;
-    border-radius: 12px !important;
-    background: linear-gradient(145deg, #2563eb, #0f766e) !important;
-    color: #fff !important;
-    padding: 8px 14px !important;
-    font-weight: 700 !important;
-    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.16);
-}
+                .premium-submit-btn {
+                    border: none !important;
+                    border-radius: 12px !important;
+                    background: linear-gradient(145deg, #2563eb, #0f766e) !important;
+                    color: #fff !important;
+                    padding: 8px 14px !important;
+                    font-weight: 700 !important;
+                    box-shadow: 0 12px 24px rgba(37, 99, 235, 0.16);
+                }
 
-.premium-ticket-modal-body {
-    padding: 22px 24px 24px;
-    background: linear-gradient(180deg, #f9fbff 0%, #f4f8fd 100%);
-}
+                .premium-ticket-modal-body {
+                    padding: 22px 24px 24px;
+                    background: linear-gradient(180deg, #f9fbff 0%, #f4f8fd 100%);
+                }
 
-.premium-form-card {
-    background: rgba(255, 255, 255, 0.88);
-    border: 1px solid rgba(15, 23, 42, 0.06);
-    border-radius: 20px;
-    padding: 18px;
-    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
-}
+                .premium-form-card {
+                    background: rgba(255, 255, 255, 0.88);
+                    border: 1px solid rgba(15, 23, 42, 0.06);
+                    border-radius: 20px;
+                    padding: 18px;
+                    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+                }
 
-.premium-form-section-title {
-    font-size: 14px;
-    font-weight: 800;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: #334155;
-    margin-bottom: 16px;
-}
+                .premium-form-section-title {
+                    font-size: 14px;
+                    font-weight: 800;
+                    letter-spacing: 0.03em;
+                    text-transform: uppercase;
+                    color: #334155;
+                    margin-bottom: 16px;
+                }
 
-.premium-input {
-    border-radius: 12px !important;
-    border: 1px solid #dbe4f0 !important;
-    background: #fdfefe !important;
-    min-height: 40px;
-    box-shadow: none !important;
-}
+                .premium-input {
+                    border-radius: 12px !important;
+                    border: 1px solid #dbe4f0 !important;
+                    background: #fdfefe !important;
+                    min-height: 40px;
+                    box-shadow: none !important;
+                }
 
-.premium-input:focus {
-    border-color: #93c5fd !important;
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.10) !important;
-}
+                .premium-input:focus {
+                    border-color: #93c5fd !important;
+                    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.10) !important;
+                }
 
-.premium-image-tile {
-    width: 130px;
-    height: 130px;
-    border-radius: 16px;
-    overflow: hidden;
-    background: #fff;
-    border: 1px solid rgba(15, 23, 42, 0.08);
-    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.10);
-}
+                .premium-image-tile {
+                    width: 130px;
+                    height: 130px;
+                    border-radius: 16px;
+                    overflow: hidden;
+                    background: #fff;
+                    border: 1px solid rgba(15, 23, 42, 0.08);
+                    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.10);
+                }
 
-.premium-image-tile img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
+                .premium-image-tile img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                }
 
-.premium-image-btn {
-    width: 30px;
-    height: 30px;
-    padding: 0 !important;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: none !important;
-}
+                .premium-image-btn {
+                    width: 30px;
+                    height: 30px;
+                    padding: 0 !important;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: none !important;
+                }
 
-.premium-image-btn-view {
-    background: #eff6ff !important;
-    color: #2563eb !important;
-}
+                .premium-image-btn-view {
+                    background: #eff6ff !important;
+                    color: #2563eb !important;
+                }
 
-.premium-image-btn-delete {
-    background: #fff1f2 !important;
-    color: #dc2626 !important;
-}
+                .premium-image-btn-delete {
+                    background: #fff1f2 !important;
+                    color: #dc2626 !important;
+                }
+                    .premium-ticket-loader {
+                    position: absolute;
+                    inset: 0;
+                    z-index: 20;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 12px;
+                    background: rgba(255, 255, 255, 0.72);
+                    backdrop-filter: blur(3px);
+                    border-radius: 12px;
+                }
+
+                .premium-ticket-loader-text {
+                    font-size: 14px;
+                    font-weight: 700;
+                    color: #344054;
+                }
+
+                .loading-blur {
+                    filter: blur(2px);
+                    pointer-events: none;
+                    user-select: none;
+                }
 
                 `}
             </style>

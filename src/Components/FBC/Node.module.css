@@ -67,12 +67,71 @@
   opacity: 0.22;
 }
 
+/* Matched search result */
 .searchMatched .nodeInner {
-  box-shadow: 0 0 0 2px rgba(250, 173, 20, 0.28);
+  position: relative;
+  border: 1px solid rgba(250, 173, 20, 0.45);
+  background: linear-gradient(135deg,
+      rgba(250, 173, 20, 0.08),
+      rgba(255, 214, 102, 0.04));
+
+  box-shadow:
+    0 0 0 2px rgba(250, 173, 20, 0.18),
+    0 6px 18px rgba(250, 173, 20, 0.12);
+
+  transition:
+    box-shadow 0.25s ease,
+    border-color 0.25s ease,
+    transform 0.2s ease,
+    background 0.25s ease;
 }
 
+/* Hover effect for matched nodes */
+.searchMatched .nodeInner:hover {
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 0 0 3px rgba(250, 173, 20, 0.22),
+    0 10px 24px rgba(250, 173, 20, 0.18);
+}
+
+/* Active selected search result */
 .searchActive .nodeInner {
-  box-shadow: 0 0 0 3px rgba(250, 173, 20, 0.55) !important;
+  position: relative;
+  border: 2px solid #faad14 !important;
+
+  background: linear-gradient(135deg,
+      rgba(250, 173, 20, 0.16),
+      rgba(255, 214, 102, 0.08));
+
+  box-shadow:
+    0 0 0 4px rgba(250, 173, 20, 0.28),
+    0 12px 30px rgba(250, 173, 20, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+
+  animation: pulseSearch 1.8s infinite ease-in-out;
+  z-index: 2;
+}
+
+/* Elegant pulse animation */
+@keyframes pulseSearch {
+  0% {
+    box-shadow:
+      0 0 0 0 rgba(250, 173, 20, 0.35),
+      0 12px 30px rgba(250, 173, 20, 0.18);
+  }
+
+  70% {
+    box-shadow:
+      0 0 0 8px rgba(250, 173, 20, 0),
+      0 14px 34px rgba(250, 173, 20, 0.24);
+  }
+
+  100% {
+    box-shadow:
+      0 0 0 0 rgba(250, 173, 20, 0),
+      0 12px 30px rgba(250, 173, 20, 0.18);
+  }
 }
 
 
@@ -92,6 +151,41 @@
 .node:hover .cp,
 .selected .cp {
   opacity: 1;
+}
+
+.resizeHandle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #696eff;
+  border-radius: 4px;
+  background: #ffffff;
+  z-index: 7;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.resizeHandle_nw {
+  left: -6px;
+  top: -6px;
+  cursor: nwse-resize;
+}
+
+.resizeHandle_ne {
+  right: -6px;
+  top: -6px;
+  cursor: nesw-resize;
+}
+
+.resizeHandle_se {
+  right: -6px;
+  bottom: -6px;
+  cursor: nwse-resize;
+}
+
+.resizeHandle_sw {
+  left: -6px;
+  bottom: -6px;
+  cursor: nesw-resize;
 }
 
 

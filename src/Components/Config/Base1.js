@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Popover } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -6,12 +6,12 @@ import { BASE_IMAGE_API_GET } from './Config';
 import { useWeather } from '../../utils/useWeather';
 import WeatherDetails from './../../utils/WeatherDetails';
 import FAQButton from './FAQBtn';
-// import LogoImg from '../Assests/Images/cwilogo.png';
+import Swal from "sweetalert2";
+import { fetchWithAuth } from '../../utils/api';
 
 const Base1 = ({ children }) => {
 
     const weather = useWeather();
-    // console.log(weather)
     const [sessionUserData, setSessionUserData] = useState([]);
     const [menuItems, setMenuItems] = useState([]);
     const [moduleData, setModuleData] = useState([]);
@@ -23,10 +23,14 @@ const Base1 = ({ children }) => {
     const navigate = useNavigate();
     const currentPath = window.location.pathname;
     const location = useLocation();
-    const shouldHideSidebar = ["/vms/", "/alert/", "/edm/", "/faq"].some(path => location.pathname.includes(path));
+    const shouldHideSidebar = ["/vms/", "/alert/", "/edm/", "/faq", "/kpi", "/service-requests"].some(path => location.pathname.includes(path));
     const shouldDocComponents = location.pathname.includes("/pmms/");
     const searchParams = new URLSearchParams(location.search);
     const reportId = searchParams.get("reportId");
+
+    const [profileImageLoading, setProfileImageLoading] = useState(false);
+    const [previewImage, setPreviewImage] = useState(null);
+    const fileInputRef = useRef(null);
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem('userData');
@@ -44,7 +48,6 @@ const Base1 = ({ children }) => {
 
     const handleLogout = async () => {
         sessionStorage.clear();
-        localStorage.clear();
         navigate('/');
         setLoading(false);
     };
@@ -60,18 +63,32 @@ const Base1 = ({ children }) => {
                                 width: "40px",
                                 height: "40px",
                                 borderRadius: "50%",
-                                backgroundColor: "skyblue",
+                                backgroundColor: "#eaf3ff",
                                 color: "#333",
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                fontSize: "18px",
-                                fontWeight: "bold",
-                                textTransform: "uppercase",
+                                overflow: "hidden",
+                                border: "2px solid #e5edff",
                             }}
                         >
-                            {/* {sessionUserData?.Name?.charAt(0)} */}
-                            <i className="fa-regular fa-user text-white"></i>
+                            {sessionUserData?.ImageURL ? (
+                                <img
+                                    src={`${BASE_IMAGE_API_GET}${sessionUserData.ImageURL}`}
+                                    alt={sessionUserData?.Name || "User"}
+                                    style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "contain",
+                                        objectPosition: "center",
+                                        padding: "2px",
+                                        borderRadius: "50%",
+                                        backgroundColor: "#fff",
+                                    }}
+                                />
+                            ) : (
+                                <i className="fa-regular fa-user text-primary"></i>
+                            )}
                         </div>
                     </div>
                     <div className="d-flex flex-column">
@@ -87,6 +104,15 @@ const Base1 = ({ children }) => {
                     data-bs-toggle="offcanvas"
                     data-bs-target="#offcanvasRightViewProfile"
                 ><i className="fa-regular fa-user text-info me-2"></i> My Profile</a>
+            </div>
+            <div className="menu-item px-5">
+                <Link
+                    to="/kpi/my-kpis"
+                    className="menu-link px-5 text-dark text-hover-warning"
+                >
+                    <i className="bi bi-bullseye text-warning me-2"></i>
+                    My KPI's
+                </Link>
             </div>
             <div className="menu-item px-5">
                 <Link
@@ -119,7 +145,7 @@ const Base1 = ({ children }) => {
                             sessionStorage.setItem("navigationPath", parsedMenu[0].MenuPath);
                         }
                     } else {
-                        navigate('/user-modules');
+                        // navigate('/user-modules');
                     }
                 } catch (error) {
                     console.error("Error fetching menu data:", error.message);
@@ -232,6 +258,102 @@ const Base1 = ({ children }) => {
         };
     };
 
+    const handleProfileImageChange = async (e) => {
+        const file = e.target.files?.[0];
+
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+            Swal.fire({
+                title: "Invalid File",
+                text: "Please select a valid image file.",
+                icon: "error",
+            });
+            return;
+        }
+
+        setPreviewImage(URL.createObjectURL(file));
+        setProfileImageLoading(true);
+
+        const Toast = Swal.mixin({
+            toast: true,
+            position: "top-end",
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true,
+        });
+
+        try {
+            const payload = new FormData();
+
+            payload.append("Id", sessionUserData?.Id || "");
+            payload.append("RoleId", sessionUserData?.RoleId || "");
+            payload.append("Name", sessionUserData?.Name || "");
+            payload.append("Password", sessionUserData?.Password || "");
+            payload.append("IsActive", 1);
+            payload.append("OrgId", sessionUserData?.OrgId || "");
+            payload.append("DeptId", sessionUserData?.DeptId || "");
+            payload.append("Mobile", sessionUserData?.Mobile || "");
+            payload.append("Email", sessionUserData?.Email || "");
+            payload.append("IsMobile", sessionUserData?.IsMobile ? 1 : 0);
+            payload.append("Gender", sessionUserData?.Gender ?? "");
+            payload.append("ManagerId", sessionUserData?.ManagerId || "");
+            payload.append("IsSuperiorId", sessionUserData?.IsSuperiorId || "");
+            payload.append("UpdatedBy", sessionUserData?.Id || "");
+            payload.append(
+                "AccessToModules",
+                Array.isArray(sessionUserData?.AccessToModules)
+                    ? sessionUserData.AccessToModules.join(",")
+                    : sessionUserData?.AccessToModules || ""
+            );
+
+            payload.append("ImageUrl", file);
+
+            const response = await fetchWithAuth(`AdminRoutes/UPDTUsers`, {
+                method: "POST",
+                body: payload,
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.ResultData?.Status === "Success") {
+                Toast.fire({
+                    icon: "success",
+                    title: "Image updated. It will reflect after logout and login.",
+                });
+
+                const updatedUserData = {
+                    ...sessionUserData,
+                    ImageURL: data.ResultData?.ImageURL || sessionUserData?.ImageURL,
+                };
+
+                sessionStorage.setItem("userData", JSON.stringify(updatedUserData));
+            } else {
+                Toast.fire({
+                    icon: "error",
+                    title: data?.ResultData?.ResultMessage || "Failed to update profile image.",
+                });
+
+                setPreviewImage(null);
+            }
+
+        } catch (error) {
+            console.error("Profile image update failed:", error);
+
+            Toast.fire({
+                icon: "error",
+                title: "An unexpected error occurred.",
+            });
+
+            setPreviewImage(null);
+        }
+        finally {
+            setProfileImageLoading(false);
+            e.target.value = "";
+        }
+    };
+
+
     return (
         <div className="d-flex flex-column flex-root app-root" id="kt_app_root" >
             {loading && (
@@ -242,7 +364,7 @@ const Base1 = ({ children }) => {
 
             <div className="app-page flex-column flex-column-fluid" id="kt_app_page">
                 {/* <div id="kt_app_header" className="app-header text-white shadow-sm fixed-top" data-kt-sticky="true" style={{ backgroundColor: '#90e0ef' }} */}
-                <div id="kt_app_header" className="app-header text-white shadow-sm fixed-top" data-kt-sticky="true" style={{ backgroundColor: moduleData?.UITheme2 }}
+                <div id="kt_app_header" className="app-header text-white shadow-sm fixed-top" data-kt-sticky="true" style={{ backgroundColor: sessionUserData?.HeaderColor }}
                     data-kt-sticky-activate="{default: true, lg: true}" data-kt-sticky-name="app-header-minimize" data-kt-sticky-offset="{default: '200px', lg: '0'}" data-kt-sticky-animation="false">
                     <div className="app-container container-fluid d-flex align-items-stretch justify-content-between" id="kt_app_header_container">
                         <div className="d-flex align-items-center d-lg-none ms-n3 me-1 me-md-2" title="Show sidebar menu">
@@ -277,9 +399,6 @@ const Base1 = ({ children }) => {
                             <div className="module-header shadow-sm p-3 mb-3 rounded d-flex align-items-center mt-3  d-none d-md-block">
                                 <div className="flex-grow-1">
                                     <h2 className="module-title mb-1"><i className={`fas fa-${moduleData?.ImageIcon} fs-5`}></i> {moduleData?.Description}</h2>
-                                    {/* <h2 className="module-title mb-0 d-flex align-items-center justify-content-center gap-2 d-block d-md-none text-center me-8">
-                                        {moduleData?.ModuleName}
-                                    </h2> */}
                                 </div>
                             </div>
 
@@ -360,7 +479,7 @@ const Base1 = ({ children }) => {
                 </div>
 
                 <div className="app-wrapper flex-row flex-row-fluid pt-20" id="kt_app_wrapper">
-                    {!(shouldHideSidebar || reportId === '3' || reportId === '19' || reportId === '21') && (
+                    {!(shouldHideSidebar || reportId === '3' || reportId === '19' || reportId === '21' || reportId === '22') && (
                         <div id="kt_app_sidebar" className="app-sidebar flex-column" data-kt-drawer="true" style={{ width: '205px' }}>
                             <div className="app-sidebar-menu overflow-hidden flex-column-fluid bg-white shadow-sm">
                                 <div id="kt_app_sidebar_menu_wrapper" className="app-sidebar-wrapper">
@@ -421,17 +540,6 @@ const Base1 = ({ children }) => {
                                         </div>
                                     </div>
                                 </div>
-                                {/* {shouldDocComponents && 
-                                    <div className="app-sidebar-footer flex-column-auto pt-2 pb-6 px-6 sticky-bottom" id="kt_app_sidebar_footer">
-                                        <a href="https://services.cooperwind.online/uploads/CWIDocs/1758281305350-PMMS%20User%20Guide%20(1).pdf" target='_blank' className="btn btn-flex flex-center btn-custom btn-primary overflow-hidden text-nowrap px-0 h-40px w-100" data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-dismiss-="click" data-bs-original-title="200+ in-house components and 3rd-party plugins" data-kt-initialized="1">
-                                            <span className="btn-label">Docs &amp; Components</span>
-                                            <i className="ki-duotone ki-document btn-icon fs-2 m-0">
-                                                <span className="path1"></span>
-                                                <span className="path2"></span>
-                                            </i>
-                                        </a>
-                                    </div>
-                                } */}
                             </div>
                         </div>
                     )}
@@ -612,6 +720,8 @@ const Base1 = ({ children }) => {
                 `}
             </style>
 
+
+            {/* My Profile */}
             <div
                 className="offcanvas offcanvas-end custom-offcanvas"
                 tabIndex="-1"
@@ -635,11 +745,41 @@ const Base1 = ({ children }) => {
                         <div className="card-body">
                             <div className="d-flex align-items-center mb-3">
                                 <div
-                                    className="avatar bg-light-primary text-dark rounded-circle d-flex align-items-center justify-content-center me-3"
-                                    style={{ width: "50px", height: "50px", fontSize: "20px" }}
+                                    className="profile-avatar-wrap me-3"
+                                    onClick={() => !profileImageLoading && fileInputRef.current?.click()}
+                                    title="Change profile image"
                                 >
-                                    {sessionUserData?.Name?.charAt(0).toUpperCase() || "?"}
+                                    <img
+                                        src={
+                                            previewImage ||
+                                            (sessionUserData?.ImageURL
+                                                ? `${BASE_IMAGE_API_GET}${sessionUserData.ImageURL}`
+                                                : "/assets/media/avatars/blank.png")
+                                        }
+                                        alt={sessionUserData?.Name || "Profile"}
+                                        className="profile-avatar-img"
+                                    />
+
+                                    <div className="profile-avatar-overlay">
+                                        {profileImageLoading ? (
+                                            <span className="spinner-border spinner-border-sm text-white"></span>
+                                        ) : (
+                                            <>
+                                                <i className="fa-solid fa-camera"></i>
+                                                <span>Change</span>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="d-none"
+                                        onChange={handleProfileImageChange}
+                                    />
                                 </div>
+
 
                                 <div>
                                     <h6 className="mb-0">{sessionUserData?.Name}</h6>
@@ -778,6 +918,60 @@ const Base1 = ({ children }) => {
 
             <style>
                 {`
+                .profile-avatar-wrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 58px;
+  cursor: pointer;
+  border: 2px solid #e5edff;
+  background: #f8fafc;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+}
+
+.profile-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  padding: 3px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.25s ease, filter 0.25s ease;
+}
+
+.profile-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(15, 23, 42, 0.62);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.profile-avatar-overlay i {
+  font-size: 14px;
+}
+
+.profile-avatar-wrap:hover .profile-avatar-img {
+  transform: scale(1.06);
+  filter: brightness(0.82);
+}
+
+.profile-avatar-wrap:hover .profile-avatar-overlay {
+  opacity: 1;
+}
+
                 .progress-bar-animated-smooth {
                     transition: width 1.2s ease-in-out;
                 }

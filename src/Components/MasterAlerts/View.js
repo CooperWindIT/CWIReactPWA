@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import { fetchWithAuth } from "../../utils/api";
 import Swal from "sweetalert2";
-import { Upload, message, Button, Input, Card, Row, Col, Typography } from "antd";
+import { Upload, message, Button, Input, Card, Row, Col, Typography, Tooltip } from "antd";
 import { BASE_DOC_UPLOAD, BASE_IMG_UPLOAD } from "../Config/Config";
 import { InboxOutlined } from "@ant-design/icons";
 
@@ -18,6 +18,13 @@ export default function ViewAlert({ alertObj }) {
     const [showSubmitAlertModal, setShowSubmitAlertModal] = useState(false);
     const [alertScheduleData, setAlertScheduleData] = useState([]);
     const [alertViewModal, setAlertViewModal] = useState(false);
+    const [sessionModuleId, setSessionModuleId] = useState(null);
+
+    const [showExtendExpiryModal, setShowExtendExpiryModal] = useState(false);
+    const [extendExpiryData, setExtendExpiryData] = useState(null);
+    const [extendExpiryDate, setExtendExpiryDate] = useState("");
+    const [extendExpiryComments, setExtendExpiryComments] = useState("");
+    const [extendExpiryLoading, setExtendExpiryLoading] = useState(false);
 
     const [comments, setComments] = useState("");
     const [closedDate, setClosedDate] = useState(null);
@@ -32,13 +39,17 @@ export default function ViewAlert({ alertObj }) {
         if (userDataString) {
             const userData = JSON.parse(userDataString);
             setsessionUserData(userData);
+
+            const storedModule = JSON.parse(localStorage.getItem("ModuleData"));
+            const moduleId = storedModule?.Id?.toString();
+            setSessionModuleId(moduleId);
         }
     }, []);
 
     const fetchAlerts = async () => {
         setDataLoading(true);
         try {
-            const response = await fetchWithAuth(`Portal/getAlertsById?AlertId=${alertObj?.AlertId}`, {
+            const response = await fetchWithAuth(`Portal/getAlertsById?AlertId=${alertObj?.AlertId}&ModuleId=${sessionModuleId}`, {
                 method: "GET",
                 headers: { "Content-Type": "application/json" },
             });
@@ -304,6 +315,149 @@ export default function ViewAlert({ alertObj }) {
         </div>
     );
 
+    const getExtendExpiryState = (alertObj) => {
+        const scheduledAlert = alertsData?.[0];
+        const scheduledDateValue = scheduledAlert?.ScheduledDate;
+
+        if (!scheduledAlert?.ScheduledAlertId || !alertObj?.TableId) {
+            return {
+                disabled: true,
+                reason: "Scheduled alert or version details are missing.",
+            };
+        }
+
+        if (!scheduledDateValue) {
+            return {
+                disabled: true,
+                reason: "Scheduled date is missing.",
+            };
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const scheduledDate = new Date(scheduledDateValue);
+        scheduledDate.setHours(0, 0, 0, 0);
+
+        if (Number.isNaN(scheduledDate.getTime())) {
+            return {
+                disabled: true,
+                reason: "Scheduled date is invalid.",
+            };
+        }
+
+        const enableFromDate = new Date(scheduledDate);
+        enableFromDate.setDate(enableFromDate.getDate() - 15);
+        enableFromDate.setHours(0, 0, 0, 0);
+
+        if (today < enableFromDate) {
+            return {
+                disabled: true,
+                reason: `Expiry extension will be available from ${enableFromDate.toLocaleDateString("en-GB")}.`,
+            };
+        }
+
+        if (today > scheduledDate) {
+            return {
+                disabled: true,
+                reason: "This scheduled alert date has already passed.",
+            };
+        }
+
+        return {
+            disabled: false,
+            reason: "Extend expiry alert",
+        };
+    };
+
+    const extendExpiryState = getExtendExpiryState(alertObj);
+
+    const canExtendExpiry =
+        !extendExpiryState.disabled &&
+        alertObj?.IsMaintenance;
+
+    const isExtendExpiryDisabled = !canExtendExpiry;
+
+    const formatUpdatedComments = (oldComments, newComment) => {
+        const cleanedOld = (oldComments || "").trim();
+        const cleanedNew = (newComment || "").trim();
+    
+        if (!cleanedOld) return cleanedNew;
+    
+        return `${cleanedOld}\n\n--- New Update ---\n${cleanedNew}`;
+    };
+
+    const handleSubmitExtendExpiry = async () => {
+        if (!extendExpiryDate) {
+            Swal.fire("Required", "Expiry date is required", "warning");
+            return;
+        }
+
+        if (!extendExpiryComments.trim()) {
+            Swal.fire("Required", "Comments are required", "warning");
+            return;
+        }
+
+        // const payload = {
+        //     OrgId: sessionUserData?.OrgId,
+        //     UserId: sessionUserData?.Id,
+        //     Type: "EDIT EXPIRY",
+        //     JsonData: {
+        //         ExpiryDate: extendExpiryDate,
+        //         Comments: extendExpiryComments.trim(),
+        //         UserId: sessionUserData?.Id,
+        //         ScheduledAlertId: alertsData[0]?.ScheduledAlertId,
+        //         VersionId: extendExpiryData?.TableId,
+        //     },
+        // };
+
+        const payload = {
+            OrgId: sessionUserData?.OrgId,
+            UserId: sessionUserData?.Id,
+            Type: "EDIT EXPIRY",
+            JsonData: {
+                ExpiryDate: extendExpiryDate,
+                Comments: formatUpdatedComments(
+                    alertsData[0]?.Comments,
+                    extendExpiryComments
+                ),
+                UserId: sessionUserData?.Id,
+                ScheduledAlertId: alertsData[0]?.ScheduledAlertId,
+                VersionId: extendExpiryData?.TableId,
+            },
+        };
+
+        try {
+            setExtendExpiryLoading(true);
+
+            const res = await fetchWithAuth(`EDM/DocRegCycle`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            const result = await res.json();
+            const response = result?.data?.result?.[0];
+
+            if (response?.ResponseCode === 2004) {
+                Swal.fire("Success", response?.Message || "Expiry extended successfully", "success");
+
+                setShowExtendExpiryModal(false);
+                setExtendExpiryData(null);
+                setExtendExpiryDate("");
+                setExtendExpiryComments("");
+
+                fetchAlerts();
+            } else {
+                Swal.fire("Failed", response?.Message || "Failed to extend expiry", "error");
+            }
+        } catch (error) {
+            Swal.fire("Error", "Expiry extension failed. Please try again.", "error");
+        } finally {
+            setExtendExpiryLoading(false);
+        }
+    };
+
     return (
         <div
             className="offcanvas offcanvas-end"
@@ -337,6 +491,26 @@ export default function ViewAlert({ alertObj }) {
                 <div className="offcanvas-header d-flex justify-content-between align-items-center">
                     <h5 id="offcanvasRightLabel" className="mb-0">View Alert Details <span className="fw-bold text-primary">({alertObj?.AutoIncNo})</span></h5>
                     <div className="d-flex align-items-center">
+                        {(Number(sessionModuleId) === 15 && alertObj?.IsMaintenance) && (
+                            <Tooltip title={extendExpiryState.reason}>
+                                <span>
+                                    <button
+                                        type="button"
+                                        className="btn premium-extend-expiry-btn me-2 border border-warning shadow-sm"
+                                        onClick={() => {
+                                            setExtendExpiryData(alertObj);
+                                            setExtendExpiryDate("");
+                                            setExtendExpiryComments("");
+                                            setShowExtendExpiryModal(true);
+                                        }}
+                                        // disabled={isExtendExpiryDisabled}
+                                    >
+                                        <i className="bi bi-calendar2-plus text-dark"></i>
+                                        Extend Expiry
+                                    </button>
+                                </span>
+                            </Tooltip>
+                        )}
                         <button
                             type="button"
                             className="btn-close"
@@ -426,7 +600,7 @@ export default function ViewAlert({ alertObj }) {
                             <div className="col-12">
                                 <div className="p-2 border rounded bg-light">
                                     <h6 className="text-primary mb-1"><i className="fa-solid fa-calendar-day me-2"></i>Scheduled Date</h6>
-                                    <p className="mb-0">{alertObj.ScheduledDate ? new Date(alertObj.ScheduledDate).toLocaleDateString("en-GB") : "N/A"}</p>
+                                    <p className="mb-0">{alertsData[0]?.ScheduledDate ? new Date(alertsData[0]?.ScheduledDate).toLocaleDateString("en-GB") : "N/A"}</p>
                                 </div>
                             </div>
                         )}
@@ -573,6 +747,7 @@ export default function ViewAlert({ alertObj }) {
                             </tbody>
                         </table>
                     </div>
+
                     <div className="d-md-none my-3">
                         {dataLoading ? (
                             <div className="text-center py-4">
@@ -927,54 +1102,223 @@ export default function ViewAlert({ alertObj }) {
                 </div>
             )}
 
+            {/* Extend expiry alert modal for EDM  */}
+            {showExtendExpiryModal && (
+                <div
+                    className="modal fade show"
+                    style={{
+                        display: "block",
+                        background: "rgba(15, 23, 42, 0.55)",
+                        zIndex: 20000,
+                    }}
+                    tabIndex="-1"
+                >
+                    <div className="modal-dialog modal-dialog-centered">
+                        <div className="modal-content premium-expiry-modal">
+                            <div className="modal-header border-0">
+                                <div>
+                                    <h5 className="modal-title fw-bold mb-1">
+                                        Extend Expiry Alert
+                                    </h5>
+                                    <div className="text-muted small">
+                                        Alert No: {extendExpiryData?.AutoIncNo || "-"}
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    className="btn-close"
+                                    onClick={() => setShowExtendExpiryModal(false)}
+                                    disabled={extendExpiryLoading}
+                                />
+                            </div>
+
+                            <div className="modal-body pt-0">
+                                <div className="expiry-info-card mb-3">
+                                    <div className="expiry-info-icon">
+                                        <i className="bi bi-calendar2-plus text-white"></i>
+                                    </div>
+                                    <div>
+                                        <div className="expiry-info-title">
+                                            Update document expiry date
+                                        </div>
+                                        <div className="expiry-info-text">
+                                            Select a new expiry date and provide a reason for the extension.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mb-3">
+                                    <label className="form-label fw-bold">
+                                        New Expiry Date <span className="text-danger">*</span>
+                                    </label>
+                                    <input
+                                        type="date"
+                                        className="form-control"
+                                        value={extendExpiryDate}
+                                        onChange={(e) => setExtendExpiryDate(e.target.value)}
+                                        disabled={extendExpiryLoading}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="form-label fw-bold">
+                                        Comments <span className="text-danger">*</span>
+                                    </label>
+                                    <textarea
+                                        className="form-control"
+                                        rows={4}
+                                        placeholder="Enter reason/comments for expiry extension"
+                                        value={extendExpiryComments}
+                                        onChange={(e) => setExtendExpiryComments(e.target.value)}
+                                        disabled={extendExpiryLoading}
+                                        autoFocus
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="modal-footer border-0">
+                                <button
+                                    type="button"
+                                    className="btn btn-light btn-sm"
+                                    onClick={() => setShowExtendExpiryModal(false)}
+                                    disabled={extendExpiryLoading}
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="btn btn-warning fw-bold btn-sm"
+                                    onClick={handleSubmitExtendExpiry}
+                                    disabled={extendExpiryLoading}
+                                >
+                                    {extendExpiryLoading ? (
+                                        <>
+                                            <span className="spinner-border spinner-border-sm me-2" />
+                                            Submitting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="bi bi-check2-circle me-2"></i>
+                                            Submit Extension
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style>
                 {`
-    .custom-modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
+                .premium-expiry-modal {
+    border: 0;
+    border-radius: 18px;
+    box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
+}
+
+.expiry-info-card {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #fff7ed, #fffbeb);
+    border: 1px solid #fed7aa;
+}
+
+.expiry-info-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1055;
+    color: #fff;
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    font-size: 21px;
+    box-shadow: 0 10px 22px rgba(245, 158, 11, 0.25);
 }
 
-.custom-modal {
-    background: #fff;
-    width: 95%;
-    max-width: 900px;
-    border-radius: 12px;
-    box-shadow: 0 25px 60px rgba(0,0,0,0.25);
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
+.expiry-info-title {
+    font-weight: 800;
+    color: #1f2937;
 }
 
-.custom-modal-lg {
-    max-width: 900px;
+.expiry-info-text {
+    font-size: 13px;
+    color: #6b7280;
 }
+                .premium-extend-expiry-btn {
+                border: 0;
+                border-radius: 999px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 700;
+                color: #7a3e00;
+                background: linear-gradient(135deg, #fff7ed, #ffedd5);
+                box-shadow: 0 8px 20px rgba(245, 158, 11, 0.18);
+            }
 
-.modal-body {
-    overflow-y: auto;
-    padding: 1rem;
-}
+            .premium-extend-expiry-btn:hover:not(:disabled) {
+                color: #fff;
+                background: linear-gradient(135deg, #f59e0b, #d97706);
+                transform: translateY(-1px);
+            }
 
-.animate-scale-in {
-    animation: scaleIn 0.25s ease;
-}
+            .premium-extend-expiry-btn:disabled {
+                opacity: 0.55;
+                cursor: not-allowed;
+                box-shadow: none;
+            }
+                .custom-modal-backdrop {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.45);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1055;
+            }
 
-@keyframes scaleIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
-}
+            .custom-modal {
+                background: #fff;
+                width: 95%;
+                max-width: 900px;
+                border-radius: 12px;
+                box-shadow: 0 25px 60px rgba(0,0,0,0.25);
+                max-height: 90vh;
+                display: flex;
+                flex-direction: column;
+            }
 
-    `}
+            .custom-modal-lg {
+                max-width: 900px;
+            }
+
+            .modal-body {
+                overflow-y: auto;
+                padding: 1rem;
+            }
+
+            .animate-scale-in {
+                animation: scaleIn 0.25s ease;
+            }
+
+            @keyframes scaleIn {
+                from {
+                    opacity: 0;
+                    transform: scale(0.95);
+                }
+                to {
+                    opacity: 1;
+                    transform: scale(1);
+                }
+            }
+
+        `}
             </style>
         </div>
 

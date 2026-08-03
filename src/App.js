@@ -29,9 +29,7 @@ import EAMTicketView from './Components/EAM/Tickets/View';
 import MyAssetsList from './Components/EAM/Asset/MyAssets';
 import AssetViewMore from './Components/EAM/Asset/ViewMore';
 import TechTicketsList from './Components/EAM/Tickets/Technicians/TechTickets';
-
 import UserAccessDoc from './Components/EDM/UserAccess/UserAccess';
-// import OrgChart from './Components/orgCharts/OrgChartPage1';
 import InactiveAssetsList from './Components/EAM/Asset/InactiveAssets';
 import Help1 from './Components/FAQs/help1';
 import TechHelp1 from './Components/FAQs/techHelp';
@@ -41,8 +39,20 @@ import SampleRM from './Components/RM/sample';
 import ItemMasterDetails from './Components/RM/sampleView';
 import SampleRM1 from './Components/RM/sample1';
 import InActiveDocsList from './Components/EDM/Documents/InactiveDocsList';
-// import OrganizationFlowChart from './Components/orgCharts/NewOrgChart';
 import FlowBuilderC from './Components/FBC/flowbuilder2';
+import TicketsListByUser from './Components/EAM/Tickets/ListByUser';
+
+import KPIMaster from './Components/KPI/KPIMaster/kpiMaster';
+import KPIDashboard from './Components/KPI/Dashboard/dashboard';
+import EmployeeKpi from './Components/KPI/Employees/employeeKpi';
+import MyKPIs from './Components/KPI/Employees/myKpis';
+import AllocateKPI from './Components/KPI/Employees/allocateKPI';
+import ManagerReviewCycle from './Components/KPI/Employees/managerReviewCycle';
+import ReviewCycles from './Components/KPI/ReviewCycle/reviewCycles';
+import EmployeeReviewCycle from './Components/KPI/Employees/employeeReviewCycle';
+import AssetlessTicketRequest from './Components/ServiceNow/AssetlessTicketRequest';
+import AssetlessMyTickets from './Components/ServiceNow/MyTickets';
+import AssetlessTechMyTickets from './Components/ServiceNow/TechMyTickets';
 
 function App() {
   return (
@@ -56,11 +66,11 @@ function App() {
               <Route path="/" element={<NewSignIn />} />
 
               {/* VMS */}
-              <Route path="/vms/vms-dashboard" element={<Dashboard />} />
+              <Route path="/vms/dashboard" element={<Dashboard />} />
               <Route path="/vms/visitors" element={<VisitingList />} />
 
               {/* CMS */}
-              <Route path="/cms/cms-dashboard" element={<ContractorDashboard />} />
+              <Route path="/cms/dashboard" element={<ContractorDashboard />} />
               <Route path="/cms/contractors" element={<ContactorsList />} />
               <Route path="/cms/checkin-validation" element={<CheckinValidation />} />
               <Route path="cms/working-days" element={<WorkingDays />} />
@@ -72,7 +82,7 @@ function App() {
               <Route path="/alert/close-alerts" element={<CloseAlertsList />} />
 
               {/* EAM */}
-              <Route path="/eam/eam-dashboard" element={<AssetDashboard />} />
+              <Route path="/eam/dashboard" element={<AssetDashboard />} />
               <Route path="/eam/assets" element={<AssetsList />} />
               <Route path="/eam/inactive-assets" element={<InactiveAssetsList />} />
               <Route path="/eam/my-assets" element={<MyAssetsList />} />
@@ -82,6 +92,7 @@ function App() {
               <Route path="/eam/ticket-view/:orgId/:ticketId" element={<EAMTicketView />} />
               <Route path="/eam/asset-info/:orgId/:machineId" element={<AssetViewMore />} />
               <Route path="/tech-tickets" element={<TechTicketsList />} />
+              <Route path="/eam/my-tickets" element={<TicketsListByUser />} />
 
               {/* Reports */}
               <Route path="/report" element={<ReportData />} />
@@ -91,14 +102,24 @@ function App() {
               <Route path="/role-menu" element={<RoleMenu />} />
 
               {/* EDM */}
-              <Route path="/edm/edm-dashboard" element={<EDMDashboard />} />
+              <Route path="/edm/dashboard" element={<EDMDashboard />} />
               <Route path="/edm/documents" element={<DocumentList />} />
               <Route path="/edm/doc-version/:docId" element={<DocVersion />} />
               <Route path="/edm/user-access" element={<UserAccessDoc />} />
               <Route path="/edm/inactive-docs" element={<InActiveDocsList />} />
 
-              {/* Organization charts */}
-              {/* <Route path="/org-chart" element={<OrgChart />} /> */}
+              {/* Flow Builder */}
+              <Route path="/flowchart" element={<FlowBuilderC />} />
+
+              {/* KPI Module */}
+              <Route path="/kpi/dashboard" element={<KPIDashboard />} />
+              <Route path="/kpi/master" element={<KPIMaster />} />
+              <Route path="/kpi/employees" element={<EmployeeKpi />} />
+              <Route path="/kpi/my-kpis" element={<MyKPIs />} />
+              <Route path="/kpi/manager-review" element={<ManagerReviewCycle />} />
+              <Route path="/kpi/employee-review" element={<EmployeeReviewCycle />} />
+              <Route path="/kpi/allocate-kpi" element={<AllocateKPI />} />
+              <Route path="/kpi/review-cycles" element={<ReviewCycles />} />
 
               {/* FAQs */}
               <Route path="/faq" element={<Help1 />} />
@@ -112,9 +133,14 @@ function App() {
               <Route path="/item-master/:id" element={<ItemMasterDetails />} />
               <Route path="/rm/upload-documents" element={<SampleRM1 />} />
 
-              {/* Flow Builder */}
-              <Route path="/fb" element={<FlowBuilderC />} />
+              {/* Assetless Ticket Request */}
+              <Route path="/service-requests/assetless" element={<AssetlessTicketRequest />} />
+              <Route path="/service-requests/my-tickets" element={<AssetlessMyTickets />} />
+              <Route path="/service-requests/tech-tickets" element={<AssetlessTechMyTickets />} />
 
+              {/* Organization charts */}
+              {/* <Route path="/org-chart" element={<OrgChart />} /> */}
+              {/* <Route path="/kpi" element={<KpiModule />} /> */}
             </Routes>
           }
         />
