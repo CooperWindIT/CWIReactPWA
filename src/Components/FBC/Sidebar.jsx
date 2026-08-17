@@ -12,6 +12,7 @@ import {
   ShareAltOutlined,
   TeamOutlined,
   EyeOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 
 import {
@@ -35,7 +36,7 @@ import { fetchWithAuth } from '../../utils/api';
 import AddDocVersion from './../EDM/Documents/AddVersion';
 import EditDocVersion from './../EDM/Documents/EditVersion';
 import LZString from "lz-string";
-
+import Swal from 'sweetalert2';
 
 const { Option } = Select;
 const FILL_COLORS = ['transparent', '#fdeaea', '#d3f9d8', '#d0ebff', '#fff3bf', '#e5dbff'];
@@ -125,6 +126,8 @@ export default function Sidebar({
   onViewVersion,
   versionJson,
   onSharedPermission,
+
+  onOpenView,
 }) {
 
   const [exportMenuFileId, setExportMenuFileId] = useState(null);
@@ -144,6 +147,7 @@ export default function Sidebar({
   const [removedUsers, setRemovedUsers] = useState([]);
   const [loadingSharedUsers, setLoadingSharedUsers] = useState(false);
   const [saving, setSaving] = useState(null);
+  const [activeSidebarTab, setActiveSidebarTab] = useState("files");
   // const [isVersionMode, setIsVersionMode] = useState(false);
   // const [isVersionEditMode, setIsVersionEditMode] = useState(false);
 
@@ -303,16 +307,42 @@ export default function Sidebar({
       const result = await response.json();
 
       if (response.ok) {
-        message.success(result?.Message || "File shared successfully.");
+
+        await Swal.fire({
+          icon: "success",
+          title: "File Shared",
+          text: result?.Message || "File shared successfully.",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#009ef7",
+        });
+
         setShareModalOpen(false);
         setSelectedUsers([]);
         fetchSharedDrafts();
+
       } else {
-        message.error(result?.Message || "Failed to share file.");
+
+        Swal.fire({
+          icon: "error",
+          title: "Share Failed",
+          text: result?.Message || "Failed to share file.",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#f1416c",
+        });
+
       }
+
     } catch (err) {
       console.error(err);
-      message.error("Something went wrong.");
+
+      Swal.fire({
+        icon: "error",
+        title: "Something Went Wrong",
+        text: "Unable to share the file. Please try again.",
+        confirmButtonText: "OK",
+        confirmButtonColor: "#f1416c",
+      });
+
     } finally {
       setShareLoading(false);
     }
@@ -385,15 +415,26 @@ export default function Sidebar({
 
       if (response.ok) {
 
-        message.success("Permissions updated successfully.");
+        await Swal.fire({
+          icon: "success",
+          title: "Success",
+          text: "Permissions updated successfully.",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#009ef7",
+        });
 
         setManageShareModal(false);
-
         fetchSharedUsers(selectedFile.id);
 
       } else {
 
-        message.error(result.Message);
+        Swal.fire({
+          icon: "error",
+          title: "Failed",
+          text: result?.Message || "Failed to update permissions.",
+          confirmButtonText: "OK",
+          confirmButtonColor: "#f1416c",
+        });
 
       }
 
@@ -472,7 +513,7 @@ export default function Sidebar({
 
     onToggle();
   };
-  
+
 
   return (
     <>
@@ -490,392 +531,449 @@ export default function Sidebar({
       {open && <button type="button" className={styles.backdrop} onClick={onToggle} aria-label="Close menu" />}
 
       <aside className={[styles.drawer, open ? styles.open : ''].join(' ')}>
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>Files</div>
-
-          <button type="button" className={styles.primaryAction} onClick={onNewFile}>
-            <FolderIcon />
-            <span>Create New</span>
+        <div className={styles.sidebarTabs}>
+          <button
+            type="button"
+            className={`${styles.sidebarTab} ${activeSidebarTab === "files" ? styles.sidebarTabActive : ""
+              }`}
+            onClick={() => setActiveSidebarTab("files")}
+          >
+            <i className="bi bi-folder2-open me-2"></i>
+            Files
           </button>
 
-          <div className={styles.tabRow} role="tablist">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={activeTab === tab.id}
-                className={[styles.tabBtn, activeTab === tab.id ? styles.tabBtnActive : ''].join(' ')}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            className={`${styles.sidebarTab} ${activeSidebarTab === "canvas" ? styles.sidebarTabActive : ""
+              }`}
+            onClick={() => setActiveSidebarTab("canvas")}
+          >
+            <i className="bi bi-palette2 me-2"></i>
+            Canvas
+          </button>
+        </div>
+        {activeSidebarTab === "files" && (
+          <div className={styles.section}>
+            <div className={styles.sectionTitle}>Files</div>
 
-          {activeTab === 'documents' && (
-            <div className={styles.filterRow}>
-              <Select
-                value={docTypeFilter}
-                onChange={(value) => {
-                  setDocTypeFilter(value);
-                  fetchEDMDocuments(value);
-                }}
-                style={{ width: "100%" }}
-                placeholder="Select Document Type"
-              >
-                {docTypeOptions.map((item) => (
-                  <Option
-                    key={item.MasterTypeId}
-                    value={item.MasterTypeId}
-                  >
-                    {item.TypeName}
-                  </Option>
-                ))}
-              </Select>
+            <button type="button" className={styles.primaryAction} onClick={onNewFile}>
+              <FolderIcon />
+              <span>Create New</span>
+            </button>
+
+            <div className={styles.tabRow} role="tablist">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  className={[styles.tabBtn, activeTab === tab.id ? styles.tabBtnActive : ''].join(' ')}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
-          )}
 
-          <div className={styles.fileList}>
-            {activeTab === 'mine' && visibleDrafts?.length === 0 && (
-              <div className={styles.empty}>
-                {activeTab === 'mine' && 'No saved files yet'}
-              </div>
-            )}
-
-            {activeTab === 'shared' && visibleSharedDrafts?.length === 0 && (
-              <div className={styles.empty}>
-                {activeTab === 'shared' && 'No shared drafts yet'}
-              </div>
-            )}
-
-            {activeTab === 'documents' && visibleDocuments?.length === 0 && (
-              <div className={styles.empty}>No documents match these filters</div>
-            )}
-
-            {activeTab === 'mine' && visibleDrafts?.map((file) => (
-              <div
-                key={file.id}
-                className={[styles.fileItem, currentFileId === file.id ? styles.fileItemActive : ''].join(' ')}
-                style={{ position: 'relative' }}
-              >
-                <button
-                  type="button"
-                  className={styles.fileMain}
-                  onClick={() => { onLoadFile(file.id); onToggle(); }}
-                >
-                  <span className={styles.fileName}>{file.name || 'Untitled diagram'}</span>
-                  <span className={styles.fileMeta}>{fmt(file.updatedAt)}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  onClick={() => onDeleteFile(file.id)}
-                  aria-label="Delete file"
-                >
-                  <DeleteOutlined />
-                </button>
-
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  aria-label="Share File"
-                  onClick={() => {
-                    setSelectedFile(file);
-                    setSelectedUsers([]);
-                    setShareModalOpen(true);
+            {activeTab === 'documents' && (
+              <div className={styles.filterRow}>
+                <Select
+                  value={docTypeFilter}
+                  onChange={(value) => {
+                    setDocTypeFilter(value);
+                    fetchEDMDocuments(value);
                   }}
-                // disabled={true}
+                  style={{ width: "100%" }}
+                  placeholder="Select Document Type"
                 >
-                  <ShareAltOutlined />
-                </button>
-
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  aria-label="Manage Shared Users"
-                  onClick={() => {
-                    setSelectedFile(file);
-                    fetchSharedUsers(file.id);
-                    setManageShareModal(true);
-                  }}
-                // disabled={true}
-                >
-                  <TeamOutlined />
-                </button>
-                {/* ✅ Export button with popup */}
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  aria-label="Export file"
-                  onClick={() => setExportMenuFileId(exportMenuFileId === file.id ? null : file.id)}
-                >
-                  <CloudDownloadOutlined />
-                </button>
-
-                {/* ✅ Export popup menu */}
-                {exportMenuFileId === file.id && (
-                  <div className={styles.exportMenu}>
-                    <button
-                      type="button"
-                      className={styles.exportMenuItem}
-                      onClick={() => handleDownloadLocal(file)}
-                      disabled={exporting}
+                  {docTypeOptions.map((item) => (
+                    <Option
+                      key={item.MasterTypeId}
+                      value={item.MasterTypeId}
                     >
-                      <DownloadOutlined style={{ marginRight: 6 }} />
-                      {exporting ? 'Exporting...' : 'Download to Local'}
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.exportMenuItem}
-                      onClick={() => {
-                        setExportMenuFileId(null);
-                        onUploadToEdm(file);  // ✅ use the prop directly, not handleUploadToEdm
-                      }}
-                    >
-                      <CloudUploadOutlined style={{ marginRight: 6 }} />
-                      Upload to EDM
-                    </button>
-                  </div>
-                )}
+                      {item.TypeName}
+                    </Option>
+                  ))}
+                </Select>
               </div>
-            ))}
+            )}
 
-            {activeTab === 'shared' && visibleSharedDrafts?.map((file) => (
-              <div
-                key={file.id}
-                className={[styles.fileItem, currentFileId === file.id ? styles.fileItemActive : ''].join(' ')}
-                style={{ position: 'relative' }}
-              >
-                <button
-                  type="button"
-                  className={styles.fileMain}
-                  onClick={() => {
-                    onLoadFile(file.id);
-                    onSharedPermission(file.isWrite); // true / false
-                    onToggle();
-                }}
+            <div className={styles.fileList}>
+              {activeTab === 'mine' && visibleDrafts?.length === 0 && (
+                <div className={styles.empty}>
+                  {activeTab === 'mine' && 'No saved files yet'}
+                </div>
+              )}
+
+              {activeTab === 'shared' && visibleSharedDrafts?.length === 0 && (
+                <div className={styles.empty}>
+                  {activeTab === 'shared' && 'No shared drafts yet'}
+                </div>
+              )}
+
+              {activeTab === 'documents' && visibleDocuments?.length === 0 && (
+                <div className={styles.empty}>No documents match these filters</div>
+              )}
+
+              {activeTab === 'mine' && visibleDrafts?.map((file) => (
+                <div
+                  key={file.id}
+                  className={[styles.fileItem, currentFileId === file.id ? styles.fileItemActive : ''].join(' ')}
+                  style={{ position: 'relative' }}
                 >
-                  {/* Top Row */}
-                  <div className="d-flex justify-content-between align-items-start mb-2">
-                    <Tooltip title={file.name}>
-                      <span
-                        className={styles.fileName}
-                        style={{
-                          maxWidth: "170px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          display: "inline-block",
-                          fontWeight: 600,
+
+                  <div className={styles.fileCard}>
+                    <div className={styles.fileInfo}>
+                      <div className={styles.fileName}>
+                        {file.name || "Untitled Diagram"}
+                      </div>
+
+                      <div className={styles.fileDate}>
+                        <i className="bi bi-clock me-1"></i>
+                        {fmt(file.updatedAt)}
+                      </div>
+                    </div>
+
+                    <div className={styles.actionRow}>
+                      <button
+                        className={`${styles.actionBtn} ${styles.viewBtn}`}
+                        onClick={() => {
+                          onOpenView(true);
+                          onLoadFile(file.id);
+                          onToggle();
                         }}
                       >
-                        {file.name?.length > 28
-                          ? `${file.name.substring(0, 28)}...`
-                          : file.name}
-                      </span>
-                    </Tooltip>
+                        <EyeOutlined />
+                        <span>View</span>
+                      </button>
 
-                    <span
-                      className="badge rounded-pill d-flex align-items-center"
-                      style={{
-                        background: "#e6f4ff",
-                        color: "#1677ff",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        gap: 4,
-                        padding: "4px 8px",
-                      }}
-                    >
-                      <UserOutlined style={{ fontSize: 11 }} />
-                      {file.shared}
-                    </span>
+                      <button
+                        className={`${styles.actionBtn} ${styles.editBtn}`}
+                        onClick={() => {
+                          onOpenView(false);
+                          onLoadFile(file.id);
+                          onToggle();
+                        }}
+                      >
+                        <EditOutlined />
+                        <span>Edit</span>
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Bottom */}
-                  <span className={styles.fileMeta}>
-                    {fmt(file.updatedAt)}
-                  </span>
-                </button>
-              </div>
-            ))}
-
-            {activeTab === "documents" &&
-              visibleDocuments?.map((doc) => (
-                <div
-                  key={doc.id}
-                  className={styles.docItem}
-                  onClick={() => {
-
-                    const jsonString =
-                      LZString.decompressFromBase64(doc.JsonData);
-
-                    if (!jsonString) {
-                      message.error("Unable to load diagram");
-                      return;
-                    }
-                    const diagram = JSON.parse(jsonString);
-                    onLoadDocument(diagram);
-                    onToggle();
-                  }}
-                >
-                  <span
-                    className={`${styles.versionBadge} ${doc.VersionStatus === "PUBLISHED"
-                      ? styles.published
-                      : styles.notPublished
-                      }`}
+                  <button
+                    type="button"
+                    className={styles.iconButton}
+                    onClick={() => onDeleteFile(file.id)}
+                    aria-label="Delete file"
                   >
-                    {doc.VersionStatus === "PUBLISHED"
-                      ? "Published"
-                      : "Not Published"}
-                  </span>
+                    <DeleteOutlined />
+                  </button>
 
-                  <div className={styles.docIconWrap}>
-                    <DocIcon />
-                  </div>
+                  <button
+                    type="button"
+                    className={styles.iconButton}
+                    aria-label="Share File"
+                    onClick={() => {
+                      setSelectedFile(file);
+                      setSelectedUsers([]);
+                      setShareModalOpen(true);
+                    }}
+                  // disabled={true}
+                  >
+                    <ShareAltOutlined />
+                  </button>
 
-                  <div className={styles.docBody}>
-                    <Tooltip title={doc.name}>
-                      <div className={styles.fileName}>
-                        {doc.name.length > 20
-                          ? `${doc.name.substring(0, 20)}...`
-                          : doc.name}
-                      </div>
-                    </Tooltip>
+                  <button
+                    type="button"
+                    className={styles.iconButton}
+                    aria-label="Manage Shared Users"
+                    onClick={() => {
+                      setSelectedFile(file);
+                      fetchSharedUsers(file.id);
+                      setManageShareModal(true);
+                    }}
+                  // disabled={true}
+                  >
+                    <TeamOutlined />
+                  </button>
+                  {/* ✅ Export button with popup */}
+                  <button
+                    type="button"
+                    className={styles.iconButton}
+                    aria-label="Export file"
+                    onClick={() => setExportMenuFileId(exportMenuFileId === file.id ? null : file.id)}
+                  >
+                    <CloudDownloadOutlined />
+                  </button>
 
-                    <div className="d-flex justify-content-between align-items-center mt-2">
-                      <span className="badge bg-light text-dark border">
-                        <UserOutlined className="me-1 text-primary" />
-                        {doc.uploadedBy || "Unknown"}
-                      </span>
-
-                      <span className="badge bg-light text-dark border">
-                        <CalendarOutlined className="me-1 text-primary" />
-                        {new Date(
-                          doc.CreatedOn.replace("Z", "")
-                        ).toLocaleString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-
-                    <div className={styles.actionBar}>
-                      <Tooltip title={"View Diagram"}>
-                        <span style={{ display: "inline-block" }}>
-                          <button
-                            className={styles.viewBtn}
-                            disabled={doc.VersionStatus?.toUpperCase() === "PUBLISHED"}
-                            onClick={() => handleViewVersion(doc)}
-                          >
-                            <EyeOutlined /> View Version
-                          </button>
-                        </span>
-                      </Tooltip>
-
-                      <Tooltip
-                        title={
-                          doc.VersionStatus?.toUpperCase() === "PUBLISHED"
-                            ? "Published versions cannot be edited"
-                            : "Edit Version"
-                        }
+                  {/* ✅ Export popup menu */}
+                  {exportMenuFileId === file.id && (
+                    <div className={styles.exportMenu}>
+                      <button
+                        type="button"
+                        className={styles.exportMenuItem}
+                        onClick={() => handleDownloadLocal(file)}
+                        disabled={exporting}
                       >
-                        <span style={{ display: "inline-block" }}>
-                          <button
-                            className={styles.editBtn}
-                            disabled={doc.VersionStatus?.toUpperCase() === "PUBLISHED"}
-                            onClick={() => handleEditVersion(doc)}
-                          >
-                            ✏ Edit Version
-                          </button>
-                        </span>
-                      </Tooltip>
-
-                      <Tooltip
-                        title={
-                          doc.VersionStatus !== "PUBLISHED"
-                            ? "Add Version is available only for Published documents"
-                            : "Add Version"
-                        }
+                        <DownloadOutlined style={{ marginRight: 6 }} />
+                        {exporting ? 'Exporting...' : 'Download to Local'}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.exportMenuItem}
+                        onClick={() => {
+                          setExportMenuFileId(null);
+                          onUploadToEdm(file);  // ✅ use the prop directly, not handleUploadToEdm
+                        }}
                       >
-                        <span style={{ display: "inline-block" }}>
-                          <Button
-                            className={styles.addBtn}
-                            disabled={doc.VersionStatus !== "PUBLISHED"}
-                            onClick={() => handleAddVersion(doc)}
-                          >
-                            + Add Version
-                          </Button>
-                        </span>
-                      </Tooltip>
+                        <CloudUploadOutlined style={{ marginRight: 6 }} />
+                        Upload to EDM
+                      </button>
                     </div>
-                  </div>
+                  )}
                 </div>
               ))}
-          </div>
-        </div>
 
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>Theme</div>
+              {activeTab === 'shared' && visibleSharedDrafts?.map((file) => (
+                <div
+                  key={file.id}
+                  className={[styles.fileItem, currentFileId === file.id ? styles.fileItemActive : ''].join(' ')}
+                  style={{ position: 'relative' }}
+                >
+                  <button
+                    type="button"
+                    className={styles.fileMain}
+                    onClick={() => {
+                      onLoadFile(file.id);
+                      onSharedPermission(file.isWrite); // true / false
+                      onToggle();
+                    }}
+                  >
+                    {/* Top Row */}
+                    <div className="d-flex justify-content-between align-items-start mb-2">
+                      <Tooltip title={file.name}>
+                        <span
+                          className={styles.fileName}
+                          style={{
+                            maxWidth: "170px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            display: "inline-block",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {file.name?.length > 28
+                            ? `${file.name.substring(0, 28)}...`
+                            : file.name}
+                        </span>
+                      </Tooltip>
 
-          <div className={styles.themeRow}>
-            <button
-              type="button"
-              className={[styles.themeBtn, theme === 'light' ? styles.themeBtnActive : ''].join(' ')}
-              onClick={() => onThemeChange('light')}
-            >
-              <SunIcon />
-              <span>Light</span>
-            </button>
+                      <span
+                        className="badge rounded-pill d-flex align-items-center"
+                        style={{
+                          background: "#e6f4ff",
+                          color: "#1677ff",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          gap: 4,
+                          padding: "4px 8px",
+                        }}
+                      >
+                        <UserOutlined style={{ fontSize: 11 }} />
+                        {file.shared}
+                      </span>
+                    </div>
 
-            <button
-              type="button"
-              className={[styles.themeBtn, theme === 'dark' ? styles.themeBtnActive : ''].join(' ')}
-              onClick={() => onThemeChange('dark')}
-            >
-              <MoonIcon />
-              <span>Dark</span>
-            </button>
-          </div>
-        </div>
-
-        <div className={styles.section}>
-          <button type="button" className={styles.toggleRow} onClick={handleGridToggle}>
-            <span>Grid</span>
-            <span className={[styles.toggleCheck, showGrid ? styles.toggleCheckActive : ''].join(' ')}>OK</span>
-          </button>
-        </div>
-
-        <div className={styles.section}>
-          <button type="button" className={styles.toggleRow} onClick={onToggleAutoArrow}>
-            <span>Auto Arrow</span>
-            <span className={[styles.toggleCheck, autoArrowEnabled ? styles.toggleCheckActive : ''].join(' ')}>OK</span>
-          </button>
-        </div>
-
-        <div className={styles.section}>
-          <div className={styles.bgSection}>
-            <div className={styles.bgLabel}>Canvas Background</div>
-
-            <div className={styles.bgSwatches}>
-              {FILL_COLORS.map((color) => (
-                <button
-                  key={color}
-                  className={[
-                    styles.bgSwatch,
-                    color === 'transparent' ? styles.bgSwatchTransparent : '',
-                  ].join(' ')}
-                  style={color !== 'transparent' ? { background: color } : undefined}
-                  onClick={() => onChangeCanvasBg(color === 'transparent' ? 'transparent' : color)}
-                />
+                    {/* Bottom */}
+                    <span className={styles.fileMeta}>
+                      {fmt(file.updatedAt)}
+                    </span>
+                  </button>
+                </div>
               ))}
+
+              {activeTab === "documents" &&
+                visibleDocuments?.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className={styles.docItem}
+                    onClick={() => {
+
+                      const jsonString =
+                        LZString.decompressFromBase64(doc.JsonData);
+
+                      if (!jsonString) {
+                        message.error("Unable to load diagram");
+                        return;
+                      }
+                      const diagram = JSON.parse(jsonString);
+                      onLoadDocument(diagram);
+                      onToggle();
+                    }}
+                  >
+                    <span
+                      className={`${styles.versionBadge} ${doc.VersionStatus === "PUBLISHED"
+                        ? styles.published
+                        : styles.notPublished
+                        }`}
+                    >
+                      {doc.VersionStatus === "PUBLISHED"
+                        ? "Published"
+                        : "Not Published"}
+                    </span>
+
+                    <div className={styles.docIconWrap}>
+                      <DocIcon />
+                    </div>
+
+                    <div className={styles.docBody}>
+                      <Tooltip title={doc.name}>
+                        <div className={styles.fileName}>
+                          {doc.name.length > 20
+                            ? `${doc.name.substring(0, 20)}...`
+                            : doc.name}
+                        </div>
+                      </Tooltip>
+
+                      <div className="d-flex justify-content-between align-items-center mt-2">
+                        <span className="badge bg-light text-dark border">
+                          <UserOutlined className="me-1 text-primary" />
+                          {doc.uploadedBy || "Unknown"}
+                        </span>
+
+                        <span className="badge bg-light text-dark border">
+                          <CalendarOutlined className="me-1 text-primary" />
+                          {new Date(
+                            doc.CreatedOn.replace("Z", "")
+                          ).toLocaleString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+
+                      <div className={styles.actionBar}>
+                        <Tooltip title={"View Diagram"}>
+                          <span style={{ display: "inline-block" }}>
+                            <button
+                              className={styles.viewBtn}
+                              disabled={doc.VersionStatus?.toUpperCase() === "PUBLISHED"}
+                              onClick={() => handleViewVersion(doc)}
+                            >
+                              <EyeOutlined /> View Version
+                            </button>
+                          </span>
+                        </Tooltip>
+
+                        <Tooltip
+                          title={
+                            doc.VersionStatus?.toUpperCase() === "PUBLISHED"
+                              ? "Published versions cannot be edited"
+                              : "Edit Version"
+                          }
+                        >
+                          <span style={{ display: "inline-block" }}>
+                            <button
+                              className={styles.editBtn}
+                              disabled={doc.VersionStatus?.toUpperCase() === "PUBLISHED"}
+                              onClick={() => handleEditVersion(doc)}
+                            >
+                              ✏ Edit Version
+                            </button>
+                          </span>
+                        </Tooltip>
+
+                        <Tooltip
+                          title={
+                            doc.VersionStatus !== "PUBLISHED"
+                              ? "Add Version is available only for Published documents"
+                              : "Add Version"
+                          }
+                        >
+                          <span style={{ display: "inline-block" }}>
+                            <Button
+                              className={styles.addBtn}
+                              disabled={doc.VersionStatus !== "PUBLISHED"}
+                              onClick={() => handleAddVersion(doc)}
+                            >
+                              + Add Version
+                            </Button>
+                          </span>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  </div>
+                ))}
             </div>
           </div>
-        </div>
+        )}
+        {activeSidebarTab === "canvas" && (
+          <>
+            <div className={styles.section}>
+              <div className={styles.sectionTitle}>Theme</div>
+
+              <div className={styles.themeRow}>
+                <button
+                  type="button"
+                  className={[styles.themeBtn, theme === 'light' ? styles.themeBtnActive : ''].join(' ')}
+                  onClick={() => onThemeChange('light')}
+                >
+                  <SunIcon />
+                  <span>Light</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={[styles.themeBtn, theme === 'dark' ? styles.themeBtnActive : ''].join(' ')}
+                  onClick={() => onThemeChange('dark')}
+                >
+                  <MoonIcon />
+                  <span>Dark</span>
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.section}>
+              <button type="button" className={styles.toggleRow} onClick={handleGridToggle}>
+                <span>Grid</span>
+                <span className={[styles.toggleCheck, showGrid ? styles.toggleCheckActive : ''].join(' ')}>OK</span>
+              </button>
+            </div>
+
+            <div className={styles.section}>
+              <button type="button" className={styles.toggleRow} onClick={onToggleAutoArrow}>
+                <span>Auto Arrow</span>
+                <span className={[styles.toggleCheck, autoArrowEnabled ? styles.toggleCheckActive : ''].join(' ')}>OK</span>
+              </button>
+            </div>
+
+            <div className={styles.section}>
+              <div className={styles.bgSection}>
+                <div className={styles.bgLabel}>Canvas Background</div>
+
+                <div className={styles.bgSwatches}>
+                  {FILL_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      className={[
+                        styles.bgSwatch,
+                        color === 'transparent' ? styles.bgSwatchTransparent : '',
+                      ].join(' ')}
+                      style={color !== 'transparent' ? { background: color } : undefined}
+                      onClick={() => onChangeCanvasBg(color === 'transparent' ? 'transparent' : color)}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </aside>
 
 

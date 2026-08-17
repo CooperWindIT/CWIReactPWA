@@ -53,6 +53,7 @@ import EmployeeReviewCycle from './Components/KPI/Employees/employeeReviewCycle'
 import AssetlessTicketRequest from './Components/ServiceNow/AssetlessTicketRequest';
 import AssetlessMyTickets from './Components/ServiceNow/MyTickets';
 import AssetlessTechMyTickets from './Components/ServiceNow/TechMyTickets';
+import KPIHRPublish from './Components/KPI/Publish/KPIHRPublish';
 
 function App() {
   return (
@@ -120,6 +121,7 @@ function App() {
               <Route path="/kpi/employee-review" element={<EmployeeReviewCycle />} />
               <Route path="/kpi/allocate-kpi" element={<AllocateKPI />} />
               <Route path="/kpi/review-cycles" element={<ReviewCycles />} />
+              <Route path="/kpi/hr-publish" element={<KPIHRPublish />} />
 
               {/* FAQs */}
               <Route path="/faq" element={<Help1 />} />

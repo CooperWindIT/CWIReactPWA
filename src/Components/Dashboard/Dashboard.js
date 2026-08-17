@@ -9,8 +9,7 @@ import { Popover } from 'antd';
 import DashboardVisitsData from './DashboardVisitsData';
 import Swal from 'sweetalert2';
 import { InboxOutlined } from '@ant-design/icons';
-import { Upload } from 'antd';
-import { Select } from 'antd';
+import { Upload, Select, Menu, Dropdown } from 'antd';
 import ViewVisit from '../Visitings/View';
 import EditPass from '../Visitings/Edit';
 import { useLocation } from "react-router-dom";
@@ -22,6 +21,7 @@ export default function Dashboard() {
     const location = useLocation();
     const [sessionUserData, setsessionUserData] = useState({});
     const [sessionActionIds, setSessionActionIds] = useState([]);
+    const [menuData, setMenuData] = useState([]);
     const [dashboardCountData, setDashboardCountData] = useState({});
     const [selectedCheckType, setSelectedCheckType] = useState(null);
     const [visitorTypesData, setVisitorTypesData] = useState([]);
@@ -59,6 +59,7 @@ export default function Dashboard() {
         const sessionMenuData = sessionStorage.getItem("menuData");
         try {
             const parsedMenu = JSON.parse(sessionMenuData);
+            setMenuData(parsedMenu)
 
             // Find Dashboard and Visitors menus
             const dashboardMenu = parsedMenu.find(
@@ -760,29 +761,55 @@ export default function Dashboard() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a
-                                    href="/vms/dashboard"
-                                    style={{ position: "relative", zIndex: 10 }}
-                                >
-                                    <span className="menu-link bg-white shadow-sm me-2 cursor-pointer active">
-                                        <span className="menu-title">
-                                            <i className="fa-solid fa-person-walking"></i> Visitors
-                                        </span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
+                                <div className="d-flex align-items-center">
+                                    {menuData?.map((menu) => {
+                                        const hasSubItems = menu.SubItems && menu.SubItems.length > 0;
 
-                                <a
-                                    href="/report?reportId=3"
-                                    style={{ position: "relative", zIndex: 10 }}
-                                >
-                                    <span className="menu-link bg-white shadow-sm me-2 cursor-pointer">
-                                        <span className="menu-title">
-                                            <i className="fa-solid fa-chart-simple"></i> Report
-                                        </span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
+                                        if (hasSubItems) {
+                                            const subMenu = (
+                                                <Menu className="shadow-sm border-0 rounded-3 mt-2">
+                                                    {menu.SubItems.map((sub) => (
+                                                        <Menu.Item key={sub.AppMenuId} className="p-3">
+                                                            <a
+                                                                href={sub.MenuPath.startsWith('/') ? sub.MenuPath : `/${sub.MenuPath}`}
+                                                                className="text-gray-700 fw-bold text-decoration-none"
+                                                            >
+                                                                <i className="bi bi-arrow-return-right me-1"></i>
+                                                                {sub.MenuName}
+                                                            </a>
+                                                        </Menu.Item>
+                                                    ))}
+                                                </Menu>
+                                            );
+
+                                            return (
+                                                <Dropdown overlay={subMenu} trigger={['hover']} key={menu.AppMenuId}>
+                                                    <span className="menu-link bg-white shadow-sm me-2 cursor-pointer border border-gray-100">
+                                                        <span className="menu-title">
+                                                            <i className={`${menu.IconName || 'bi bi-grid'} text-primary me-2`}></i>
+                                                            {menu.MenuName}
+                                                        </span>
+                                                        <i className="bi bi-chevron-down ms-2 fs-9"></i>
+                                                    </span>
+                                                </Dropdown>
+                                            );
+                                        }
+                                        return (
+                                            <a
+                                                key={menu.AppMenuId}
+                                                href={menu.MenuPath}
+                                                style={{ position: "relative", zIndex: 10, textDecoration: 'none' }}
+                                            >
+                                                <span className={`menu-link bg-white shadow-sm me-2 cursor-pointer ${window.location.pathname === menu.MenuPath ? 'active border-primary' : ''}`}>
+                                                    <span className="menu-title text-gray-800">
+                                                        <i className={`${menu.IconName} text-primary me-2`}></i>
+                                                        {menu.MenuName}
+                                                    </span>
+                                                </span>
+                                            </a>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
 
@@ -858,18 +885,6 @@ export default function Dashboard() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a href='/vms/dashboard' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2 active">
-                                        <span className="menu-title"><i className="fa-solid fa-person-walking "></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
-                                <a href='/report?reportId=3' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2">
-                                        <span className="menu-title"><i className="fa-solid fa-chart-simple"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
                             </div>
                         </div>
 

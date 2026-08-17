@@ -6,7 +6,7 @@ import { fetchWithAuth } from "../../../utils/api";
 import Swal from 'sweetalert2';
 import { useLocation } from "react-router-dom";
 import { Dropdown, Menu, Tooltip, Select, Input, Skeleton, message, Modal, Button } from 'antd';
-import { getKPIsByPeriod, getPerformancePeriods, getReviewCyclesByUser, SaveAssessments, getCyclesScoreByUserId, getFeedBacks } from '../services/kpiServices';
+import { getKPIsByPeriod, getPerformancePeriods, getReviewCyclesByUser, SaveAssessments, getCyclesScoreByUserId, getFeedBacks, getIsSelfBtnEnable } from '../services/kpiServices';
 
 const { Option } = Select;
 
@@ -27,10 +27,11 @@ export default function MyKPIs() {
     const [totalWeightedScore, setTotalWeightedScore] = useState(0);
     const [reviewData, setReviewData] = useState([]);
     const [expandedCards, setExpandedCards] = useState(new Set());
-     const [feedbackData, setFeedbackData] = useState([]);
-     const [feedbackModal, setFeedbackModal] = useState(false);
+    const [feedbackData, setFeedbackData] = useState([]);
+    const [feedbackModal, setFeedbackModal] = useState(false);
     const [selectedFeedback, setSelectedFeedback] = useState(null);
     const [feedback, setFeedback] = useState("");
+    const [selfEnable, setSelfEnable] = useState({});
     const toggleCard = (id) => {
         setExpandedCards((prev) => {
             const next = new Set(prev);
@@ -235,26 +236,39 @@ export default function MyKPIs() {
         }
     };
 
-    const fetchFeedBacks = async () => {
+        const fetchIsSelfBtnEnable = async () => {
             try {
-    
-                const response = await getFeedBacks({
+                const response = await getIsSelfBtnEnable({
                     orgId: sessionUserData?.OrgId,
-                    id: selectedFeedback?.Id,
                 });
     
-                setFeedbackData(response?.data || []);
-    
+                const data = response?.data?.[0];
+                setSelfEnable(data);
             } catch (error) {
                 console.error(error);
             }
         };
-    
-        useEffect(() => {
-            if (selectedFeedback?.Id && sessionUserData?.OrgId) {
-                fetchFeedBacks();
-            }
-        }, [selectedFeedback, sessionUserData?.OrgId]);
+
+    const fetchFeedBacks = async () => {
+        try {
+
+            const response = await getFeedBacks({
+                orgId: sessionUserData?.OrgId,
+                id: selectedFeedback?.Id,
+            });
+
+            setFeedbackData(response?.data || []);
+
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedFeedback?.Id && sessionUserData?.OrgId) {
+            fetchFeedBacks();
+        }
+    }, [selectedFeedback, sessionUserData?.OrgId]);
 
     const fetchReviewCycles = async () => {
         try {
@@ -278,6 +292,7 @@ export default function MyKPIs() {
     useEffect(() => {
         if (sessionUserData?.OrgId) {
             fetchPerformancePeriods();
+            fetchIsSelfBtnEnable();
         }
     }, [sessionUserData?.OrgId]);
 
@@ -355,7 +370,7 @@ export default function MyKPIs() {
 
             const data = response?.data || [];
 
-            setReviewData(data);
+            setReviewData(data || [0]);
             setReviewStatus(data[0]?.Status || "Pending");
 
             // Calculate Total Weighted Score
@@ -374,10 +389,10 @@ export default function MyKPIs() {
     };
 
     useEffect(() => {
-        if (selectedQuarter && sessionUserData?.OrgId) {
+        if (selectedQuarter && sessionUserData?.OrgId && selectedPeriod) {
             fetchCyclesScoreByUserId();
         }
-    }, [selectedQuarter, sessionUserData?.OrgId]);
+    }, [selectedQuarter, sessionUserData?.OrgId, selectedPeriod]);
 
     useEffect(() => {
         if (reviewCycleData?.length > 0) {
@@ -479,6 +494,18 @@ export default function MyKPIs() {
         }
     };
 
+    const selfDisabledMessage =
+    reviewStatus === "REVIEWED"
+        ? "Self assessment has already been reviewed."
+        : reviewStatus === "SUBMITTED"
+            ? "Self assessment has already been submitted."
+            : selfEnable?.IsSelfBtnEnable !== 1
+                ? selfEnable?.Message || "Self score submission is locked."
+                : "";
+                const isSelfDisabled =
+    reviewStatus === "REVIEWED" ||
+    reviewStatus === "SUBMITTED" ||
+    selfEnable?.IsSelfBtnEnable !== 1;
     const managerEnabled = reviewStatus === "SUBMITTED";
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
     const colors = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626"];
@@ -691,18 +718,6 @@ export default function MyKPIs() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a href='/edm/dashboard' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2 active">
-                                        <span className="menu-title"><i className="bi bi-columns-gap text-primary fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
-                                <a href='/edm/documents' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2">
-                                        <span className="menu-title"><i className="fa-solid fa-file-invoice fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
                             </div>
                         </div>
 
@@ -790,7 +805,6 @@ export default function MyKPIs() {
                                         <Select
                                             size="large"
                                             showSearch
-                                            allowClear
                                             placeholder="Select Performance Period"
                                             value={selectedPeriod || undefined}
                                             style={{ width: "100%" }}
@@ -838,11 +852,11 @@ export default function MyKPIs() {
                                                 <div className="col-lg-3 col-md-6 col-12" key={quarter.Id}>
                                                     <div
                                                         className={`review-quarter-card
-                                                                                            ${selectedQuarter?.Id === quarter.Id ? "active-quarter" : ""}
-                                                                                            ${quarter.Status !== "OPEN" ? "quarter-disabled" : ""}
-                                                                                        `}
+                                                            ${selectedQuarter?.Id === quarter.Id ? "active-quarter" : ""}
+                                                            ${quarter.Status === "DRAFT" ? "quarter-disabled" : ""}
+                                                        `}
                                                         onClick={() => {
-                                                            if (quarter.Status !== "OPEN") return;
+                                                            if (quarter.Status === "DRAFT") return;
                                                             setSelectedQuarter(quarter);
                                                         }}
                                                     >
@@ -890,8 +904,7 @@ export default function MyKPIs() {
                                 </div>
                             )}
 
-                            {selectedQuarter && (
-
+                            {reviewCycleData.length > 0 && selectedQuarter && (
                                 <div className='col-12'>
                                     <div className="card border-0 shadow-sm rounded-4">
                                         <div className="card-header border-0 py-3 px-4">
@@ -990,7 +1003,7 @@ export default function MyKPIs() {
                                                                             <hr />
 
                                                                             <div className="d-flex gap-2 mb-3 flex-wrap">
-                                                                                 <div className="flex-fill" style={{ minWidth: "180px" }}>
+                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
                                                                                     <div className="metric-box">
                                                                                         <div className="metric-icon bg-light-primary">
                                                                                             <i className="bi bi-bullseye text-primary"></i>
@@ -1001,7 +1014,7 @@ export default function MyKPIs() {
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
-                                                                                 <div className="flex-fill" style={{ minWidth: "180px" }}>
+                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
                                                                                     <div className="metric-box">
                                                                                         <div className="metric-icon bg-light-info">
                                                                                             <i className="bi bi-percent text-info"></i>
@@ -1012,7 +1025,7 @@ export default function MyKPIs() {
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
-                                                                                 <div className="flex-fill" style={{ minWidth: "180px" }}>
+                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
                                                                                     <div className="metric-box">
                                                                                         <div className="metric-icon bg-light-success">
                                                                                             <i className="bi bi-calculator-fill text-success"></i>
@@ -1023,7 +1036,7 @@ export default function MyKPIs() {
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
-                                                                                 <div className="flex-fill" style={{ minWidth: "180px" }}>
+                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
                                                                                     <div className="metric-box">
                                                                                         <div className="metric-icon bg-light-danger">
                                                                                             <i className="bi bi-bar-chart-line-fill text-danger"></i>
@@ -1034,7 +1047,7 @@ export default function MyKPIs() {
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
-                                                                                 <div className="flex-fill" style={{ minWidth: "180px" }}>
+                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
                                                                                     <div className="metric-box">
                                                                                         <div className="metric-icon bg-light-dark">
                                                                                             <i className="bi bi-rulers text-dark"></i>
@@ -1062,39 +1075,53 @@ export default function MyKPIs() {
                                                                                                     Self Score
                                                                                                 </label>
 
-                                                                                                <Input
-                                                                                                    size="large"
-                                                                                                    type="number"
-                                                                                                    style={{ height: 40 }}
-                                                                                                    value={item.Score1 ?? ""}
-                                                                                                    disabled={
-                                                                                                        reviewStatus === "REVIEWED" ||
-                                                                                                        reviewStatus === "SUBMITTED"
-                                                                                                    }
-                                                                                                    onChange={(e) =>
-                                                                                                        handleInputChange(index, "Score1", e.target.value)
-                                                                                                    }
-                                                                                                    onWheel={(e) => e.target.blur()}
-                                                                                                />
+                                                                                                <Tooltip
+    title={isSelfDisabled ? selfDisabledMessage : ""}
+>
+    <span className="d-block">
+        <Input
+            size="large"
+            type="number"
+            style={{ height: 40 }}
+            value={item.Score1 ?? ""}
+            disabled={isSelfDisabled}
+            onChange={(e) =>
+                handleInputChange(
+                    index,
+                    "Score1",
+                    e.target.value
+                )
+            }
+            onWheel={(e) => e.target.blur()}
+        />
+    </span>
+</Tooltip>
                                                                                             </div>
 
                                                                                             <div>
                                                                                                 <label className="small fw-semibold mb-1">
                                                                                                     <i className="bi bi-chat-left-text text-primary me-1"></i>
-                                                                                                    Self Remarks
+                                                                                                    Self Feedback
                                                                                                 </label>
 
-                                                                                                <Input.TextArea
-                                                                                                    rows={4}
-                                                                                                    value={item.Remarks1 ?? ""}
-                                                                                                    disabled={
-                                                                                                        reviewStatus === "REVIEWED" ||
-                                                                                                        reviewStatus === "SUBMITTED"
-                                                                                                    }
-                                                                                                    onChange={(e) =>
-                                                                                                        handleInputChange(index, "Remarks1", e.target.value)
-                                                                                                    }
-                                                                                                />
+                                                                                                <Tooltip
+    title={isSelfDisabled ? selfDisabledMessage : ""}
+>
+    <span className="d-block">
+        <Input.TextArea
+            rows={4}
+            value={item.Remarks1 ?? ""}
+            disabled={isSelfDisabled}
+            onChange={(e) =>
+                handleInputChange(
+                    index,
+                    "Remarks1",
+                    e.target.value
+                )
+            }
+        />
+    </span>
+</Tooltip>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
@@ -1127,7 +1154,7 @@ export default function MyKPIs() {
                                                                                             <div>
                                                                                                 <label className="small fw-semibold mb-1">
                                                                                                     <i className="bi bi-chat-left-text-fill text-success me-1"></i>
-                                                                                                    Manager Remarks
+                                                                                                    Manager Feedback
                                                                                                 </label>
 
                                                                                                 <Input.TextArea
@@ -1142,20 +1169,20 @@ export default function MyKPIs() {
                                                                             </div>
 
                                                                             <div className="d-flex justify-content-end mt-3">
-                                                                                                                                                            <Button
-                                                                                                                                                                type="default"
-                                                                                                                                                                className="btn-premium-outline-info"
-                                                                                                                                                                icon={<i className="bi bi-chat-square-text-fill"></i>}
-                                                                                                                                                                onClick={(e) => {
-                                                                                                                                                                    e.stopPropagation();
-                                                                                                                                                                    setSelectedFeedback(item);
-                                                                                                                                                                    setFeedbackModal(true);
-                                                                                                                                                                }}
-                                                                                                                                                                disabled={reviewStatus === 'Pending'}
-                                                                                                                                                            >
-                                                                                                                                                                Any Time Feedback
-                                                                                                                                                            </Button>
-                                                                                                                                                        </div>
+                                                                                <Button
+                                                                                    type="default"
+                                                                                    className="btn-premium-outline-info"
+                                                                                    icon={<i className="bi bi-chat-square-text-fill"></i>}
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        setSelectedFeedback(item);
+                                                                                        setFeedbackModal(true);
+                                                                                    }}
+                                                                                // disabled={reviewStatus === 'Pending'}
+                                                                                >
+                                                                                    Any Time Feedback
+                                                                                </Button>
+                                                                            </div>
                                                                         </>
                                                                     )}
                                                                 </div>
@@ -1218,7 +1245,7 @@ export default function MyKPIs() {
                                                                     onClick={handleRequestReview}
                                                                 >
                                                                     <i className="bi bi-send-check-fill me-2"></i>
-                                                                    Request Review
+                                                                    Request for Review
                                                                 </button>
                                                             </span>
                                                         </Tooltip>
@@ -1260,104 +1287,104 @@ export default function MyKPIs() {
                 </div>
             </div>
 
-             {/* Any tiem feedback Model */}
-                        <Modal
-                            open={feedbackModal}
-                            footer={null}
-                            centered
-                            width={900}
-                            destroyOnClose
-                            onCancel={() => {
-                                setFeedbackModal(false);
-                                setFeedback("");
-                            }}
-                        >
-                            <div className="feedback-modal">
-                                <div className="feedback-header mb-3">
-                                    <div className="feedback-icon">
-                                        <i className="bi bi-chat-heart-fill text-white"></i>
-                                    </div>
-                                    <div className="flex-grow-1 ms-3">
-                                        <h5 className="fw-bold mb-0">
-                                            Performance Feedback
-                                        </h5>
-                                        <small className="text-muted">
-                                            Employee KPI Review
-                                        </small>
-                                    </div>
-                                    <span className="badge bg-light-primary text-primary px-3 py-2">
-                                        Score {Number(selectedFeedback?.WeightedScore ?? 0).toFixed(2)}
-                                    </span>
-                                </div>
-            
-                                {/* KPI */}
-                                <div className="feedback-kpi-card mb-4">
-                                    <div className="fw-bold fs-5">
-                                        {selectedFeedback?.KPIName}
-                                    </div>
-                                </div>
-            
-                                {/* Previous Feedback */}
-                                <div className="mb-4">
-                                    <div className="d-flex align-items-center justify-content-between mb-3">
-                                        <h6 className="fw-bold mb-0">
-                                            <i className="bi bi-clock-history text-primary me-2"></i>
-                                            Previous Feedback
-                                        </h6>
-            
-                                        <span className="badge bg-light-secondary text-dark">
-                                            {feedbackData?.length || 0} Records
-                                        </span>
-                                    </div>
-            
-                                    <div className="feedback-history">
-                                        {feedbackData?.length > 0 ? (
-                                            feedbackData.map((item, index) => (
-                                                <div
-                                                    className="feedback-item"
-                                                    key={`${item.tablePrimaryId}-${index}`}
-                                                >
-                                                    <div className="feedback-avatar bg-light-success">
-                                                        <i className="bi bi-person-check-fill text-success"></i>
-                                                    </div>
-                                                    <div className="feedback-content">
-                                                        <div className="d-flex justify-content-between align-items-center">
-                                                            <strong>
-                                                                Feedback #{feedbackData.length - index}
-                                                            </strong>
-            
-                                                            <small className="text-info fw-bold">
-                                                                {item.CommentedOn
-                                                                    ? new Date(item.CommentedOn).toLocaleString(
-                                                                        "en-IN",
-                                                                        {
-                                                                            day: "2-digit",
-                                                                            month: "short",
-                                                                            year: "numeric",
-                                                                            hour: "2-digit",
-                                                                            minute: "2-digit"
-                                                                        }
-                                                                    )
-                                                                    : "-"}
-                                                            </small>
-                                                        </div>
-                                                        <div className="text-muted mt-1">
-                                                            {item.CommentText}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="text-center text-muted py-4">
-                                                <i className="bi bi-chat-left-text fs-2 d-block mb-2"></i>
-                                                No previous feedback available.
+            {/* Any tiem feedback Model */}
+            <Modal
+                open={feedbackModal}
+                footer={null}
+                centered
+                width={900}
+                destroyOnClose
+                onCancel={() => {
+                    setFeedbackModal(false);
+                    setFeedback("");
+                }}
+            >
+                <div className="feedback-modal">
+                    <div className="feedback-header mb-3">
+                        <div className="feedback-icon">
+                            <i className="bi bi-chat-heart-fill text-white"></i>
+                        </div>
+                        <div className="flex-grow-1 ms-3">
+                            <h5 className="fw-bold mb-0">
+                                Performance Feedback
+                            </h5>
+                            <small className="text-muted">
+                                Employee KPI Review
+                            </small>
+                        </div>
+                        <span className="badge bg-light-primary text-primary px-3 py-2">
+                            Score {Number(selectedFeedback?.WeightedScore ?? 0).toFixed(2)}
+                        </span>
+                    </div>
+
+                    {/* KPI */}
+                    <div className="feedback-kpi-card mb-4">
+                        <div className="fw-bold fs-5">
+                            {selectedFeedback?.KPIName}
+                        </div>
+                    </div>
+
+                    {/* Previous Feedback */}
+                    <div className="mb-4">
+                        <div className="d-flex align-items-center justify-content-between mb-3">
+                            <h6 className="fw-bold mb-0">
+                                <i className="bi bi-clock-history text-primary me-2"></i>
+                                Previous Feedback
+                            </h6>
+
+                            <span className="badge bg-light-secondary text-dark">
+                                {feedbackData?.length || 0} Records
+                            </span>
+                        </div>
+
+                        <div className="feedback-history">
+                            {feedbackData?.length > 0 ? (
+                                feedbackData.map((item, index) => (
+                                    <div
+                                        className="feedback-item"
+                                        key={`${item.tablePrimaryId}-${index}`}
+                                    >
+                                        <div className="feedback-avatar bg-light-success">
+                                            <i className="bi bi-person-check-fill text-success"></i>
+                                        </div>
+                                        <div className="feedback-content">
+                                            <div className="d-flex justify-content-between align-items-center">
+                                                <strong>
+                                                    Feedback #{feedbackData.length - index}
+                                                </strong>
+
+                                                <small className="text-info fw-bold">
+                                                    {item.CommentedOn
+                                                        ? new Date(item.CommentedOn).toLocaleString(
+                                                            "en-IN",
+                                                            {
+                                                                day: "2-digit",
+                                                                month: "short",
+                                                                year: "numeric",
+                                                                hour: "2-digit",
+                                                                minute: "2-digit"
+                                                            }
+                                                        )
+                                                        : "-"}
+                                                </small>
                                             </div>
-                                        )}
+                                            <div className="text-muted mt-1">
+                                                {item.CommentText}
+                                            </div>
+                                        </div>
                                     </div>
+                                ))
+                            ) : (
+                                <div className="text-center text-muted py-4">
+                                    <i className="bi bi-chat-left-text fs-2 d-block mb-2"></i>
+                                    No previous feedback available.
                                 </div>
-                                {/* Add Feedback */}
-            
-                                {/* <div>
+                            )}
+                        </div>
+                    </div>
+                    {/* Add Feedback */}
+
+                    {/* <div>
                                     <label className="form-label fw-semibold">
                                         <i className="bi bi-pencil-square text-primary me-2"></i>
                                         Add New Feedback
@@ -1371,8 +1398,8 @@ export default function MyKPIs() {
                                         showCount
                                     />
                                 </div> */}
-            
-                                {/* <div className="d-flex justify-content-end gap-2 mt-7">
+
+                    {/* <div className="d-flex justify-content-end gap-2 mt-7">
                                     <Button onClick={() => {setFeedbackModal(false); setFeedback("");}}>
                                         Cancel
                                     </Button>
@@ -1391,8 +1418,8 @@ export default function MyKPIs() {
                                         {feedbackLoading ? "Saving..." : "Save Feedback"}
                                     </Button>
                                 </div> */}
-                            </div>
-                        </Modal>
+                </div>
+            </Modal>
 
             <style>
                 {`

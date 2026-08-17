@@ -840,18 +840,6 @@ export default function KPIMaster() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a href='/edm/dashboard' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2 active">
-                                        <span className="menu-title"><i className="bi bi-columns-gap text-primary fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
-                                <a href='/edm/documents' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2">
-                                        <span className="menu-title"><i className="fa-solid fa-file-invoice fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
                             </div>
                         </div>
 
@@ -881,7 +869,7 @@ export default function KPIMaster() {
 
                 <div id="kt_app_content" className="app-content flex-column-fluid" style={{ marginTop: '-30px' }}>
                     <div id="kt_app_content_container" className="app-container container-xxl">
-                        <div
+                        {/* <div
                             className="d-flex align-items-center p-2 bg-white rounded-pill shadow-sm mb-4 w-100"
                             style={{ border: "1px solid #e9ecef" }}
                         >
@@ -934,9 +922,61 @@ export default function KPIMaster() {
                                     </button>
                                 )}
                             </div>
+                        </div> */}
+
+                        <div className="d-flex flex-wrap align-items-center gap-2">
+                            {showOrgTab && (
+                                <button
+                                    className={`btn rounded-pill px-3 px-md-4 py-2 fw-semibold ${activeTab === "organization"
+                                        ? "btn-primary shadow-sm"
+                                        : "btn-light border"
+                                        }`}
+                                    onClick={() => setActiveTab("organization")}
+                                >
+                                    <i className="fa-solid fa-building me-2"></i>
+                                    Organization KPI
+                                </button>
+                            )}
+
+                            {showDeptTab && (
+                                <button
+                                    className={`btn rounded-pill px-3 px-md-4 py-2 fw-semibold ${activeTab === "department"
+                                        ? "btn-primary shadow-sm"
+                                        : "btn-light border"
+                                        }`}
+                                    onClick={() => setActiveTab("department")}
+                                >
+                                    <i className="fa-solid fa-users-gear me-2"></i>
+                                    Department KPI
+                                </button>
+                            )}
+
+                            <Link
+                                to="/kpi/allocate-kpi"
+                                className="btn rounded-pill px-3 px-md-4 py-2 fw-semibold btn-light-primary"
+                            >
+                                <i className="bi bi-bullseye me-2"></i>
+                                Allocate KPI
+                            </Link>
+
+                            {showAdd && (
+                                <div className="kpi-actions">
+                                    <button
+                                        className="premium-btn-primary btn-sm"
+                                        onClick={() => setOpenCreateKPI(true)}
+                                        title={activeTab === "department" ? "Coming soon..!" : ""}
+                                        disabled={activeTab === "department"}
+                                    >
+                                        <span className="premium-btn-icon">
+                                            <i className="bi bi-plus-lg"></i>
+                                        </span>
+                                        <span>Create KPI</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
-                        {activeTab === "organization" && (
+                        {/* {activeTab === "organization" && (
                             <div className="card shadow-sm border-0">
                                 <div className="card-body">
                                     <div className="card border-0 shadow-sm mb-4">
@@ -1104,9 +1144,13 @@ export default function KPIMaster() {
                                         <div className="d-flex justify-content-between align-items-center flex-wrap pt-10">
                                             <div className="d-flex align-items-center gap-4 flex-wrap">
                                                 <div className="fs-6 fw-bold text-gray-700">
-                                                    Showing {filteredParentKpis.length > 0 ? parentKpiFirstIndex + 1 : 0}
-                                                    to {Math.min(parentKpiLastIndex, filteredParentKpis.length)}
-                                                    of {filteredParentKpis.length} entries
+                                                    Showing{" "}
+                                                    {filteredParentKpis.length > 0 ? parentKpiFirstIndex + 1 : 0}{" "}
+                                                    to{" "}
+                                                    {Math.min(parentKpiLastIndex, filteredParentKpis.length)}{" "}
+                                                    of{" "}
+                                                    {filteredParentKpis.length}{" "}
+                                                    entries
                                                     {parentKpiSearch &&
                                                         ` (filtered from ${managerKpis.length} total entries)`}
                                                 </div>
@@ -1142,95 +1186,479 @@ export default function KPIMaster() {
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        )} */}
 
-                        {activeTab === "department" && (
+                        {activeTab === "organization" && (
                             <div className="card shadow-sm border-0">
                                 <div className="card-body">
+
+                                    {/* Organization KPI Header */}
                                     <div className="card border-0 shadow-sm mb-4">
                                         <div className="card-body py-3">
-                                            <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
-                                                <div className="d-flex justify-content-between align-items-center">
 
-                                                    <div>
-                                                        <h6 className="fw-bold mb-1 text-dark">
-                                                            {openChildTab ? "Child KPI Management" : "Department KPI Management"}
-                                                        </h6>
-                                                        <small className="text-muted">
-                                                            {openChildTab
-                                                                ? "Manage child KPIs assigned to the selected parent KPI."
-                                                                : "Manage department-level KPIs."}
-                                                        </small>
-                                                        {openChildTab && (
-                                                            <nav className="mt-2">
-                                                                <span
-                                                                    className="text-primary fw-semibold"
-                                                                    style={{ cursor: "pointer" }}
-                                                                    onClick={() => setOpenChildTab(false)}
-                                                                >
-                                                                    Parent KPIs
-                                                                </span>
+                                            <div className="organization-kpi-header">
 
-                                                                <i className="bi bi-chevron-right mx-2 text-muted"></i>
+                                                {/* Title */}
+                                                <div className="organization-kpi-title">
+                                                    <h3 className="mb-0">
+                                                        Organization KPI Management
+                                                    </h3>
+                                                </div>
 
-                                                                <span className="text-dark fw-bold">
-                                                                    Child KPIs
-                                                                </span>
-                                                            </nav>
-                                                        )}
+                                                {/* Search */}
+                                                <div className="organization-kpi-search">
+                                                    <div className="input-group input-group-sm">
+                                                        <span className="input-group-text bg-light border-end-0">
+                                                            <i className="fa fa-search text-muted"></i>
+                                                        </span>
+
+                                                        <input
+                                                            type="text"
+                                                            className="form-control border-start-0"
+                                                            placeholder="Search KPI Name..."
+                                                            value={parentKpiSearch}
+                                                            onChange={(e) => {
+                                                                setParentKpiSearch(e.target.value);
+                                                                setParentKpiPage(1);
+                                                            }}
+                                                        />
                                                     </div>
                                                 </div>
 
-                                                <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+                                            </div>
 
-                                                    {/* Right Side */}
-                                                    <div style={{ width: "320px" }}>
-                                                        <div className="input-group">
-                                                            <span
-                                                                className="input-group-text bg-light border-end-0"
-                                                                style={{
-                                                                    borderRadius: "10px 0 0 10px",
+                                        </div>
+                                    </div>
+
+                                    {/* KPI Table */}
+                                    <div className="table-responsive organization-kpi-table">
+
+                                        <table className="table align-middle table-hover gs-7 gy-4 mb-0 fs-6">
+
+                                            <thead className="bg-light-primary">
+                                                <tr className="text-start text-muted fw-bold fs-7 text-uppercase border-bottom-2 border-primary">
+
+                                                    <th>#</th>
+
+                                                    <th>KPI Name</th>
+
+                                                    <th>Registered During</th>
+
+                                                    <th>Objective</th>
+
+                                                    <th>UoM</th>
+
+                                                    <th width="80">
+                                                        Actions
+                                                    </th>
+
+                                                </tr>
+                                            </thead>
+
+                                            <tbody className="fw-semibold text-gray-700">
+
+                                                {parentKpiRecords.map((item, index) => (
+
+                                                    <tr key={item.Id}>
+
+                                                        <td>
+                                                            {index + 1}
+                                                        </td>
+
+                                                        <td>
+                                                            {item.KPIName}
+                                                        </td>
+
+                                                        <td>
+                                                            {item.Registered_During || "---"}
+                                                        </td>
+
+                                                        <td
+                                                            style={{
+                                                                maxWidth: "320px"
+                                                            }}
+                                                        >
+                                                            <Tooltip
+                                                                title={
+                                                                    stripHtml(item.Objectives) || "-"
+                                                                }
+                                                                placement="topLeft"
+                                                                overlayStyle={{
+                                                                    maxWidth: 350
                                                                 }}
                                                             >
-                                                                <i className="fa fa-search text-muted"></i>
+                                                                <span
+                                                                    style={{
+                                                                        cursor: "pointer"
+                                                                    }}
+                                                                >
+                                                                    {(() => {
+
+                                                                        const text =
+                                                                            stripHtml(
+                                                                                item.Objectives
+                                                                            );
+
+                                                                        return text
+                                                                            ? text.length > 90
+                                                                                ? `${text.substring(
+                                                                                    0,
+                                                                                    90
+                                                                                )}...`
+                                                                                : text
+                                                                            : "-";
+
+                                                                    })()}
+                                                                </span>
+                                                            </Tooltip>
+                                                        </td>
+
+                                                        <td>
+                                                            {item.UOMName || "---"}
+                                                        </td>
+
+                                                        {/* Actions */}
+                                                        <td>
+
+                                                            <Dropdown
+                                                                trigger={["hover"]}
+                                                                placement="bottomRight"
+                                                                overlayClassName="premium-dropdown"
+                                                                menu={{
+                                                                    items: [
+
+                                                                        {
+                                                                            key: "tree",
+                                                                            disabled: true,
+                                                                            label: (
+                                                                                <Tooltip
+                                                                                    title="Coming Soon"
+                                                                                    placement="left"
+                                                                                >
+                                                                                    <div className="dropdown-item-premium opacity-50">
+
+                                                                                        <i className="bi bi-diagram-3-fill text-secondary"></i>
+
+                                                                                        <span>
+                                                                                            Tree View
+                                                                                        </span>
+
+                                                                                        <span className="badge bg-warning text-dark ms-auto">
+                                                                                            Soon
+                                                                                        </span>
+
+                                                                                    </div>
+                                                                                </Tooltip>
+                                                                            ),
+                                                                        },
+
+                                                                        {
+                                                                            key: "edit",
+                                                                            label: (
+                                                                                <Tooltip
+                                                                                    title={
+                                                                                        !showEdit
+                                                                                            ? "You don't have access to edit this KPI."
+                                                                                            : item.Status ===
+                                                                                                "RELEASED"
+                                                                                                ? "Released KPIs cannot be edited."
+                                                                                                : "Edit KPI"
+                                                                                    }
+                                                                                >
+                                                                                    <div
+                                                                                        className={`dropdown-item-premium ${!showEdit ||
+                                                                                            item.Status ===
+                                                                                            "RELEASED"
+                                                                                            ? "opacity-50"
+                                                                                            : ""
+                                                                                            }`}
+                                                                                        onClick={(e) => {
+
+                                                                                            if (
+                                                                                                !showEdit ||
+                                                                                                item.Status ===
+                                                                                                "RELEASED"
+                                                                                            ) {
+                                                                                                e.stopPropagation();
+                                                                                                return;
+                                                                                            }
+
+                                                                                            setSelectedKPI(
+                                                                                                item
+                                                                                            );
+
+                                                                                            setOpenEditModal(
+                                                                                                true
+                                                                                            );
+
+                                                                                        }}
+                                                                                    >
+
+                                                                                        <i className="bi bi-pencil-square text-warning"></i>
+
+                                                                                        <span>
+                                                                                            Edit KPI
+                                                                                        </span>
+
+                                                                                    </div>
+                                                                                </Tooltip>
+                                                                            ),
+                                                                        },
+
+                                                                        {
+                                                                            type: "divider",
+                                                                        },
+
+                                                                        {
+                                                                            key: "delete",
+                                                                            danger: true,
+                                                                            disabled: !showDelete,
+                                                                            label: (
+                                                                                <Tooltip
+                                                                                    title={
+                                                                                        !showDelete
+                                                                                            ? "You don't have access to delete this KPI."
+                                                                                            : ""
+                                                                                    }
+                                                                                    placement="left"
+                                                                                >
+                                                                                    <div className="dropdown-item-premium">
+
+                                                                                        <i className="bi bi-trash3 text-danger"></i>
+
+                                                                                        <span>
+                                                                                            Delete KPI
+                                                                                        </span>
+
+                                                                                    </div>
+                                                                                </Tooltip>
+                                                                            ),
+
+                                                                            onClick: () => {
+
+                                                                                if (!showDelete)
+                                                                                    return;
+
+                                                                                setDeleteKPI(item);
+
+                                                                            },
+                                                                        },
+
+                                                                    ],
+                                                                }}
+                                                            >
+
+                                                                <button
+                                                                    type="button"
+                                                                    className="action-menu-btn"
+                                                                >
+                                                                    <i className="bi bi-three-dots-vertical"></i>
+                                                                </button>
+
+                                                            </Dropdown>
+
+                                                        </td>
+
+                                                    </tr>
+
+                                                ))}
+
+                                            </tbody>
+
+                                        </table>
+
+                                    </div>
+
+                                    {/* Pagination */}
+                                    <div className="organization-pagination d-flex justify-content-between align-items-center flex-wrap pt-10">
+                                        <div className="d-flex align-items-center gap-4 flex-wrap">
+                                            <div className="fs-6 fw-bold text-gray-700">
+                                                Showing{" "}
+                                                {filteredParentKpis.length > 0
+                                                    ? parentKpiFirstIndex + 1
+                                                    : 0}
+                                                {" "}to{" "}
+                                                {Math.min(
+                                                    parentKpiLastIndex,
+                                                    filteredParentKpis.length
+                                                )}
+                                                {" "}of{" "}
+                                                {filteredParentKpis.length}
+                                                {parentKpiSearch &&
+                                                    ` (filtered from ${managerKpis.length} total entries)`}
+                                            </div>
+                                        </div>
+
+                                        <ul className="pagination mb-0">
+                                            <li
+                                                className={`page-item previous ${parentKpiPage === 1
+                                                    ? "disabled"
+                                                    : ""
+                                                    }`}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="page-link cursor-pointer"
+                                                    onClick={() =>
+                                                        handleParentKpiPageChange(
+                                                            parentKpiPage - 1
+                                                        )
+                                                    }
+                                                >
+                                                    <i className="ki-outline ki-left fs-2"></i>
+                                                </button>
+                                            </li>
+
+                                            {getParentKpiPageNumbers().map(
+                                                (pageNum, i) => (
+                                                    <li
+                                                        key={i}
+                                                        className={`page-item ${parentKpiPage === pageNum
+                                                            ? "active"
+                                                            : ""
+                                                            } ${pageNum === "..."
+                                                                ? "disabled"
+                                                                : ""
+                                                            }`}
+                                                    >
+                                                        {pageNum === "..." ? (
+                                                            <span className="page-link">
+                                                                ...
+                                                            </span>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                className="page-link cursor-pointer"
+                                                                onClick={() =>
+                                                                    handleParentKpiPageChange(
+                                                                        pageNum
+                                                                    )
+                                                                }
+                                                            >
+                                                                {pageNum}
+                                                            </button>
+                                                        )}
+                                                    </li>
+                                                )
+                                            )}
+
+                                            <li
+                                                className={`page-item next ${parentKpiPage === totalPages
+                                                    ? "disabled"
+                                                    : ""
+                                                    }`}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    className="page-link cursor-pointer"
+                                                    onClick={() =>
+                                                        handleParentKpiPageChange(
+                                                            parentKpiPage + 1
+                                                        )
+                                                    }
+                                                >
+                                                    <i className="ki-outline ki-right fs-2"></i>
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === "department" && (
+                            <div className="card shadow-sm border-0 department-kpi-card">
+                                <div className="card-body">
+                                    <div className="card border-0 shadow-sm mb-4 department-kpi-header-card">
+                                        <div className="card-body py-3">
+                                            <div className="department-kpi-header">
+                                                <div className="department-kpi-title">
+
+                                                    <h6 className="fw-bold mb-1 text-dark">
+                                                        {openChildTab
+                                                            ? "Child KPI Management"
+                                                            : "Department KPI Management"}
+                                                    </h6>
+                                                    <small className="text-muted">
+                                                        {openChildTab
+                                                            ? "Manage child KPIs assigned to the selected parent KPI."
+                                                            : "Manage department-level KPIs."}
+                                                    </small>
+
+                                                    {openChildTab && (
+                                                        <nav className="mt-2">
+
+                                                            <span
+                                                                className="text-primary fw-semibold department-breadcrumb"
+                                                                style={{ cursor: "pointer" }}
+                                                                onClick={() =>
+                                                                    setOpenChildTab(false)
+                                                                }
+                                                            >
+                                                                Parent KPIs
                                                             </span>
 
-                                                            <input
-                                                                type="text"
-                                                                className="form-control border-start-0 border-end-0"
-                                                                placeholder="Search KPI by name or objective..."
-                                                                value={searchQuery}
-                                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                            <i className="bi bi-chevron-right mx-2 text-muted"></i>
+
+                                                            <span className="text-dark fw-bold">
+                                                                Child KPIs
+                                                            </span>
+
+                                                        </nav>
+                                                    )}
+                                                </div>
+
+                                                <div className="department-kpi-search">
+
+                                                    <div className="input-group">
+
+                                                        <span
+                                                            className="input-group-text bg-light border-end-0"
+                                                            style={{
+                                                                borderRadius: "10px 0 0 10px",
+                                                            }}
+                                                        >
+                                                            <i className="fa fa-search text-muted"></i>
+                                                        </span>
+                                                        <input
+                                                            type="text"
+                                                            className="form-control border-start-0 border-end-0"
+                                                            placeholder="Search KPI by name or objective..."
+                                                            value={searchQuery}
+                                                            onChange={(e) =>
+                                                                setSearchQuery(e.target.value)
+                                                            }
+                                                            style={{
+                                                                boxShadow: "none",
+                                                            }}
+                                                        />
+                                                        {searchQuery && (
+                                                            <span
+                                                                className="input-group-text bg-white border-start-0"
                                                                 style={{
-                                                                    boxShadow: "none",
+                                                                    cursor: "pointer",
+                                                                    borderRadius: "0 10px 10px 0",
                                                                 }}
-                                                            />
-
-                                                            {searchQuery && (
-                                                                <span
-                                                                    className="input-group-text bg-white border-start-0"
-                                                                    style={{
-                                                                        cursor: "pointer",
-                                                                        borderRadius: "0 10px 10px 0",
-                                                                    }}
-                                                                    onClick={() => setSearchQuery("")}
-                                                                >
-                                                                    <i className="bi bi-x-circle-fill text-muted"></i>
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                                onClick={() =>
+                                                                    setSearchQuery("")
+                                                                }
+                                                            >
+                                                                <i className="bi bi-x-circle-fill text-muted"></i>
+                                                            </span>
+                                                        )}
                                                     </div>
-
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Allocated kpis */}
                                     {!openChildTab && (
-                                        <div className="table-responsive">
-                                            <div className="d-flex align-items-center gap-3 bg-light p-2 mb-2">
-                                                <span className="text-muted fw-bold">Show</span>
+                                        <div className="department-kpi-table-wrapper">
+                                            <div className="department-kpi-entries d-flex align-items-center gap-3 bg-light p-2 mb-2">
+
+                                                <span className="text-muted fw-bold">
+                                                    Show
+                                                </span>
                                                 <Select
                                                     style={{ width: 80 }}
                                                     size="small"
@@ -1240,323 +1668,623 @@ export default function KPIMaster() {
                                                         setCurrentPage(1);
                                                     }}
                                                     options={[
-                                                        { value: 10, label: "10" },
-                                                        { value: 50, label: "50" },
-                                                        { value: 100, label: "100" }
+                                                        {
+                                                            value: 10,
+                                                            label: "10",
+                                                        },
+                                                        {
+                                                            value: 50,
+                                                            label: "50",
+                                                        },
+                                                        {
+                                                            value: 100,
+                                                            label: "100",
+                                                        },
                                                     ]}
                                                 />
-                                                <span className="text-muted fw-bold">entries</span>
+
+                                                <span className="text-muted fw-bold">
+                                                    entries
+                                                </span>
                                             </div>
 
-                                            <table
-                                                className="table align-middle table-hover gs-7 gy-4 mb-0 fs-6 parent-kpi-table"
-                                                style={{ tableLayout: "fixed", width: "100%" }}
-                                            >
-                                                <thead className="bg-light">
-                                                    <tr className="text-start text-muted fw-bold fs-7 text-uppercase">
-                                                        <th width="40" className="border-0"></th>
-                                                        <th width="60" className="border-0">#</th>
-                                                        <th className="border-0">KPI Name</th>
-                                                        <th className="border-0" width="170">Registered During</th>
-                                                        <th className="border-0" width="200">Measurables</th>
-                                                        <th className="border-0">Objective</th>
-                                                        <th className="border-0" width="140">UOM</th>
-                                                        <th width="90" className="border-0 text-center">Actions</th>
-                                                    </tr>
-                                                </thead>
 
-                                                <tbody className="fw-semibold text-gray-700">
-                                                    {currentRecords?.length > 0 ? (
-                                                        currentRecords.map((item, index) => {
-                                                            const isExpanded = expandedRows.has(item.ParentId);
-                                                            const children = childKpisMap[item.ParentId] || [];
-                                                            const accent = ["accent-primary", "accent-success", "accent-info"][index % 3];
-                                                            return (
-                                                                <React.Fragment key={item.Id}>
-                                                                    <tr
-                                                                        style={{ cursor: "pointer" }}
-                                                                        className={`kpi-row ${accent} ${isExpanded ? "bg-light" : ""}`}
-                                                                        onClick={() => toggleRow(item.ParentId)}
+                                            {/* ==========================================
+                        PARENT KPI TABLE
+                    ========================================== */}
+
+                                            <div className="department-parent-table-scroll">
+
+                                                <table
+                                                    className="table align-middle table-hover gs-7 gy-4 mb-0 fs-6 parent-kpi-table"
+                                                    style={{
+                                                        tableLayout: "fixed",
+                                                        width: "100%",
+                                                    }}
+                                                >
+                                                    <thead className="bg-light">
+                                                        <tr className="text-start text-muted fw-bold fs-7 text-uppercase">
+                                                            <th
+                                                                width="40"
+                                                                className="border-0"
+                                                            ></th>
+
+                                                            <th
+                                                                width="60"
+                                                                className="border-0"
+                                                            >
+                                                                #
+                                                            </th>
+
+                                                            <th className="border-0">
+                                                                KPI Name
+                                                            </th>
+
+                                                            <th
+                                                                className="border-0"
+                                                                width="170"
+                                                            >
+                                                                Registered During
+                                                            </th>
+
+                                                            <th
+                                                                className="border-0"
+                                                                width="200"
+                                                            >
+                                                                Measurables
+                                                            </th>
+
+                                                            <th className="border-0">
+                                                                Objective
+                                                            </th>
+
+                                                            <th
+                                                                className="border-0"
+                                                                width="140"
+                                                            >
+                                                                UOM
+                                                            </th>
+
+                                                            <th
+                                                                width="90"
+                                                                className="border-0 text-center"
+                                                            >
+                                                                Actions
+                                                            </th>
+                                                        </tr>
+                                                    </thead>
+
+
+                                                    <tbody className="fw-semibold text-gray-700">
+                                                        {currentRecords?.length > 0 ? (
+                                                            currentRecords.map((item, index) => {
+                                                                const isExpanded =
+                                                                    expandedRows.has(
+                                                                        item.ParentId
+                                                                    );
+
+                                                                const children =
+                                                                    childKpisMap[
+                                                                    item.ParentId
+                                                                    ] || [];
+
+                                                                const accent =
+                                                                    [
+                                                                        "accent-primary",
+                                                                        "accent-success",
+                                                                        "accent-info",
+                                                                    ][index % 3];
+
+                                                                return (
+                                                                    <React.Fragment
+                                                                        key={item.Id}
                                                                     >
-                                                                        <td className="text-center border-0">
-                                                                            <span className="chevron-btn d-inline-flex align-items-center justify-content-center rounded-3 bg-light-primary">
-                                                                                <i
-                                                                                    className={`bi ${isExpanded ? "bi-chevron-down" : "bi-chevron-right"} text-primary`}
-                                                                                ></i>
-                                                                            </span>
-                                                                        </td>
-                                                                        <td className="border-0">
-                                                                            <span className="avatar-square d-inline-flex align-items-center justify-content-center rounded-3 bg-primary text-white fw-bold">
-                                                                                {index + 1}
-                                                                            </span>
-                                                                        </td>
-                                                                        <td className="border-0">
-                                                                            <div className="d-flex align-items-center gap-2">
-                                                                                <span className="avatar-circle d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary">
-                                                                                    <i className="bi bi-bullseye text-primary"></i>
+                                                                        <tr
+                                                                            style={{
+                                                                                cursor: "pointer",
+                                                                            }}
+                                                                            className={`kpi-row ${accent} ${isExpanded
+                                                                                    ? "bg-light"
+                                                                                    : ""
+                                                                                }`}
+                                                                            onClick={() =>
+                                                                                toggleRow(
+                                                                                    item.ParentId
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <td className="text-center border-0">
+                                                                                <span className="chevron-btn d-inline-flex align-items-center justify-content-center rounded-3 bg-light-primary">
+                                                                                    <i
+                                                                                        className={`bi ${isExpanded
+                                                                                                ? "bi-chevron-down"
+                                                                                                : "bi-chevron-right"
+                                                                                            } text-primary`}
+                                                                                    ></i>
                                                                                 </span>
-                                                                                <div>
-                                                                                    <div className="fw-bold text-gray-800">{item.KPIName}</div>
-                                                                                    {children.length > 0 && (
-                                                                                        <span className="badge badge-light-secondary rounded-pill fw-normal">
-                                                                                            {children.length} Child KPI{children.length > 1 ? "s" : ""}
-                                                                                        </span>
-                                                                                    )}
-                                                                                </div>
-                                                                            </div>
-                                                                        </td>
-                                                                        <td className="border-0">
-                                                                            <i className="bi bi-calendar3 text-muted me-1"></i>
-                                                                            {item.Registered_During || '---'}
-                                                                        </td>
-                                                                        <td className="border-0">
-                                                                            {item.Measurables || '---'}
-                                                                        </td>
-                                                                        <td className="border-0" style={{ maxWidth: "320px" }}>
-                                                                            <Tooltip
-                                                                                title={stripHtml(item.Objectives) || "-"}
-                                                                                placement="topLeft"
-                                                                                overlayStyle={{ maxWidth: 350 }}
-                                                                            >
-                                                                                <span style={{ cursor: "pointer" }}>
-                                                                                    {(() => {
-                                                                                        const text = stripHtml(item.Objectives);
-                                                                                        return text
-                                                                                            ? text.length > 90
-                                                                                                ? `${text.substring(0, 90)}...`
-                                                                                                : text
-                                                                                            : "-";
-                                                                                    })()}
+                                                                            </td>
+
+                                                                            <td className="border-0">
+                                                                                <span className="avatar-square d-inline-flex align-items-center justify-content-center rounded-3 bg-primary text-white fw-bold">
+                                                                                    {index + 1}
                                                                                 </span>
-                                                                            </Tooltip>
-                                                                        </td>
-                                                                        <td className="border-0">
-                                                                            <span className="badge badge-light-info rounded-pill">{item.UOMName || "---"}</span>
-                                                                        </td>
-                                                                        <td className="border-0 text-center" onClick={(e) => e.stopPropagation()}>
-                                                                            <Dropdown
-                                                                                trigger={["hover"]}
-                                                                                placement="bottomRight"
-                                                                                overlayClassName="premium-dropdown"
-                                                                                menu={{
-                                                                                    items: [
-                                                                                        {
-                                                                                            key: "addKpi",
-                                                                                            label: (
-                                                                                                <div
-                                                                                                    className="dropdown-item-premium"
-                                                                                                    onClick={() => {
-                                                                                                        if (!showAdd) return;
-                                                                                                        setOpenCreateKPI(true);
-                                                                                                        setSelectedParentKPIId(item.ParentId);
-                                                                                                        setSelectedParentUOMId(item.UOMId);
-                                                                                                    }}
-                                                                                                >
-                                                                                                    <i className="bi bi-node-plus-fill text-success"></i>
-                                                                                                    <span>Create Child KPI</span>
-                                                                                                </div>
-                                                                                            ),
-                                                                                        },
-                                                                                    ],
-                                                                                }}
-                                                                            >
-                                                                                <button className="action-menu-btn">
-                                                                                    <i className="bi bi-three-dots-vertical"></i>
-                                                                                </button>
-                                                                            </Dropdown>
-                                                                        </td>
-                                                                    </tr>
+                                                                            </td>
 
-                                                                    {isExpanded && (
-                                                                        <tr>
-                                                                            <td colSpan="7" className="p-0 border-0">
-                                                                                <div className="child-kpi-wrapper">
-                                                                                    <div className="child-header">
-                                                                                        <i className="bi bi-diagram-3-fill me-2 text-primary"></i>
+                                                                            <td className="border-0">
+                                                                                <div className="d-flex align-items-center gap-2">
+                                                                                    <span className="avatar-circle d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary">
+                                                                                        <i className="bi bi-bullseye text-primary"></i>
+                                                                                    </span>
+                                                                                    <div>
+                                                                                        <div className="fw-bold text-gray-800">
+                                                                                            {
+                                                                                                item.KPIName
+                                                                                            }
+                                                                                        </div>
 
-                                                                                        Child KPIs of
-                                                                                        <span className="ms-1 text-primary">
-                                                                                            "{item.KPIName}"
-                                                                                        </span>
-
-                                                                                        <span className="badge bg-light-primary text-primary ms-3 rounded-pill">
-                                                                                            {children.length}
-                                                                                        </span>
+                                                                                        {children.length >
+                                                                                            0 && (
+                                                                                                <span className="badge badge-light-secondary rounded-pill fw-normal">
+                                                                                                    {
+                                                                                                        children.length
+                                                                                                    }{" "}
+                                                                                                    Child KPI
+                                                                                                    {children.length >
+                                                                                                        1
+                                                                                                        ? "s"
+                                                                                                        : ""}
+                                                                                                </span>
+                                                                                            )}
                                                                                     </div>
-
-                                                                                    <table
-                                                                                        className="table align-middle table-hover gs-7 gy-4 mb-0 fs-6 parent-kpi-table"
-                                                                                        style={{ tableLayout: "fixed", width: "100%" }}
-                                                                                    >
-                                                                                        <thead className="bg-light">
-                                                                                            <tr className="text-start text-muted fw-bold fs-7 text-uppercase">
-                                                                                                <th width="40" className="border-0">#</th>
-                                                                                                <th width="274" className="border-0">KPI Name</th>
-                                                                                                <th width="170" className="border-0">Registered During</th>
-                                                                                                <th width="150" className="border-0">Measurables</th>
-                                                                                                <th width="300" className="border-0">Objective</th>
-                                                                                                <th width="90" className="border-0 text-center">Actions</th>
-                                                                                            </tr>
-                                                                                        </thead>
-
-                                                                                        <tbody>
-                                                                                            {children.map((child, index) => (
-                                                                                                <tr key={child.Id}>
-                                                                                                    <td>{index + 1}</td>
-                                                                                                    <td>
-                                                                                                        <div className="fw-bold">
-                                                                                                            {child.KPIName}
-                                                                                                        </div>
-                                                                                                        <div className="text-muted small">Child KPI</div>
-                                                                                                    </td>
-                                                                                                    <td>
-                                                                                                        <span className="badge bg-light-info text-info rounded-pill">
-                                                                                                            {child.Registered_During}
-                                                                                                        </span>
-                                                                                                    </td>
-                                                                                                    <td>
-                                                                                                        <span className="badge bg-light-info text-info rounded-pill">
-                                                                                                            {child.Measurables || '---'}
-                                                                                                        </span>
-                                                                                                    </td>
-                                                                                                    <td>
-                                                                                                        {(() => {
-                                                                                                            const tempDiv = document.createElement("div");
-                                                                                                            tempDiv.innerHTML = child.Objectives || "";
-                                                                                                            const plainText = tempDiv.textContent || tempDiv.innerText || "";
-
-                                                                                                            return (
-                                                                                                                <Tooltip
-                                                                                                                    title={
-                                                                                                                        <div
-                                                                                                                            className="quill-tooltip-content"
-                                                                                                                            dangerouslySetInnerHTML={{
-                                                                                                                                __html: child.Objectives || "",
-                                                                                                                            }}
-                                                                                                                        />
-                                                                                                                    }
-                                                                                                                >
-                                                                                                                    <span>
-                                                                                                                        {plainText.length > 60
-                                                                                                                            ? `${plainText.substring(0, 60)}...`
-                                                                                                                            : plainText}
-                                                                                                                    </span>
-                                                                                                                </Tooltip>
-                                                                                                            );
-                                                                                                        })()}
-                                                                                                    </td>
-                                                                                                    <td className="text-center">
-                                                                                                        <Dropdown
-                                                                                                            trigger={["hover"]}
-                                                                                                            placement="bottomRight"
-                                                                                                            overlayClassName="premium-dropdown"
-                                                                                                            menu={{
-                                                                                                                items: [
-                                                                                                                    {
-                                                                                                                        key: "edit",
-                                                                                                                        label: (
-                                                                                                                            <Tooltip
-                                                                                                                                title={
-                                                                                                                                    !showEdit
-                                                                                                                                        ? "You don't have access to edit this KPI."
-                                                                                                                                        : child.Status === "RELEASED"
-                                                                                                                                            ? "Released KPIs cannot be edited."
-                                                                                                                                            : "Edit KPI"
-                                                                                                                                }
-                                                                                                                            >
-                                                                                                                                <div
-                                                                                                                                    className={`dropdown-item-premium ${!showEdit || child.Status === "RELEASED" ? "opacity-50" : ""}`}
-                                                                                                                                    onClick={(e) => {
-                                                                                                                                        if (!showEdit || child.Status === "RELEASED") {
-                                                                                                                                            e.stopPropagation();
-                                                                                                                                            return;
-                                                                                                                                        }
-
-                                                                                                                                        setSelectedKPI(child);
-                                                                                                                                        setOpenEditModal(true);
-                                                                                                                                    }}
-                                                                                                                                >
-                                                                                                                                    <i className="bi bi-pencil-square text-warning"></i>
-                                                                                                                                    <span>Edit KPI</span>
-                                                                                                                                </div>
-                                                                                                                            </Tooltip>
-                                                                                                                        ),
-                                                                                                                    },
-                                                                                                                    { type: "divider" },
-                                                                                                                    {
-                                                                                                                        key: "delete",
-                                                                                                                        danger: true,
-                                                                                                                        disabled: !showDelete,
-                                                                                                                        label: (
-                                                                                                                            <div className="dropdown-item-premium">
-                                                                                                                                <i className="bi bi-trash3 text-danger"></i>
-                                                                                                                                <span>Delete KPI</span>
-                                                                                                                            </div>
-                                                                                                                        ),
-                                                                                                                        onClick: () => {
-                                                                                                                            if (!showDelete) return;
-                                                                                                                            setDeleteKPI(child);
-                                                                                                                        },
-                                                                                                                    },
-                                                                                                                ],
-                                                                                                            }}
-                                                                                                        >
-                                                                                                            <button className="action-menu-btn">
-                                                                                                                <i className="bi bi-three-dots-vertical"></i>
-                                                                                                            </button>
-                                                                                                        </Dropdown>
-                                                                                                    </td>
-                                                                                                </tr>
-                                                                                            ))}
-                                                                                        </tbody>
-                                                                                    </table>
                                                                                 </div>
                                                                             </td>
-                                                                        </tr>
-                                                                    )}
-                                                                </React.Fragment>
-                                                            );
-                                                        })
-                                                    ) : (
-                                                        <tr>
-                                                            <td colSpan="7" className="text-center py-5 text-muted">
-                                                                No Department KPIs Found
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </tbody>
-                                            </table>
 
-                                            <div className="d-flex justify-content-between align-items-center flex-wrap pt-10">
+                                                                            <td className="border-0">
+                                                                                <i className="bi bi-calendar3 text-muted me-1"></i>
+                                                                                {item.Registered_During ||
+                                                                                    "---"}
+                                                                            </td>
+
+                                                                            <td className="border-0">
+                                                                                {item.Measurables ||
+                                                                                    "---"}
+                                                                            </td>
+
+                                                                            <td
+                                                                                className="border-0"
+                                                                                style={{
+                                                                                    maxWidth: "320px",
+                                                                                }}
+                                                                            >
+
+                                                                                <Tooltip
+                                                                                    title={
+                                                                                        stripHtml(
+                                                                                            item.Objectives
+                                                                                        ) || "-"
+                                                                                    }
+                                                                                    placement="topLeft"
+                                                                                    overlayStyle={{
+                                                                                        maxWidth: 350,
+                                                                                    }}
+                                                                                >
+                                                                                    <span
+                                                                                        style={{
+                                                                                            cursor: "pointer",
+                                                                                        }}
+                                                                                    >
+                                                                                        {(() => {
+
+                                                                                            const text =
+                                                                                                stripHtml(
+                                                                                                    item.Objectives
+                                                                                                );
+
+                                                                                            return text
+                                                                                                ? text.length >
+                                                                                                    90
+                                                                                                    ? `${text.substring(
+                                                                                                        0,
+                                                                                                        90
+                                                                                                    )}...`
+                                                                                                    : text
+                                                                                                : "-";
+                                                                                        })()}
+                                                                                    </span>
+                                                                                </Tooltip>
+                                                                            </td>
+
+                                                                            <td className="border-0">
+                                                                                <span className="badge badge-light-info rounded-pill">
+                                                                                    {item.UOMName ||
+                                                                                        "---"}
+                                                                                </span>
+                                                                            </td>
+                                                                            <td
+                                                                                className="border-0 text-center"
+                                                                                onClick={(e) =>
+                                                                                    e.stopPropagation()
+                                                                                }
+                                                                            >
+                                                                                <Dropdown
+                                                                                    trigger={["hover"]}
+                                                                                    placement="bottomRight"
+                                                                                    overlayClassName="premium-dropdown"
+                                                                                    menu={{
+                                                                                        items: [
+                                                                                            {
+                                                                                                key: "addKpi",
+
+                                                                                                label: (
+                                                                                                    <div
+                                                                                                        className="dropdown-item-premium"
+                                                                                                        onClick={() => {
+                                                                                                            if (
+                                                                                                                !showAdd
+                                                                                                            )
+                                                                                                                return;
+
+                                                                                                            setOpenCreateKPI(
+                                                                                                                true
+                                                                                                            );
+
+                                                                                                            setSelectedParentKPIId(
+                                                                                                                item.ParentId
+                                                                                                            );
+
+                                                                                                            setSelectedParentUOMId(
+                                                                                                                item.UOMId
+                                                                                                            );
+
+                                                                                                        }}
+                                                                                                    >
+                                                                                                        <i className="bi bi-node-plus-fill text-success"></i>
+                                                                                                        <span>
+                                                                                                            Create
+                                                                                                            Child
+                                                                                                            KPI
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                ),
+                                                                                            },
+                                                                                        ],
+                                                                                    }}
+                                                                                >
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="action-menu-btn"
+                                                                                    >
+                                                                                        <i className="bi bi-three-dots-vertical"></i>
+                                                                                    </button>
+                                                                                </Dropdown>
+                                                                            </td>
+                                                                        </tr>
+
+
+                                                                        {/* ==========================================
+                                                    CHILD KPI
+                                                ========================================== */}
+
+                                                                        {isExpanded && (
+                                                                            <tr>
+                                                                                <td
+                                                                                    colSpan="8"
+                                                                                    className="p-0 border-0"
+                                                                                >
+                                                                                    <div className="child-kpi-wrapper">
+                                                                                        <div className="child-header">
+                                                                                            <i className="bi bi-diagram-3-fill me-2 text-primary"></i>
+                                                                                            Child KPIs of
+                                                                                            <span className="ms-1 text-primary">
+                                                                                                "{item.KPIName}"
+                                                                                            </span>
+                                                                                            <span className="badge bg-light-primary text-primary ms-3 rounded-pill">
+                                                                                                {children.length}
+                                                                                            </span>
+                                                                                        </div>
+
+                                                                                        <div className="child-kpi-table-scroll">
+                                                                                            <table className="table align-middle table-hover gs-7 gy-4 mb-0 fs-6 child-kpi-table">
+                                                                                                <thead className="bg-light">
+                                                                                                    <tr className="text-start text-muted fw-bold fs-7 text-uppercase">
+                                                                                                        <th className="child-col-sno">
+                                                                                                            #
+                                                                                                        </th>
+                                                                                                        <th className="child-col-name">
+                                                                                                            KPI Name
+                                                                                                        </th>
+                                                                                                        <th className="child-col-registered">
+                                                                                                            Registered During
+                                                                                                        </th>
+                                                                                                        <th className="child-col-measurables">
+                                                                                                            Measurables
+                                                                                                        </th>
+                                                                                                        <th className="child-col-objective">
+                                                                                                            Objective
+                                                                                                        </th>
+                                                                                                        <th className="child-col-actions text-center">
+                                                                                                            Actions
+                                                                                                        </th>
+                                                                                                    </tr>
+                                                                                                </thead>
+
+                                                                                                <tbody>
+
+                                                                                                    {children.map((child, index) => (
+                                                                                                        <tr key={child.Id}>
+
+                                                                                                            <td className="child-col-sno">
+                                                                                                                {index + 1}
+                                                                                                            </td>
+
+                                                                                                            <td className="child-col-name">
+                                                                                                                <div className="fw-bold">
+                                                                                                                    {child.KPIName}
+                                                                                                                </div>
+                                                                                                                <div className="text-muted small">
+                                                                                                                    Child KPI
+                                                                                                                </div>
+                                                                                                            </td>
+
+                                                                                                            <td className="child-col-registered">
+                                                                                                                <span className="badge bg-light-info text-info rounded-pill">
+                                                                                                                    {child.Registered_During || "---"}
+                                                                                                                </span>
+                                                                                                            </td>
+
+                                                                                                            <td className="child-col-measurables">
+                                                                                                                <span className="badge bg-light-info text-info rounded-pill">
+                                                                                                                    {child.Measurables || "---"}
+                                                                                                                </span>
+                                                                                                            </td>
+
+                                                                                                            <td className="child-col-objective">
+
+                                                                                                                {(() => {
+
+                                                                                                                    const tempDiv =
+                                                                                                                        document.createElement("div");
+
+                                                                                                                    tempDiv.innerHTML =
+                                                                                                                        child.Objectives || "";
+
+                                                                                                                    const plainText =
+                                                                                                                        tempDiv.textContent ||
+                                                                                                                        tempDiv.innerText ||
+                                                                                                                        "";
+
+                                                                                                                    return (
+                                                                                                                        <Tooltip
+                                                                                                                            title={
+                                                                                                                                <div
+                                                                                                                                    className="quill-tooltip-content"
+                                                                                                                                    dangerouslySetInnerHTML={{
+                                                                                                                                        __html:
+                                                                                                                                            child.Objectives ||
+                                                                                                                                            "",
+                                                                                                                                    }}
+                                                                                                                                />
+                                                                                                                            }
+                                                                                                                        >
+                                                                                                                            <span>
+                                                                                                                                {plainText.length > 60
+                                                                                                                                    ? `${plainText.substring(
+                                                                                                                                        0,
+                                                                                                                                        60
+                                                                                                                                    )}...`
+                                                                                                                                    : plainText || "---"}
+                                                                                                                            </span>
+                                                                                                                        </Tooltip>
+                                                                                                                    );
+                                                                                                                })()}
+                                                                                                            </td>
+
+                                                                                                            <td className="child-col-actions text-center">
+                                                                                                                <Dropdown
+                                                                                                                    trigger={["hover"]}
+                                                                                                                    placement="bottomRight"
+                                                                                                                    overlayClassName="premium-dropdown"
+                                                                                                                    menu={{
+                                                                                                                        items: [
+                                                                                                                            {
+                                                                                                                                key: "edit",
+                                                                                                                                label: (
+                                                                                                                                    <Tooltip
+                                                                                                                                        title={
+                                                                                                                                            !showEdit
+                                                                                                                                                ? "You don't have access to edit this KPI."
+                                                                                                                                                : child.Status ===
+                                                                                                                                                    "RELEASED"
+                                                                                                                                                    ? "Released KPIs cannot be edited."
+                                                                                                                                                    : "Edit KPI"
+                                                                                                                                        }
+                                                                                                                                    >
+                                                                                                                                        <div
+                                                                                                                                            className={`dropdown-item-premium ${!showEdit ||
+                                                                                                                                                    child.Status ===
+                                                                                                                                                    "RELEASED"
+                                                                                                                                                    ? "opacity-50"
+                                                                                                                                                    : ""
+                                                                                                                                                }`}
+                                                                                                                                            onClick={(e) => {
+                                                                                                                                                if (
+                                                                                                                                                    !showEdit ||
+                                                                                                                                                    child.Status ===
+                                                                                                                                                    "RELEASED"
+                                                                                                                                                ) {
+                                                                                                                                                    e.stopPropagation();
+                                                                                                                                                    return;
+                                                                                                                                                }
+
+                                                                                                                                                setSelectedKPI(
+                                                                                                                                                    child
+                                                                                                                                                );
+
+                                                                                                                                                setOpenEditModal(
+                                                                                                                                                    true
+                                                                                                                                                );
+                                                                                                                                            }}
+                                                                                                                                        >
+                                                                                                                                            <i className="bi bi-pencil-square text-warning"></i>
+                                                                                                                                            <span>
+                                                                                                                                                Edit KPI
+                                                                                                                                            </span>
+                                                                                                                                        </div>
+                                                                                                                                    </Tooltip>
+                                                                                                                                ),
+                                                                                                                            },
+
+                                                                                                                            {
+                                                                                                                                type: "divider",
+                                                                                                                            },
+
+                                                                                                                            {
+                                                                                                                                key: "delete",
+                                                                                                                                danger: true,
+                                                                                                                                disabled:
+                                                                                                                                    !showDelete,
+                                                                                                                                label: (
+                                                                                                                                    <div className="dropdown-item-premium">
+                                                                                                                                        <i className="bi bi-trash3 text-danger"></i>
+                                                                                                                                        <span>
+                                                                                                                                            Delete KPI
+                                                                                                                                        </span>
+                                                                                                                                    </div>
+                                                                                                                                ),
+                                                                                                                                onClick: () => {
+                                                                                                                                    if (!showDelete)
+                                                                                                                                        return;
+                                                                                                                                    setDeleteKPI(
+                                                                                                                                        child
+                                                                                                                                    );
+                                                                                                                                },
+                                                                                                                            },
+                                                                                                                        ],
+                                                                                                                    }}
+                                                                                                                >
+                                                                                                                    <button
+                                                                                                                        type="button"
+                                                                                                                        className="action-menu-btn"
+                                                                                                                    >
+                                                                                                                        <i className="bi bi-three-dots-vertical"></i>
+                                                                                                                    </button>
+                                                                                                                </Dropdown>
+                                                                                                            </td>
+                                                                                                        </tr>
+                                                                                                    ))}
+                                                                                                </tbody>
+                                                                                            </table>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        )}
+                                                                    </React.Fragment>
+                                                                );
+                                                            })
+                                                        ) : (
+                                                            <tr>
+                                                                <td
+                                                                    colSpan="8"
+                                                                    className="text-center py-5 text-muted"
+                                                                >
+                                                                    No Department KPIs Found
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <div className="department-pagination d-flex justify-content-between align-items-center flex-wrap pt-10">
                                                 <div className="d-flex align-items-center gap-4 flex-wrap">
                                                     <div className="fs-6 fw-bold text-gray-700">
-                                                        Showing {filteredKpis.length > 0 ? indexOfFirstRecord + 1 : 0} to {Math.min(indexOfLastRecord, filteredKpis.length)} of {filteredKpis.length} entries
-                                                        {searchQuery && ` (filtered from ${managerKpis?.length} total entries)`}
+                                                        Showing{" "}
+                                                        {filteredKpis.length > 0
+                                                            ? indexOfFirstRecord + 1
+                                                            : 0}
+
+                                                        {" "}to{" "}
+                                                        {Math.min(
+                                                            indexOfLastRecord,
+                                                            filteredKpis.length
+                                                        )}
+                                                        {" "}of{" "}
+                                                        {filteredKpis.length}
+                                                        {searchQuery &&
+                                                            ` (filtered from ${managerKpis?.length
+                                                            } total entries)`}
                                                     </div>
                                                 </div>
 
-                                                <ul className="pagination">
-                                                    <li className={`page-item previous ${currentPage === 1 ? 'disabled' : ''}`}>
-                                                        <button className="page-link cursor-pointer" onClick={() => handlePageChange(currentPage - 1)}>
+                                                <ul className="pagination mb-0">
+                                                    <li
+                                                        className={`page-item previous ${currentPage === 1
+                                                                ? "disabled"
+                                                                : ""
+                                                            }`}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            className="page-link cursor-pointer"
+                                                            onClick={() =>
+                                                                handlePageChange(
+                                                                    currentPage - 1
+                                                                )
+                                                            }
+                                                        >
                                                             <i className="ki-outline ki-left fs-2"></i>
                                                         </button>
                                                     </li>
-                                                    {getPageNumbers().map((pageNum, i) => (
-                                                        <li
-                                                            key={i}
-                                                            className={`page-item ${currentPage === pageNum ? 'active' : ''} ${pageNum === '...' ? 'disabled' : ''}`}
+                                                    {getPageNumbers().map(
+                                                        (pageNum, i) => (
+                                                            <li
+                                                                key={i}
+                                                                className={`page-item ${currentPage ===
+                                                                        pageNum
+                                                                        ? "active"
+                                                                        : ""
+                                                                    } ${pageNum === "..."
+                                                                        ? "disabled"
+                                                                        : ""
+                                                                    }`}
+                                                            >
+                                                                {pageNum === "..." ? (
+                                                                    <span className="page-link">
+                                                                        ...
+                                                                    </span>
+                                                                ) : (
+
+                                                                    <button
+                                                                        type="button"
+                                                                        className="page-link cursor-pointer"
+                                                                        onClick={() =>
+                                                                            handlePageChange(
+                                                                                pageNum
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        {pageNum}
+                                                                    </button>
+                                                                )}
+                                                            </li>
+                                                        )
+                                                    )}
+                                                    <li
+                                                        className={`page-item next ${currentPage === totalPages
+                                                                ? "disabled"
+                                                                : ""
+                                                            }`}
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            className="page-link cursor-pointer"
+                                                            onClick={() =>
+                                                                handlePageChange(
+                                                                    currentPage + 1
+                                                                )
+                                                            }
                                                         >
-                                                            {pageNum === '...' ? (
-                                                                <span className="page-link">...</span>
-                                                            ) : (
-                                                                <button className="page-link cursor-pointer" onClick={() => handlePageChange(pageNum)}>
-                                                                    {pageNum}
-                                                                </button>
-                                                            )}
-                                                        </li>
-                                                    ))}
-                                                    <li className={`page-item next ${currentPage === totalPages ? 'disabled' : ''}`}>
-                                                        <button className="page-link cursor-pointer" onClick={() => handlePageChange(currentPage + 1)}>
                                                             <i className="ki-outline ki-right fs-2"></i>
                                                         </button>
                                                     </li>
@@ -1564,6 +2292,7 @@ export default function KPIMaster() {
                                             </div>
                                         </div>
                                     )}
+
                                 </div>
                             </div>
                         )}
@@ -1643,6 +2372,578 @@ export default function KPIMaster() {
 
             <style>
                 {`
+                /* =========================================================
+   DEPARTMENT KPI
+   DESKTOP
+========================================================= */
+
+.department-kpi-card {
+    width: 100%;
+}
+
+.department-kpi-header-card {
+    width: 100%;
+}
+
+.department-kpi-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.department-kpi-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.department-kpi-search {
+    width: 320px;
+    min-width: 320px;
+}
+
+.department-kpi-search .input-group {
+    width: 100%;
+}
+
+.department-kpi-table-wrapper {
+    width: 100%;
+}
+
+.department-parent-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.department-parent-table-scroll table {
+    min-width: 1050px;
+}
+
+
+/* =========================================================
+   CHILD KPI
+========================================================= */
+
+.child-kpi-wrapper {
+    width: 100%;
+    background: #f8faff;
+    padding: 15px 20px 20px;
+}
+
+.child-header {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 5px 15px;
+}
+
+.child-kpi-table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.child-kpi-table-scroll table {
+    min-width: 1020px;
+}
+
+
+/* =========================================================
+   SHOW ENTRIES
+========================================================= */
+
+.department-kpi-entries {
+    min-height: 45px;
+    border-radius: 6px;
+}
+
+
+/* =========================================================
+   PAGINATION
+========================================================= */
+
+.department-pagination {
+    width: 100%;
+}
+
+.department-pagination .pagination {
+    margin-bottom: 0;
+}
+
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 767.98px) {
+
+    /* ---------------------------------------------
+       MAIN CARD
+    --------------------------------------------- */
+
+    .department-kpi-card .card-body {
+        padding: 12px !important;
+    }
+
+
+    /* ---------------------------------------------
+       HEADER
+    --------------------------------------------- */
+
+    .department-kpi-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+    }
+
+    .department-kpi-title {
+        width: 100%;
+    }
+
+    .department-kpi-title h6 {
+        font-size: 16px;
+        line-height: 1.4;
+    }
+
+    .department-kpi-title small {
+        display: block;
+        font-size: 12px;
+        line-height: 1.5;
+    }
+
+
+    /* ---------------------------------------------
+       BREADCRUMB
+    --------------------------------------------- */
+
+    .department-kpi-title nav {
+        font-size: 12px;
+        margin-top: 8px !important;
+    }
+
+    .department-kpi-title nav .mx-2 {
+        margin-left: 6px !important;
+        margin-right: 6px !important;
+    }
+
+
+    /* ---------------------------------------------
+       SEARCH
+    --------------------------------------------- */
+
+    .department-kpi-search {
+        width: 100%;
+        min-width: 100%;
+    }
+
+    .department-kpi-search .form-control {
+        height: 40px;
+        font-size: 13px;
+    }
+
+    .department-kpi-search .input-group-text {
+        height: 40px;
+    }
+
+
+    /* ---------------------------------------------
+       SHOW ENTRIES
+    --------------------------------------------- */
+
+    .department-kpi-entries {
+        width: 100%;
+        padding: 8px !important;
+        gap: 8px !important;
+        margin-bottom: 10px !important;
+    }
+
+    .department-kpi-entries span {
+        font-size: 12px;
+    }
+
+    .department-kpi-entries .ant-select {
+        width: 70px !important;
+    }
+
+
+    /* ---------------------------------------------
+       PARENT TABLE
+    --------------------------------------------- */
+
+    .department-parent-table-scroll {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .department-parent-table-scroll table {
+        min-width: 1050px !important;
+        table-layout: fixed !important;
+    }
+
+
+    /* ---------------------------------------------
+       TABLE HEADER
+    --------------------------------------------- */
+
+    .department-parent-table-scroll th {
+        white-space: nowrap;
+        font-size: 11px !important;
+    }
+
+    .department-parent-table-scroll td {
+        font-size: 12px !important;
+    }
+
+
+    /* ---------------------------------------------
+       KPI NAME
+    --------------------------------------------- */
+
+    .department-parent-table-scroll .avatar-circle {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+    }
+
+    .department-parent-table-scroll .avatar-square {
+        width: 28px;
+        height: 28px;
+        min-width: 28px;
+        font-size: 11px;
+    }
+
+    .department-parent-table-scroll .kpi-row .fw-bold {
+        font-size: 12px;
+    }
+
+    .department-parent-table-scroll .badge {
+        font-size: 10px;
+    }
+
+
+    /* ---------------------------------------------
+       CHILD KPI
+    --------------------------------------------- */
+
+    .child-kpi-wrapper {
+        padding: 12px;
+    }
+
+    .child-header {
+        font-size: 12px;
+        padding: 8px 4px 12px;
+        line-height: 1.6;
+    }
+
+    .child-header .badge {
+        margin-left: 6px !important;
+    }
+
+    .child-kpi-table-scroll {
+        width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+
+    .child-kpi-table-scroll table {
+        min-width: 1020px !important;
+        table-layout: fixed !important;
+    }
+
+    .child-kpi-table-scroll th {
+        white-space: nowrap;
+        font-size: 11px !important;
+    }
+
+    .child-kpi-table-scroll td {
+        font-size: 12px !important;
+    }
+
+
+    /* ---------------------------------------------
+       ACTION BUTTON
+    --------------------------------------------- */
+
+    .action-menu-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+
+    /* ---------------------------------------------
+       PAGINATION
+    --------------------------------------------- */
+
+    .department-pagination {
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 15px;
+        padding-top: 20px !important;
+    }
+
+    .department-pagination > div {
+        width: 100%;
+        justify-content: center !important;
+        text-align: center;
+    }
+
+    .department-pagination .fs-6 {
+        font-size: 12px !important;
+        line-height: 1.5;
+    }
+
+    .department-pagination .pagination {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 2px;
+    }
+
+    .department-pagination .page-link {
+        padding: 5px 9px;
+        font-size: 12px;
+    }
+
+}
+
+
+/* =========================================================
+   SMALL MOBILE - 480px
+========================================================= */
+
+@media (max-width: 480px) {
+
+    .department-kpi-card .card-body {
+        padding: 8px !important;
+    }
+
+    .department-kpi-header-card {
+        margin-bottom: 12px !important;
+    }
+
+    .department-kpi-header-card .card-body {
+        padding: 12px !important;
+    }
+
+    .department-kpi-title h6 {
+        font-size: 15px;
+    }
+
+    .department-kpi-title small {
+        font-size: 11px;
+    }
+
+    .department-kpi-search .form-control {
+        font-size: 12px;
+    }
+
+    .department-kpi-entries {
+        min-height: 42px;
+    }
+
+    .department-pagination .page-link {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+
+}
+                /* ============================================
+                KPI HEADER - DESKTOP
+                ============================================ */
+
+                .kpi-header-actions {
+                    width: 100%;
+                }
+
+                .kpi-create-wrapper {
+                    margin-left: auto;
+                }
+
+                .kpi-create-btn {
+                    white-space: nowrap;
+                }
+
+
+                /* ============================================
+                ORGANIZATION KPI HEADER
+                ============================================ */
+
+                .organization-kpi-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 20px;
+                }
+
+                .organization-kpi-title {
+                    flex: 1;
+                }
+
+                .organization-kpi-search {
+                    width: 280px;
+                    min-width: 280px;
+                }
+
+
+                /* ============================================
+                MOBILE
+                ============================================ */
+
+                @media (max-width: 767.98px) {
+
+                    /* -----------------------------
+                    TOP KPI BUTTONS
+                    ----------------------------- */
+
+                    .kpi-header-actions {
+                        display: flex !important;
+                        flex-direction: column !important;
+                        align-items: stretch !important;
+                        width: 100%;
+                        gap: 8px !important;
+                    }
+
+                    .kpi-tab-btn {
+                        width: 100%;
+                        justify-content: center;
+                        margin: 0 !important;
+                    }
+
+                    .kpi-create-wrapper {
+                        width: 100%;
+                        margin-left: 0 !important;
+                        margin-top: 2px;
+                    }
+
+                    .kpi-create-btn {
+                        width: 100%;
+                        justify-content: center;
+                    }
+
+
+                    /* -----------------------------
+                    ORGANIZATION HEADER
+                    ----------------------------- */
+
+                    .organization-kpi-header {
+                        flex-direction: column;
+                        align-items: stretch;
+                        gap: 12px;
+                    }
+
+                    .organization-kpi-title {
+                        width: 100%;
+                    }
+
+                    .organization-kpi-title h3 {
+                        font-size: 18px;
+                        line-height: 1.4;
+                        margin-bottom: 0 !important;
+                    }
+
+                    .organization-kpi-search {
+                        width: 100%;
+                        min-width: 100%;
+                    }
+
+
+                    /* -----------------------------
+                    TABLE
+                    ----------------------------- */
+
+                    .organization-kpi-table {
+                        width: 100%;
+                        overflow-x: auto;
+                        -webkit-overflow-scrolling: touch;
+                    }
+
+                    .organization-kpi-table table {
+                        min-width: 850px;
+                    }
+
+
+                    /* -----------------------------
+                    PAGINATION
+                    ----------------------------- */
+
+                    .organization-pagination {
+                        flex-direction: column;
+                        align-items: center !important;
+                        gap: 15px;
+                        padding-top: 20px !important;
+                    }
+
+                    .organization-pagination > div {
+                        width: 100%;
+                        justify-content: center;
+                        text-align: center;
+                    }
+
+                    .organization-pagination .pagination {
+                        justify-content: center;
+                        flex-wrap: wrap;
+                    }
+
+                }
+
+
+                /* ============================================
+                VERY SMALL DEVICES
+                ============================================ */
+
+                @media (max-width: 480px) {
+
+                    .kpi-tab-btn {
+                        font-size: 13px;
+                        padding: 9px 12px !important;
+                    }
+
+                    .kpi-tab-btn i {
+                        margin-right: 6px !important;
+                    }
+
+                    .kpi-create-btn {
+                        font-size: 13px;
+                        min-height: 38px;
+                    }
+
+                    .organization-kpi-title h3 {
+                        font-size: 16px;
+                    }
+
+                    .organization-pagination .fs-6 {
+                        font-size: 12px !important;
+                    }
+
+                    .organization-pagination .page-link {
+                        padding: 5px 9px;
+                    }
+
+                }
+                .kpi-actions {
+                    margin-left: auto;
+                }
+
+                @media (max-width: 767.98px) {
+                    .kpi-actions {
+                        width: 100%;
+                        margin-left: 0;
+                    }
+
+                    .kpi-actions .premium-btn-primary {
+                        width: 100%;
+                        justify-content: center;
+                    }
+                }
                     .quill-tooltip-content {
                         max-width: 400px;
                         max-height: 250px;

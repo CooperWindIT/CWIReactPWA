@@ -68,20 +68,21 @@ export default function Node({
       onSelect(node.id, { additive: event.ctrlKey || event.metaKey });
       onMouseDown(event, node.id);
     }
+    
   }, [mode, node.id, onConnect, onMouseDown, onSelect, readMode]);
 
   const handleDoubleClick = useCallback(() => {
     if (readMode || mode !== "select") return;
-  
+
     setEditing(true);
-  
+
     setTimeout(() => {
       if (!innerRef.current) return;
       innerRef.current.focus();
-  
+
       const range = document.createRange();
       range.selectNodeContents(innerRef.current);
-  
+
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
@@ -113,28 +114,28 @@ export default function Node({
 
   useEffect(() => {
     if (!readMode && mode === "select") return;
-  
+
     if (editing && innerRef.current) {
       onLabelChange(node.id, innerRef.current.textContent?.trim() || "");
     }
-  
+
     setEditing(false);
     innerRef.current?.blur();
-  
+
     try {
       const sel = window.getSelection?.();
       sel?.removeAllRanges();
-    } catch (e) {}
-  
+    } catch (e) { }
+
     try {
       document.activeElement?.blur?.();
-    } catch (e) {}
+    } catch (e) { }
   }, [readMode, mode, editing, node.id, onLabelChange]);
   const isTextShape = node.shape === "text";
 
-const textReadOnlyStyle =
-  readMode && isTextShape
-    ? {
+  const textReadOnlyStyle =
+    readMode && isTextShape
+      ? {
         width: Math.max(node.w || 0, 130),
         minHeight: 54,
         padding: "10px 16px",
@@ -146,40 +147,40 @@ const textReadOnlyStyle =
         alignItems: "center",
         justifyContent: "center",
       }
-    : {};
-    const textReadOnlyInnerStyle =
+      : {};
+  const textReadOnlyInnerStyle =
     readMode && isTextShape
       ? {
-          width: "100%",
-          textAlign: "center",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          whiteSpace: "nowrap",
-        }
+        width: "100%",
+        textAlign: "center",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        whiteSpace: "nowrap",
+      }
       : {};
   return (
     <div
-    className={[
-      styles.node,
-      shapeClass,
-      selected ? styles.selected : '',
-      isConnectSource ? styles.connectSource : '',
-      readMode ? styles.readOnly : '',
-      isTextShape && readMode ? styles.textShapeReadOnly : '',
-      dimmed ? styles.dimmed : '',
-      searchMatched ? styles.searchMatched : '',
-      searchActive ? styles.searchActive : '',
-    ].join(' ')}
-    style={{
-      left: node.x,
-      top: node.y,
-      width: node.w,
-      height: node.h,
-      '--node-stroke': strokeColor,
-      '--node-fill': fillColor,
-      ...textReadOnlyStyle,
-    }}
+      className={[
+        styles.node,
+        shapeClass,
+        selected ? styles.selected : '',
+        isConnectSource ? styles.connectSource : '',
+        readMode ? styles.readOnly : '',
+        isTextShape && readMode ? styles.textShapeReadOnly : '',
+        dimmed ? styles.dimmed : '',
+        searchMatched ? styles.searchMatched : '',
+        searchActive ? styles.searchActive : '',
+      ].join(' ')}
+      style={{
+        left: node.x,
+        top: node.y,
+        width: node.w,
+        height: node.h,
+        '--node-stroke': strokeColor,
+        '--node-fill': fillColor,
+        ...textReadOnlyStyle,
+      }}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       data-nodeid={node.id}
@@ -188,50 +189,22 @@ const textReadOnlyStyle =
         <NodeShape shape={node.shape} w={node.w} h={node.h} strokeColor={strokeColor} fillColor={fillColor} />
       )}
 
-      {/* <div
+      <div
         ref={innerRef}
         className={styles.nodeInner}
-        // contentEditable={editing}
         contentEditable={editing && !readMode}
         suppressContentEditableWarning
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
+        tabIndex={readMode ? -1 : 0}
         style={{
           fontFamily,
           fontSize: `${fontSize}px`,
+          ...textReadOnlyInnerStyle,
         }}
       >
         {node.label}
-      </div> */}
-      <div
-  ref={innerRef}
-  className={styles.nodeInner}
-  contentEditable={editing && !readMode}
-  suppressContentEditableWarning
-  onBlur={handleBlur}
-  onKeyDown={handleKeyDown}
-  tabIndex={readMode ? -1 : 0}
-  style={{
-    fontFamily,
-    fontSize: `${fontSize}px`,
-    ...textReadOnlyInnerStyle,
-  }}
->
-  {node.label}
-</div>
-
-      {/* {!readMode && CP_POSITIONS.map((cp) => (
-        <div
-          key={cp.pos}
-          className={styles.cp}
-          style={{ left: cp.left, top: cp.top }}
-          onMouseDown={(event) => {
-            event.stopPropagation();
-            onConnect(node.id);
-          }}
-          data-pos={cp.pos}
-        />
-      ))} */}
+      </div>
 
       {!readMode && CP_POSITIONS.map((cp) => (
 

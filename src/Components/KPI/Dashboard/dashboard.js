@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import '../../Config/Loader.css';
 import Base1 from '../../Config/Base1';
 import { fetchWithAuth } from "../../../utils/api";
 import Swal from 'sweetalert2';
 import { useLocation } from "react-router-dom";
-import { Dropdown, Menu, Select, Table, Progress, Tag, Avatar, Tooltip } from 'antd';
+import { Dropdown, Menu, Select } from 'antd';
 import { getKPIDashboardStats } from '../services/kpiServices';
 
 const { Option } = Select;
@@ -152,6 +152,7 @@ export default function KPIDashboard() {
             const response = await getKPIDashboardStats({
                 orgId: sessionUserData?.OrgId,
                 periodId: sessionUserData?.PeriodId,
+                userId: sessionUserData?.Id,
             });
 
             setDashData(response || []);
@@ -181,12 +182,6 @@ export default function KPIDashboard() {
 
     const summaryCards = [
         {
-            title: "Organization KPIs",
-            value: summary.OrganizationKPIs ?? 0,
-            icon: "bi-bullseye",
-            color: "primary",
-        },
-        {
             title: "KPI Periods",
             value: summary.KpiPeriods ?? 0,
             icon: "bi-calendar-range",
@@ -204,7 +199,44 @@ export default function KPIDashboard() {
             icon: "bi-check2-circle",
             color: "success",
         },
+        {
+            title: "Organization KPIs",
+            value: summary.OrganizationKPIs ?? 0,
+            icon: "bi-bullseye",
+            color: "primary",
+        },
     ];
+
+    const useCountUp = (target, duration = 800) => {
+        const [value, setValue] = useState(0);
+        const frameRef = useRef();
+
+        useEffect(() => {
+            const start = performance.now();
+            const from = 0;
+            const to = Number(target) || 0;
+
+            const tick = (now) => {
+                const progress = Math.min((now - start) / duration, 1);
+                // ease-out cubic
+                const eased = 1 - Math.pow(1 - progress, 3);
+                setValue(Math.round(from + (to - from) * eased));
+                if (progress < 1) {
+                    frameRef.current = requestAnimationFrame(tick);
+                }
+            };
+
+            frameRef.current = requestAnimationFrame(tick);
+            return () => cancelAnimationFrame(frameRef.current);
+        }, [target, duration]);
+
+        return value;
+    };
+
+    const AnimatedNumber = ({ value }) => {
+        const animated = useCountUp(value);
+        return <>{animated}</>;
+    };
 
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
 
@@ -413,18 +445,6 @@ export default function KPIDashboard() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a href='/edm/dashboard' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2 active">
-                                        <span className="menu-title"><i className="bi bi-columns-gap text-primary fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
-                                <a href='/edm/documents' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2">
-                                        <span className="menu-title"><i className="fa-solid fa-file-invoice fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
                             </div>
                         </div>
 
@@ -456,7 +476,7 @@ export default function KPIDashboard() {
                     <div id="kt_app_content_container" className="app-container container-xxl">
                         <div className="row g-5 g-xl-10">
                             {/* Header */}
-                            <div className="col-12 mb-2">
+                            <div className="col-12 mb-2 kpi-fade-in" style={{ animationDelay: "0ms" }}>
                                 <div className="card border-0 shadow-sm bg-light-primary p-8">
                                     <div className="d-flex align-items-center justify-content-between flex-wrap gap-4">
                                         <div>
@@ -478,44 +498,35 @@ export default function KPIDashboard() {
                                                 </>
                                             )}
                                             {periodName && (
-                                                <>
-                                                    <div className="text-center">
-                                                        <span className="text-gray-400 fw-bold fs-8 text-uppercase d-block">Period</span>
-                                                        <span className="badge badge-light-info fw-bold fs-6 mt-1">
-                                                            {periodName}
-                                                        </span>
-                                                    </div>
-                                                    <div className="vr h-30px text-gray-200"></div>
-                                                </>
+                                                <div className="text-center">
+                                                    <span className="text-gray-400 fw-bold fs-8 text-uppercase d-block">Period</span>
+                                                    <span className="badge badge-light-info fw-bold fs-6 mt-1">
+                                                        {periodName}
+                                                    </span>
+                                                </div>
                                             )}
-                                            <div className="text-center">
-                                                <span className="text-gray-400 fw-bold fs-8 text-uppercase d-block">Departments</span>
-                                                <span className="text-gray-900 fw-bolder fs-3">{departmentKpis.length}</span>
-                                            </div>
-                                            <div className="vr h-30px text-gray-200"></div>
-                                            <div className="text-center">
-                                                <span className="text-gray-400 fw-bold fs-8 text-uppercase d-block">Cycles Released</span>
-                                                <span className="text-gray-900 fw-bolder fs-3">
-                                                    {summary.ReleasedCycles ?? 0}/{summary.ReviewCycles ?? 0}
-                                                </span>
-                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Summary cards from Summary object */}
+                            {/* Summary cards — staggered entrance + count-up + hover lift */}
                             <div className="row g-5 mb-5">
                                 {summaryCards.map((item, index) => (
                                     <div key={index} className="col-xl-3 col-lg-6 col-md-6">
-                                        <div className={`card border-0 shadow-sm h-100 position-relative overflow-hidden bg-${item.color}-subtle`}>
+                                        <div
+                                            className={`card border-0 shadow-sm h-100 position-relative overflow-hidden bg-${item.color}-subtle kpi-fade-in kpi-card-hover`}
+                                            style={{ animationDelay: `${index * 90}ms` }}
+                                        >
                                             <div className="card-body p-6">
                                                 <div className="d-flex justify-content-between align-items-start">
                                                     <div>
                                                         <span className="text-uppercase fw-bold fs-8 text-gray-600 d-block mb-2">{item.title}</span>
-                                                        <h2 className="fw-bolder fs-1 text-dark mb-0">{item.value}</h2>
+                                                        <h2 className="fw-bolder fs-1 text-dark mb-0">
+                                                            <AnimatedNumber value={item.value} />
+                                                        </h2>
                                                     </div>
-                                                    <div className="symbol symbol-60px">
+                                                    <div className="symbol symbol-60px kpi-symbol-hover">
                                                         <div className={`symbol-label bg-${item.color}`}>
                                                             <i className={`bi ${item.icon} fs-2 text-white`}></i>
                                                         </div>
@@ -532,14 +543,11 @@ export default function KPIDashboard() {
 
                             {/* Department KPI breakdown */}
                             <div className="row">
-                                {/* KPIs by Department */}
                                 <div className="col-xl-6">
-                                    <div className="card card-flush shadow-sm border-0 h-100">
+                                    <div className="card card-flush shadow-sm border-0 h-100 kpi-fade-in" style={{ animationDelay: "200ms" }}>
                                         <div className="card-header align-items-center py-5">
                                             <div className="card-title">
-                                                <h3 className="fw-bold text-gray-900">
-                                                    KPIs by Department
-                                                </h3>
+                                                <h3 className="fw-bold text-gray-900">KPIs by Department</h3>
                                             </div>
                                         </div>
 
@@ -560,7 +568,11 @@ export default function KPIDashboard() {
 
                                                         <tbody className="fw-semibold text-gray-600">
                                                             {departmentKpis.map((dept, idx) => (
-                                                                <tr key={idx}>
+                                                                <tr
+                                                                    key={idx}
+                                                                    className="kpi-row-fade"
+                                                                    style={{ animationDelay: `${250 + idx * 70}ms` }}
+                                                                >
                                                                     <td>
                                                                         <div className="d-flex align-items-center">
                                                                             <div className="symbol symbol-35px me-3">
@@ -568,15 +580,13 @@ export default function KPIDashboard() {
                                                                                     {dept.DepartmentName?.charAt(0)}
                                                                                 </div>
                                                                             </div>
-
                                                                             <span className="text-gray-900 fw-bold fs-6">
                                                                                 {dept.DepartmentName}
                                                                             </span>
                                                                         </div>
                                                                     </td>
-
                                                                     <td className="text-end fw-bolder fs-6 text-gray-900">
-                                                                        {dept.TotalKPIs}
+                                                                        <AnimatedNumber value={dept.TotalKPIs} />
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -590,26 +600,16 @@ export default function KPIDashboard() {
 
                                 {/* Pending Actions */}
                                 <div className="col-xl-6">
-                                    <div className="card card-flush shadow-sm border-0 h-100">
+                                    <div className="card card-flush shadow-sm border-0 h-100 kpi-fade-in" style={{ animationDelay: "260ms" }}>
                                         <div className="card-header align-items-center py-5">
                                             <div className="card-title d-flex flex-column">
                                                 <h3 className="fw-bold text-gray-900 mb-1">Pending Actions</h3>
-                                                <div className="d-flex align-items-center gap-2">
-                                                    {currentCycle && (
-                                                        <span className="badge badge-light-primary fw-semibold fs-8">
-                                                            {currentCycle.CycleName}
-                                                        </span>
-                                                    )}
-                                                    {periodName && (
-                                                        <span className="badge badge-light-info fw-semibold fs-8">
-                                                            {periodName}
-                                                        </span>
-                                                    )}
-                                                </div>
                                             </div>
                                             {pendingActions.length > 0 && (
                                                 <div className="card-toolbar">
-                                                    <span className="badge badge-light-warning fw-bold">{pendingActions.length}</span>
+                                                    <span className="badge badge-light-warning fw-bold kpi-badge-pulse">
+                                                        {pendingActions.length}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
@@ -622,7 +622,8 @@ export default function KPIDashboard() {
                                                     {pendingActions.map((action, idx) => (
                                                         <div
                                                             key={idx}
-                                                            className="d-flex align-items-center justify-content-between bg-light-warning rounded-3 px-4 py-3"
+                                                            className="d-flex align-items-center justify-content-between bg-light-warning rounded-3 px-4 py-3 kpi-row-fade kpi-card-hover"
+                                                            style={{ animationDelay: `${300 + idx * 80}ms` }}
                                                         >
                                                             <div className="d-flex align-items-center">
                                                                 <div className="symbol symbol-35px me-3">
@@ -657,6 +658,44 @@ export default function KPIDashboard() {
                     .dashboard-card:hover{
                         transform:translateY(-6px);
                         box-shadow:0 1rem 3rem rgba(0,0,0,.15)!important;
+                    }
+                    @keyframes fadeSlideUp {
+                        from { opacity: 0; transform: translateY(14px); }
+                        to   { opacity: 1; transform: translateY(0); }
+                    }
+                    @keyframes fadeIn {
+                        from { opacity: 0; }
+                        to   { opacity: 1; }
+                    }
+                    @keyframes badgePulse {
+                        0%, 100% { transform: scale(1); }
+                        50%      { transform: scale(1.12); }
+                    }
+                    @keyframes progressGrow {
+                        from { width: 0%; }
+                    }
+
+                    .kpi-fade-in {
+                        animation: fadeSlideUp 0.5s ease-out both;
+                    }
+                    .kpi-card-hover {
+                        transition: transform 0.2s ease, box-shadow 0.2s ease;
+                    }
+                    .kpi-card-hover:hover {
+                        transform: translateY(-4px);
+                        box-shadow: 0 10px 24px rgba(0,0,0,0.08) !important;
+                    }
+                    .kpi-row-fade {
+                        animation: fadeIn 0.4s ease-out both;
+                    }
+                    .kpi-badge-pulse {
+                        animation: badgePulse 1.6s ease-in-out infinite;
+                    }
+                    .kpi-symbol-hover {
+                        transition: transform 0.2s ease;
+                    }
+                    .kpi-card-hover:hover .kpi-symbol-hover {
+                        transform: scale(1.08);
                     }
                 `}
             </style>

@@ -100,6 +100,9 @@ function hexToRgb(hex) {
   ];
 }
 
+// ─── image helper ───────────────────────────────────────────────────────────
+// Returns the data URL *and* the image's natural pixel dimensions, so the
+// header can fit the logo into its box without stretching/distorting it.
 
 function loadImageAsDataUrl(src) {
   return new Promise((resolve, reject) => {
@@ -145,6 +148,68 @@ function drawPolyline(doc, points, style) {
 
   doc.lines(segs, points[0].x, points[0].y, [1, 1], style, true);
 }
+
+// function drawArrowHead(doc, tip, angle, color = "#1f1f1f") {
+//   const headLen = 7;
+//   const p1 = {
+//     x: tip.x - headLen * Math.cos(angle - Math.PI / 6),
+//     y: tip.y - headLen * Math.sin(angle - Math.PI / 6),
+//   };
+//   const p2 = {
+//     x: tip.x - headLen * Math.cos(angle + Math.PI / 6),
+//     y: tip.y - headLen * Math.sin(angle + Math.PI / 6),
+//   };
+
+//   doc.setFillColor(...hexToRgb(color));
+//   doc.triangle(tip.x, tip.y, p1.x, p1.y, p2.x, p2.y, "F");
+// }
+
+// function drawConnection(doc, conn, from, to) {
+//   const toCenter = getNodeCenter(to);
+//   const fromCenter = getNodeCenter(from);
+//   const start = getEdgePoint(from, toCenter);
+//   const end = getEdgePoint(to, fromCenter);
+
+//   const cp = conn.controlPoint || {
+//     x: (start.x + end.x) / 2,
+//     y: (start.y + end.y) / 2,
+//   };
+
+//   const dx = end.x - cp.x;
+//   const dy = end.y - cp.y;
+//   const len = Math.sqrt(dx * dx + dy * dy) || 1;
+//   const shortenBy = 8;
+
+//   const endShort =
+//     len > shortenBy
+//       ? { x: end.x - (dx / len) * shortenBy, y: end.y - (dy / len) * shortenBy }
+//       : end;
+
+//   const pts = sampleQuadratic(start, cp, endShort);
+
+//   doc.setDrawColor(31, 31, 31);
+//   doc.setLineWidth(1);
+
+//   for (let i = 1; i < pts.length; i++) {
+//     doc.line(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+//   }
+
+//   const angle = Math.atan2(end.y - cp.y, end.x - cp.x);
+//   drawArrowHead(doc, end, angle);
+
+//   if (conn.label) {
+//     doc.setFont("helvetica", "normal");
+//     doc.setFontSize(8);
+//     doc.setTextColor(85, 85, 85);
+
+//     const labelLines = splitSafeText(doc, conn.label, 60);
+//     doc.text(labelLines, cp.x, cp.y - 4, { align: "center" });
+//   }
+// }
+
+
+// ─── connection label font also scale-aware ─────────────────────────────────
+
 
 function drawArrowHead(doc, tip, angle, color = "#1f1f1f", scale = 1) {
   const headLen = Math.max(3, 7 * scale);
@@ -288,50 +353,47 @@ function drawNodeShape(doc, node) {
   }
 }
 
-// ─── shared label layout calculator ─────────────────────────────────────────
-// Figures out the font size, wrapped lines, and the box height actually
-// needed to show the full label without truncation. Used both to decide
-// how much a node needs to grow, and to render the final text.
+// function drawNodeLabel(doc, node) {
+//   const { x, y, w, h, shape, label, strokeColor } = node;
+//   const cx = x + w / 2;
+//   const cy = y + h / 2;
 
-function computeNodeLabelLayout(doc, node, scale = 1) {
-  const { w, h, label } = node;
-  const maxTextW = Math.max(w - 16, 20);
+//   const stroke =
+//     !strokeColor || strokeColor === "theme-auto" ? "#1f1f1f" : strokeColor;
+//   const textColor = shape === "text" ? stroke : "#1f1f1f";
 
-  const baseFontSize = 10 * scale;
-  // Floor is now a fixed *legible* minimum, not scale-dependent — we no
-  // longer rely on shrinking text into oblivion to make it "fit"; instead
-  // the box grows around it. This is the actual fix for text getting cut
-  // off: previously the only way to fit more text was a smaller font
-  // down to a tiny floor, and anything past that got truncated.
-  const legibleFontSize = Math.max(6, 7 * scale);
+//   doc.setTextColor(...hexToRgb(textColor));
+//   doc.setFont("helvetica", "normal");
+//   doc.setFontSize(10);
 
-  let fontSize = Math.max(baseFontSize, legibleFontSize);
-  let lines = [];
-  let lineH = 0;
+//   const maxTextW = Math.max(w - 16, 20);
+//   const lines = splitSafeText(doc, label || "", maxTextW);
+//   const lineH = 12;
+//   const maxLinesThatFit = Math.max(1, Math.floor((h - 10) / lineH));
+//   const visibleLines = lines.slice(0, maxLinesThatFit);
 
-  do {
-    doc.setFontSize(fontSize);
-    lines = splitSafeText(doc, label || "", maxTextW);
-    lineH = fontSize * 1.25;
-    const neededH = lines.length * lineH + 6;
+//   if (lines.length > maxLinesThatFit && visibleLines.length > 0) {
+//     let last = visibleLines[visibleLines.length - 1];
+//     if (last.length > 3) last = `${last.slice(0, last.length - 3)}...`;
+//     visibleLines[visibleLines.length - 1] = last;
+//   }
 
-    if (neededH <= h || fontSize <= legibleFontSize) break;
-    fontSize -= 0.5;
-  } while (fontSize >= legibleFontSize);
+//   const totalH = visibleLines.length * lineH;
+//   let ty = cy - totalH / 2 + 9;
 
-  const neededH = lines.length * lineH + 6;
-  // Box grows to fit if the legible-size text still doesn't fit in the
-  // original height — no more truncation in the normal case.
-  const finalH = Math.max(h, neededH);
+//   visibleLines.forEach((line) => {
+//     doc.text(line, cx, ty, { align: "center" });
+//     ty += lineH;
+//   });
+// }
 
-  return { fontSize, lines, lineH, finalH };
-}
+// ─── header ─────────────────────────────────────────────────────────────────
 
-// ─── node label (renders from a precomputed layout) ─────────────────────────
 
-function drawNodeLabel(doc, node, layout) {
-  const { x, y, w, h, shape, strokeColor } = node;
-  const { fontSize, lines, lineH } = layout;
+// ─── node label (now scale-aware, auto-shrinks before truncating) ──────────
+
+function drawNodeLabel(doc, node, scale = 1) {
+  const { x, y, w, h, shape, label, strokeColor } = node;
   const cx = x + w / 2;
   const cy = y + h / 2;
 
@@ -341,12 +403,48 @@ function drawNodeLabel(doc, node, layout) {
 
   doc.setTextColor(...hexToRgb(textColor));
   doc.setFont("helvetica", "normal");
+
+  const maxTextW = Math.max(w - 16, 20);
+
+  // Start at a font size proportional to how much the whole diagram was
+  // scaled, then shrink further in small steps until the label's lines
+  // actually fit inside the node's height. This is what was missing:
+  // font size was fixed at 10pt regardless of how small `w`/`h` had
+  // become after fitScale, so text wrapped into tiny/mid-word fragments
+  // and then got truncated with "...".
+  const baseFontSize = 10 * scale;
+  const minFontSize = Math.max(4, 5 * scale); // never go unreadably small
+  let fontSize = baseFontSize;
+  let lines = [];
+  let lineH = 0;
+
+  while (fontSize >= minFontSize) {
+    doc.setFontSize(fontSize);
+    lines = splitSafeText(doc, label || "", maxTextW);
+    lineH = fontSize * 1.25;
+    const neededH = lines.length * lineH;
+
+    if (neededH <= h - 6 || fontSize <= minFontSize) break;
+    fontSize -= 0.5;
+  }
+
   doc.setFontSize(fontSize);
 
-  const totalH = lines.length * lineH;
+  const maxLinesThatFit = Math.max(1, Math.floor((h - 6) / lineH));
+  const visibleLines = lines.slice(0, maxLinesThatFit);
+
+  // Only truncate as an absolute last resort, if shrinking the font
+  // still wasn't enough to fit every line.
+  if (lines.length > maxLinesThatFit && visibleLines.length > 0) {
+    let last = visibleLines[visibleLines.length - 1];
+    if (last.length > 3) last = `${last.slice(0, last.length - 3)}...`;
+    visibleLines[visibleLines.length - 1] = last;
+  }
+
+  const totalH = visibleLines.length * lineH;
   let ty = cy - totalH / 2 + lineH * 0.75;
 
-  lines.forEach((line) => {
+  visibleLines.forEach((line) => {
     doc.text(line, cx, ty, { align: "center" });
     ty += lineH;
   });
@@ -460,6 +558,13 @@ function drawHeader(doc, pageW, margin, opts = {}) {
   return top + totalH + 12;
 }
 
+// ─── main export ────────────────────────────────────────────────────────────
+
+// Diagram coordinates are authored on-screen at CSS pixel scale (96 dpi).
+// PDF units here are points (72 dpi). Mapping px values straight into pt
+// 1:1 makes every node render ~33% larger, physically, than it looked on
+// screen. PX_TO_PT corrects that so cards come out at a realistic size
+// instead of being blown up to fill the page.
 const PX_TO_PT = 0.75;
 
 export async function exportDiagramAsPdf({ name, nodes = [], connections = [], meta = {} }) {
@@ -521,23 +626,28 @@ export async function exportDiagramAsPdf({ name, nodes = [], connections = [], m
     h: n.h * fitScale,
   }));
 
-  // Measure each label first, then grow any node whose box is too small
-  // to hold its full text at a legible size — keeping it vertically
-  // centered on its original position so layout doesn't shift sideways.
-  const layouts = new Map();
-  const grown = transformed.map((n) => {
-    const layout = computeNodeLabelLayout(doc, n, fitScale);
-    layouts.set(n.id, layout);
+  const nodeMap = Object.fromEntries(transformed.map((n) => [n.id, n]));
 
-    if (layout.finalH > n.h) {
-      const diff = layout.finalH - n.h;
-      return { ...n, y: n.y - diff / 2, h: layout.finalH };
-    }
-    return n;
-  });
+  // connections.forEach((conn) => {
+  //   const from = nodeMap[conn.from];
+  //   const to = nodeMap[conn.to];
+  //   if (!from || !to) return;
 
-  const nodeMap = Object.fromEntries(grown.map((n) => [n.id, n]));
+  //   const scaledConn = conn.controlPoint
+  //     ? {
+  //         ...conn,
+  //         controlPoint: {
+  //           x: conn.controlPoint.x * fitScale + offsetX,
+  //           y: conn.controlPoint.y * fitScale + offsetY,
+  //         },
+  //       }
+  //     : conn;
 
+  //   drawConnection(doc, scaledConn, from, to);
+  // });
+
+  // transformed.forEach((node) => drawNodeShape(doc, node));
+  // transformed.forEach((node) => drawNodeLabel(doc, node));
   connections.forEach((conn) => {
     const from = nodeMap[conn.from];
     const to = nodeMap[conn.to];
@@ -545,18 +655,19 @@ export async function exportDiagramAsPdf({ name, nodes = [], connections = [], m
 
     const scaledConn = conn.controlPoint
       ? {
-        ...conn,
-        controlPoint: {
-          x: conn.controlPoint.x * fitScale + offsetX,
-          y: conn.controlPoint.y * fitScale + offsetY,
-        },
-      }
+          ...conn,
+          controlPoint: {
+            x: conn.controlPoint.x * fitScale + offsetX,
+            y: conn.controlPoint.y * fitScale + offsetY,
+          },
+        }
       : conn;
 
     drawConnection(doc, scaledConn, from, to, fitScale);
   });
 
-  grown.forEach((node) => drawNodeShape(doc, node));
-  grown.forEach((node) => drawNodeLabel(doc, node, layouts.get(node.id)));
+  transformed.forEach((node) => drawNodeShape(doc, node));
+  transformed.forEach((node) => drawNodeLabel(doc, node, fitScale));
+
   return doc;
 }

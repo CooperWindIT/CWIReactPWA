@@ -6,9 +6,10 @@ import { fetchWithAuth } from "../../../utils/api";
 import Swal from 'sweetalert2';
 import { useLocation } from "react-router-dom";
 import { Dropdown, Menu, message, Tooltip, Modal, Select } from 'antd';
-import { getReviewCycles, getPerformancePeriods, saveReviewCycles, updatePeriod, getIsCreateCyclesBtn, getPendingCycleScores } from '../services/kpiServices';
+import { getReviewCycles, getPerformancePeriods, editSystemSettings, updatePeriod, getIsCreateCyclesBtn, getIsOpenbtnEnable, getSystemSettings } from '../services/kpiServices';
 import AddReviewCycle from './addReviewCycle';
 import EditReviewCycle from './editReviewCycle';
+import ReleaseReviewCycle from "./ReleaseReviewCycle";
 
 export default function ReviewCycles() {
 
@@ -18,27 +19,30 @@ export default function ReviewCycles() {
     const [sessionActionIds, setSessionActionIds] = useState([]);
     const [loading, setLoading] = useState(false);
     const [kpiPeriodsData, setKPIPeriodsData] = useState([]);
-    const [pendingScores, setPendingScores] = useState([]);
     const [reviewCycleData, setReviewCycleData] = useState([]);
     const [modules, setModules] = useState([]);
     const [menuData, setMenuData] = useState([]);
     const [selectedPeriod, setSelectedPeriod] = useState(null);
     const [isCycleBtn, setIsCycleBtn] = useState(false);
+    const [isCycleOpenBtn, setIsCycleOpenBtn] = useState(false);
     const [editData, setEditData] = useState({});
-    const [releaseData, setReleaseData] = useState({
-        Id: "",
-        Comments: "",
-    });
-
-    const [releaseLoading, setReleaseLoading] = useState(false);
+    const [employees, setEmployees] = useState([]);
+    const [releaseData, setReleaseData] = useState({});
     const [openPeriodModal, setOpenPeriodModal] = useState(false);
     const [selectedPeriodId, setSelectedPeriodId] = useState();
     const [saving, setSaving] = useState(false);
-    const [closeData, setCloseData] = useState({
-        Id: 0,
-    });
+    const [reminderStartDays, setReminderStartDays] = useState({});
+        const [savingSettings, setSavingSettings] = useState({});
+    
+        const [systemSettings, setSystemSettings] = useState({
+            KPILockSelfAssessment: false,
+            KPIReminderStartDays: "",
+        });
+    // const [closeData, setCloseData] = useState({
+    //     Id: 0,
+    // });
 
-    const [closeLoading, setCloseLoading] = useState(false);
+    // const [closeLoading, setCloseLoading] = useState(false);
 
     useEffect(() => {
         const current = kpiPeriodsData.find(x => x.IsCurrent);
@@ -178,6 +182,49 @@ export default function ReviewCycles() {
         }
     };
 
+    const fetchDDLData = async () => {
+        try {
+            const sessionDDL = sessionStorage.getItem("ddlKPIReviewCyclesData");
+
+            if (sessionDDL) {
+                const parsed = JSON.parse(sessionDDL);
+
+                setEmployees(parsed.users || []);
+                return;
+            }
+
+            const response = await fetchWithAuth(
+                `ADMINRoutes/CWIGetDDLItems?OrgId=${sessionUserData?.OrgId}&UserId=0`,
+                {
+                    method: "GET",
+                    headers: { "Content-Type": "application/json" },
+                }
+            );
+
+            if (!response.ok) throw new Error("Network response was not ok");
+
+            const data = await response.json();
+
+            const usersFilteredData = data.ResultData.filter(
+                (item) => item.DDLName === "Users"
+            );
+
+            setEmployees(usersFilteredData || []);
+
+            sessionStorage.setItem(
+                "ddlKPIReviewCyclesData",
+                JSON.stringify({
+                    users: usersFilteredData,
+                })
+            );
+
+        } catch (error) {
+            console.error("Failed to fetch DDL data:", error);
+            setEmployees([]);
+        }
+    };
+
+
     const fetchPerformancePeriods = async () => {
         try {
             setLoading(true);
@@ -187,23 +234,6 @@ export default function ReviewCycles() {
             });
 
             setKPIPeriodsData(response?.data || []);
-
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const fetchPendingCycleScores = async () => {
-        try {
-            setLoading(true);
-
-            const response = await getPendingCycleScores({
-                orgId: sessionUserData?.OrgId,
-            });
-
-            setPendingScores(response?.data || []);
 
         } catch (error) {
             console.error(error);
@@ -227,6 +257,37 @@ export default function ReviewCycles() {
         }
     };
 
+    const fetchIsOpenbtnEnable = async () => {
+        try {
+
+            const response = await getIsOpenbtnEnable({
+                orgId: sessionUserData?.OrgId,
+            });
+
+            setIsCycleOpenBtn(response?.data[0]?.ResponseCode !== 409 ? true : false);
+
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+        useEffect(() => {
+            if (reminderStartDays?.length > 0) {
+                const lockSetting = reminderStartDays.find(
+                    (item) => item.KeyName === "KPILockSelfAssessment"
+                );
+    
+                const reminderSetting = reminderStartDays.find(
+                    (item) => item.KeyName === "KPIReminderStartDays"
+                );
+    
+                setSystemSettings({
+                    KPILockSelfAssessment: Number(lockSetting?.value) === 1,
+                    KPIReminderStartDays: reminderSetting?.value ?? "",
+                });
+            }
+        }, [reminderStartDays]);
+
     const fetchReviewCycles = async () => {
         try {
             setLoading(true);
@@ -249,245 +310,285 @@ export default function ReviewCycles() {
         if (sessionUserData?.OrgId) {
             fetchPerformancePeriods();
             fetchIsCreateCyclesBtn();
+            fetchDDLData();
+            fetchIsOpenbtnEnable();
         }
     }, [sessionUserData?.OrgId]);
 
     useEffect(() => {
         if (selectedPeriod) {
             fetchReviewCycles();
-        } else {
-            setReviewCycleData([]);
-        }
+        };
     }, [selectedPeriod]);
 
-    const handleRelease = async () => {
+    // const handleCloseClick = async (item) => {
+    //     setCloseData({ Id: item.Id });
 
-        if (!releaseData.Comments.trim()) {
-            message.warning("Please enter release comments.");
-            return;
-        }
+    //     try {
+    //         const response = await fetchWithAuth("KPI/MasterAPI", {
+    //             method: "POST",
+    //             headers: {
+    //                 "Content-Type": "application/json",
+    //             },
+    //             body: JSON.stringify({
+    //                 OrgId: sessionUserData.OrgId,
+    //                 Action: "PendingCycleScores",
+    //                 JsonData: {
+    //                     Id: item.Id,
+    //                 },
+    //             }),
+    //         });
 
-        setReleaseLoading(true);
+    //         const data = await response.json();
+    //         const pendingUsers = data?.data || [];
+    //         let html = "";
 
-        const payload = {
-            Type: "OPEN",
-            OrgId: sessionUserData.OrgId,
-            UserId: sessionUserData.Id,
-            JsonData: {
-                Id: releaseData.Id,
-                Comments: releaseData.Comments,
-            },
-        };
-
-        try {
-            const response = await saveReviewCycles(payload);
-
-            if (
-                response?.success &&
-                response?.data?.result?.[0]?.ResponseCode === 2000
-            ) {
-                message.success(response.data.result[0].Message || "Released successfully..!");
-
-                document
-                    .getElementById("releaseReviewCycleModal")
-                    ?.querySelector(".btn-close")
-                    ?.click();
-
-                fetchReviewCycles();
-            } else {
-                message.error(
-                    response?.data?.result?.[0]?.Message || "Release failed."
-                );
-            }
-        } catch (err) {
-            console.error(err);
-            message.error("Something went wrong.");
-        } finally {
-            setReleaseLoading(false);
-        }
-    };
-
-    const handleCloseClick = async (item) => {
-        setCloseData({ Id: item.Id });
-
-        try {
-            const response = await fetchWithAuth("KPI/MasterAPI", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    OrgId: sessionUserData.OrgId,
-                    Action: "PendingCycleScores",
-                    JsonData: {
-                        Id: item.Id,
-                    },
-                }),
-            });
-
-            const data = await response.json();
-            const pendingUsers = data?.data || [];
-            let html = "";
-
-            if (pendingUsers.length > 0) {
-                html = `
-                    <div style="text-align:left">
-                        <p style="margin-bottom:10px;">
-                            The following employees have <b>pending cycle scores</b>:
-                        </p>
+    //         if (pendingUsers.length > 0) {
+    //             html = `
+    //                 <div style="text-align:left">
+    //                     <p style="margin-bottom:10px;">
+    //                         The following employees have <b>pending cycle scores</b>:
+    //                     </p>
     
-                        <div style="
-                            max-height:220px;
-                            overflow-y:auto;
-                            border:1px solid #e5e7eb;
-                            border-radius:6px;
-                            padding:8px;
-                            background:#fafafa;
-                        ">
-                            <table style="width:100%;border-collapse:collapse;">
-                                <thead>
-                                    <tr style="background:#f5f5f5;">
-                                        <th style="padding:8px;text-align:left;">#</th>
-                                        <th style="padding:8px;text-align:left;">Employee</th>
-                                        <th style="padding:8px;text-align:left;" class="text-end">Cycle Scroe</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${pendingUsers
-                        .map(
-                            (x, i) => `
-                                                <tr>
-                                                    <td style="padding:6px;">${i + 1}</td>
-                                                    <td style="padding:6px;">${x.Name}</td>
-                                                    <td style="padding:6px;" class="text-end">${x.CycleScore || 'N/A'}</td>
-                                                </tr>
-                                            `
-                        )
-                        .join("")}
-                                </tbody>
-                            </table>
-                        </div>
+    //                     <div style="
+    //                         max-height:220px;
+    //                         overflow-y:auto;
+    //                         border:1px solid #e5e7eb;
+    //                         border-radius:6px;
+    //                         padding:8px;
+    //                         background:#fafafa;
+    //                     ">
+    //                         <table style="width:100%;border-collapse:collapse;">
+    //                             <thead>
+    //                                 <tr style="background:#f5f5f5;">
+    //                                     <th style="padding:8px;text-align:left;">#</th>
+    //                                     <th style="padding:8px;text-align:left;">Employee</th>
+    //                                     <th style="padding:8px;text-align:left;" class="text-end">Cycle Scroe</th>
+    //                                 </tr>
+    //                             </thead>
+    //                             <tbody>
+    //                                 ${pendingUsers
+    //                     .map(
+    //                         (x, i) => `
+    //                                             <tr>
+    //                                                 <td style="padding:6px;">${i + 1}</td>
+    //                                                 <td style="padding:6px;">${x.Name}-${x.EmpNo || 'N/A'}</td>
+    //                                                 <td style="padding:6px;" class="text-end">${x.CycleScore || 'N/A'}</td>
+    //                                             </tr>
+    //                                         `
+    //                     )
+    //                     .join("")}
+    //                             </tbody>
+    //                         </table>
+    //                     </div>
     
-                        <p style="margin-top:15px;color:#dc3545;font-weight:600;">
-                            Do you still want to close this review cycle?
-                        </p>
-                    </div>
-                `;
-            } else {
-                html =
-                    "<p>No pending scores found.<br/>Do you want to close this review cycle?</p>";
-            }
+    //                     <p style="margin-top:15px;color:#dc3545;font-weight:600;">
+    //                         Do you still want to close this review cycle?
+    //                     </p>
+    //                 </div>
+    //             `;
+    //         } else {
+    //             html =
+    //                 "<p>No pending scores found.<br/>Do you want to close this review cycle?</p>";
+    //         }
 
-            const result = await Swal.fire({
-                title: "Close Review Cycle",
-                html,
-                icon: "warning",
-                width: 650,
-            
-                showCancelButton: true,
-                showDenyButton: true,
-            
-                confirmButtonText:
-                    '<i class="fa-solid fa-check me-2"></i> Continue',
-            
-                denyButtonText:
-                    '<i class="fa-solid fa-bell me-2"></i> Send Reminder',
-            
-                cancelButtonText:
-                    '<i class="fa-solid fa-xmark me-2"></i> Cancel',
-            
-                confirmButtonColor: "#198754",
-                denyButtonColor: "#f59e0b",
-                cancelButtonColor: "#6c757d",
-            });
+    //         const result = await Swal.fire({
+    //             title: "Close Review Cycle",
+    //             html,
+    //             icon: "warning",
+    //             width: 650,
 
-            if (!result.isConfirmed) return;
-            handleCloseReviewCycle(item.Id);
-        } catch (err) {
-            console.error(err);
-            message.error("Unable to verify pending cycle scores.");
-        }
-    };
+    //             showCancelButton: true,
+    //             showDenyButton: true,
 
-    const handleCloseReviewCycle = async (id) => {
-        setCloseLoading(true);
-        try {
-            const payload = {
-                Type: "CLOSED",
-                OrgId: sessionUserData.OrgId,
-                UserId: sessionUserData.Id,
-                JsonData: {
-                    Id: id,
-                },
-            };
+    //             confirmButtonText:
+    //                 '<i class="fa-solid fa-check me-2"></i> Continue',
 
-            const response = await saveReviewCycles(payload);
+    //             denyButtonText:
+    //                 '<i class="fa-solid fa-bell me-2"></i> Send Reminder',
 
-            if (
-                response?.success &&
-                response?.data?.result?.[0]?.ResponseCode === 200
-            ) {
+    //             cancelButtonText:
+    //                 '<i class="fa-solid fa-xmark me-2"></i> Cancel',
 
-                Swal.fire({
-                    icon: "success",
-                    title: "Closed",
-                    text:
-                        response.data.result[0].Message ||
-                        "Review cycle closed successfully.",
-                });
-                fetchReviewCycles();
-            } else {
-                message.error(
-                    response?.data?.result?.[0]?.Message ||
-                    "Unable to close review cycle."
-                );
-            }
-        } catch (err) {
-            console.error(err);
-            message.error("Something went wrong.");
-        } finally {
-            setCloseLoading(false);
-        }
-    };
+    //             confirmButtonColor: "#198754",
+    //             denyButtonColor: "#f59e0b",
+    //             cancelButtonColor: "#6c757d",
+    //         });
+
+    //         if (!result.isConfirmed) return;
+    //         handleCloseReviewCycle(item.Id);
+    //     } catch (err) {
+    //         console.error(err);
+    //         message.error("Unable to verify pending cycle scores.");
+    //     }
+    // };
+
+    // const handleCloseReviewCycle = async (id) => {
+    //     setCloseLoading(true);
+    //     try {
+    //         const payload = {
+    //             Type: "CLOSED",
+    //             OrgId: sessionUserData.OrgId,
+    //             UserId: sessionUserData.Id,
+    //             JsonData: {
+    //                 Id: id,
+    //             },
+    //         };
+
+    //         const response = await saveReviewCycles(payload);
+
+    //         if (
+    //             response?.success &&
+    //             response?.data?.result?.[0]?.ResponseCode === 200
+    //         ) {
+
+    //             Swal.fire({
+    //                 icon: "success",
+    //                 title: "Closed",
+    //                 text:
+    //                     response.data.result[0].Message ||
+    //                     "Review cycle closed successfully.",
+    //             });
+    //             fetchReviewCycles();
+    //         } else {
+    //             message.error(
+    //                 response?.data?.result?.[0]?.Message ||
+    //                 "Unable to close review cycle."
+    //             );
+    //         }
+    //     } catch (err) {
+    //         console.error(err);
+    //         message.error("Something went wrong.");
+    //     } finally {
+    //         setCloseLoading(false);
+    //     }
+    // };
 
     const handleUpdatePeriod = async () => {
-
         if (!selectedPeriodId) {
-            return message.warning("Please select a performance period.");
+            return Swal.fire({
+                icon: "warning",
+                title: "Performance Period Required",
+                text: "Please select a performance period.",
+                confirmButtonText: "OK",
+                confirmButtonColor: "#2563eb",
+            });
         }
-
+    
         const payload = {
             Id: selectedPeriodId,
             UserId: sessionUserData.Id,
         };
-
+    
         try {
-
             setSaving(true);
-
+    
             const response = await updatePeriod(payload);
-
+    
             if (response?.ResultData?.Status === "Success") {
-                message.success(
-                    response?.ResultData?.ResultMessage ||
-                    "Performance period updated successfully."
-                );
-                setOpenPeriodModal(false);
-                fetchPerformancePeriods();
+                await Swal.fire({
+                    icon: "success",
+                    title: "Performance Period Updated",
+                    text:
+                        response?.ResultData?.ResultMessage ||
+                        "Performance period updated successfully.",
+                    confirmButtonText:
+                        '<i class="bi bi-check-circle-fill me-1"></i> OK',
+                    confirmButtonColor: "#198754",
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                });
+    
+                // Clear session and local storage
+                sessionStorage.clear();
+                localStorage.clear();
+    
+                // Navigate to login/home route
+                window.location.href = "/";
             } else {
-                message.error(
-                    response?.ResultData?.ResultMessage ||
-                    "Failed to update performance period."
-                );
+                await Swal.fire({
+                    icon: "error",
+                    title: "Update Failed",
+                    text:
+                        response?.ResultData?.ResultMessage ||
+                        "Failed to update performance period.",
+                    confirmButtonText: "OK",
+                    confirmButtonColor: "#dc2626",
+                });
             }
-
         } catch (error) {
             console.error(error);
-            message.error("Something went wrong.");
+    
+            await Swal.fire({
+                icon: "error",
+                title: "Something Went Wrong",
+                text: "Unable to update the performance period. Please try again.",
+                confirmButtonText: "OK",
+                confirmButtonColor: "#dc2626",
+            });
         } finally {
             setSaving(false);
         }
     };
+
+        const fetchSystemSettings = async () => {
+            try {
+                const response = await getSystemSettings();
+    
+                setReminderStartDays(response?.data || []);
+    
+            } catch (error) {
+                console.error(error);
+            }
+        };
+    
+        
+            useEffect(() => {
+                fetchSystemSettings();
+            }, []);
+
+        const handleSystemSettingChange = (key, value) => {
+            setSystemSettings((prev) => ({
+                ...prev,
+                [key]: value,
+            }));
+        };
+    const handleSaveSystemSetting = async (keyName) => {
+            try {
+                setSavingSettings((prev) => ({
+                    ...prev,
+                    [keyName]: true,
+                }));
+    
+                const value =
+                    keyName === "KPILockSelfAssessment"
+                        ? systemSettings.KPILockSelfAssessment
+                            ? 1
+                            : 0
+                        : Number(systemSettings[keyName]);
+    
+                const payload = {
+                    KeyName: keyName,
+                    value: value,
+                    UserId: sessionUserData?.Id,
+                };
+    
+                const response = await editSystemSettings(payload);
+    
+                if (response?.success) {
+                    fetchSystemSettings();
+                } else {
+                    console.error(response?.message);
+                }
+            } catch (error) {
+                console.error("Error updating system setting:", error);
+            } finally {
+                setSavingSettings((prev) => ({
+                    ...prev,
+                    [keyName]: false,
+                }));
+            }
+        };
 
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
 
@@ -696,18 +797,6 @@ export default function ReviewCycles() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a href='/edm/dashboard' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2 active">
-                                        <span className="menu-title"><i className="bi bi-columns-gap text-primary fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
-                                <a href='/edm/documents' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2">
-                                        <span className="menu-title"><i className="fa-solid fa-file-invoice fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
                             </div>
                         </div>
 
@@ -746,7 +835,7 @@ export default function ReviewCycles() {
                                             KPI Period
                                         </label>
                                         <select
-                                            className="form-select"
+                                            className="form-select form-select-sm"
                                             value={selectedPeriod}
                                             onChange={(e) => setSelectedPeriod(e.target.value)}
                                         >
@@ -763,12 +852,23 @@ export default function ReviewCycles() {
                                     <div className="col-lg-8 col-md-7">
                                         <div className="d-flex justify-content-end align-items-center gap-3 flex-wrap">
                                             <button
-                                                className="btn btn-light-primary d-flex align-items-center px-4 btn-sm"
+                                                className="btn btn-info d-flex align-items-center px-4 btn-sm"
                                                 onClick={() => setOpenPeriodModal(true)}
                                             >
                                                 <i className="bi bi-arrow-repeat me-2"></i>
                                                 Change Current Period
                                             </button>
+                                            <Tooltip title="View KPI system settings">
+                                            <button
+                                                type="button"
+                                                className="btn btn-warning d-flex align-items-center px-4 btn-sm"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#systemSettingsModal"
+                                            >
+                                                <i className="bi bi-gear-fill me-2"></i>
+                                                System Settings
+                                            </button>
+                                        </Tooltip>
                                             <Tooltip
                                                 title={
                                                     !isCycleBtn
@@ -824,6 +924,9 @@ export default function ReviewCycles() {
                                             <th>Cycle</th>
                                             <th>Start Date</th>
                                             <th>End Date</th>
+                                            <th className="text-center">Self Reminder</th>
+                                            <th className="text-center">Manager Reminder</th>
+                                            <th className="text-center">Publish Reminder</th>
                                             <th>Comments</th>
                                             <th className='text-center'>Status</th>
                                             <th className="text-center">Action</th>
@@ -832,7 +935,7 @@ export default function ReviewCycles() {
                                     <tbody className="fw-semibold text-gray-700">
                                         {loading ? (
                                             <tr>
-                                                <td colSpan="7" className="py-5">
+                                                <td colSpan="10" className="py-5">
                                                     <div
                                                         className="d-flex flex-column justify-content-center align-items-center w-100"
                                                         style={{ minHeight: "320px" }}
@@ -858,7 +961,7 @@ export default function ReviewCycles() {
 
                                         ) : reviewCycleData?.length === 0 ? (
                                             <tr>
-                                                <td colSpan="7" className="py-5">
+                                                <td colSpan="10" className="py-5">
                                                     <div
                                                         className="d-flex flex-column justify-content-center align-items-center w-100"
                                                         style={{ minHeight: "320px" }}
@@ -885,6 +988,47 @@ export default function ReviewCycles() {
                                                     OPEN: "status-open",
                                                     CLOSED: "status-closed",
                                                 }[item.Status?.trim().toUpperCase()] || "status-draft";
+
+                                                const formatDate = (d) =>
+                                                    !d || d === "1900-01-01T00:00:00.000Z"
+                                                        ? "-"
+                                                        : new Date(d).toLocaleDateString("en-GB");
+
+                                                const reminderChip = (dateValue, color, bg) => {
+                                                    const label = formatDate(dateValue);
+                                                    return (
+                                                        <span
+                                                            className="d-inline-flex align-items-center gap-1 px-2 py-1 rounded-pill"
+                                                            style={{
+                                                                background: label === "-" ? "#f1f5f9" : bg,
+                                                                color: label === "-" ? "#94a3b8" : color,
+                                                                fontSize: "12.5px",
+                                                                fontWeight: 600,
+                                                            }}
+                                                        >
+                                                            <i className="bi bi-calendar-event" style={{ fontSize: "11px" }}></i>
+                                                            {label}
+                                                        </span>
+                                                    );
+                                                };
+
+                                                const currentStatus =
+                                                item.Status?.trim().toUpperCase();
+                                            
+                                            const previousCycle = reviewCycleData[index - 1];
+                                            
+                                            const isPreviousCycleClosed =
+                                                index === 0 ||
+                                                previousCycle?.Status?.trim().toUpperCase() === "CLOSED";
+                                            
+                                            const isCurrentCycleClosed =
+                                                currentStatus === "CLOSED";
+                                            
+                                            const canReleaseCycle =
+                                                isCycleOpenBtn &&
+                                                isPreviousCycleClosed &&
+                                                !isCurrentCycleClosed;
+
                                                 return (
                                                     <tr key={item.Id}>
                                                         <td>{index + 1}</td>
@@ -899,15 +1043,16 @@ export default function ReviewCycles() {
                                                                 {item.CycleName}
                                                             </span>
                                                         </td>
-                                                        <td>
-                                                            {item.StartDate === "1900-01-01T00:00:00.000Z"
-                                                                ? "-"
-                                                                : new Date(item.StartDate).toLocaleDateString("en-GB")}
+                                                        <td>{formatDate(item.StartDate)}</td>
+                                                        <td>{formatDate(item.EndDate)}</td>
+                                                        <td className="text-center">
+                                                            {reminderChip(item.SelfReminderOn, "#4f46e5", "#eef2ff")}
                                                         </td>
-                                                        <td>
-                                                            {item.EndDate === "1900-01-01T00:00:00.000Z"
-                                                                ? "-"
-                                                                : new Date(item.EndDate).toLocaleDateString("en-GB")}
+                                                        <td className="text-center">
+                                                            {reminderChip(item.ManagerReminderOn, "#b45309", "#fffbeb")}
+                                                        </td>
+                                                        <td className="text-center">
+                                                            {reminderChip(item.PublishReminderOn, "#047857", "#ecfdf5")}
                                                         </td>
                                                         <td style={{ maxWidth: "250px" }}>
                                                             <Tooltip
@@ -950,26 +1095,70 @@ export default function ReviewCycles() {
                                                                 <Tooltip
                                                                     title={
                                                                         item.Status === "OPEN"
-                                                                            ? "Already Released"
-                                                                            : "Release Review Cycle"
+                                                                            ? "Review cycle is open and cannot be edited."
+                                                                            : item.Status === "DRAFT"
+                                                                                ? "Edit Review cycle."
+                                                                                : item.Status === "CLOSED"
+                                                                                    ? "Review cycle is closed and cannot be edited."
+                                                                                    : "Review cycle cannot be edited."
                                                                     }
                                                                 >
                                                                     <button
-                                                                        className="action-btn action-btn-release text-hover-white"
-                                                                        data-bs-toggle="modal"
-                                                                        data-bs-target="#releaseReviewCycleModal"
-                                                                        onClick={() =>
-                                                                            setReleaseData({
+                                                                        type="button"
+                                                                        className="action-btn action-btn-edit text-hover-white"
+                                                                        data-bs-toggle="offcanvas"
+                                                                        data-bs-target="#offcanvasRightEditReviewCycle"
+                                                                        onClick={() => {
+                                                                            setEditData({
                                                                                 Id: item.Id,
-                                                                                Comments: "",
-                                                                            })
-                                                                        }
-                                                                        disabled={item.Status === "OPEN"}
+                                                                                PeriodId: item.PeriodId || "",
+                                                                                CycleName: item.CycleName || "",
+                                                                                StartDate: item.StartDate || "",
+                                                                                EndDate: item.EndDate || "",
+                                                                                SelfReminderOn: item.SelfReminderOn || "",
+                                                                                ManagerReminderOn: item.ManagerReminderOn || "",
+                                                                                PublishReminderOn: item.PublishReminderOn || "",
+                                                                                Comments: item.Comments || "",
+                                                                            });
+                                                                        }}
+                                                                        disabled={item.Status !== "OPEN"}
                                                                     >
-                                                                        <i className="bi bi-rocket-takeoff text-success"></i>
+                                                                        <i className="bi bi-pencil-square text-primary"></i>
                                                                     </button>
                                                                 </Tooltip>
                                                                 <Tooltip
+            title={
+                canReleaseCycle
+                    ? "Release Review Cycle"
+                    : !isCycleOpenBtn
+                        ? "Review cycle cannot be released."
+                        : "Previous review cycle must be closed before releasing this cycle."
+            }
+        >
+            <span>
+                <button
+                    type="button"
+                    className="action-btn action-btn-release text-hover-white"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#offcanvasRightOpenCycle"
+                    onClick={() => {
+                        if (!canReleaseCycle) return;
+
+                        setReleaseData({
+                            Id: item.Id,
+                            CycleName: item.CycleName,
+                            StartDate: item.StartDate,
+                            EndDate: item.EndDate,
+                            Comments: "",
+                        });
+                    }}
+                    disabled={!canReleaseCycle}
+                >
+                    <i className="bi bi-rocket-takeoff text-success"></i>
+                </button>
+            </span>
+        </Tooltip>
+                                                                {/* <Tooltip
                                                                     title={
                                                                         item.Status === "OPEN"
                                                                             ? "Close Review Cycle"
@@ -983,7 +1172,7 @@ export default function ReviewCycles() {
                                                                     >
                                                                         <i className="bi bi-lock-fill text-danger"></i>
                                                                     </button>
-                                                                </Tooltip>
+                                                                </Tooltip> */}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -994,90 +1183,6 @@ export default function ReviewCycles() {
                                 </table>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-
-            {/* release model */}
-            <div
-                className="modal fade"
-                id="releaseReviewCycleModal"
-                tabIndex="-1"
-            >
-                <div className="modal-dialog modal-dialog-centered">
-                    <div className="modal-content border-0 shadow-lg rounded-4">
-                        <div
-                            className="modal-header border-0"
-                            style={{
-                                background:
-                                    "linear-gradient(90deg,#16a34a,#22c55e)",
-                                color: "#fff"
-                            }}
-                        >
-                            <div>
-                                <h5 className="mb-0 fw-bold">
-                                    <i className="bi bi-rocket-takeoff me-2 text-white"></i>
-                                    Release Review Cycle
-                                </h5>
-                                <small>
-                                    Release this review cycle to employees
-                                </small>
-                            </div>
-                            <button
-                                className="btn-close btn-close-white"
-                                data-bs-dismiss="modal"
-                            ></button>
-                        </div>
-
-                        <div className="modal-body p-4">
-                            <label className="form-label fw-semibold">
-                                Release Comments
-                                <span className="text-danger">*</span>
-                            </label>
-                            <textarea
-                                rows="4"
-                                className="form-control"
-                                placeholder="Enter release comments..."
-                                value={releaseData.Comments}
-                                onChange={(e) =>
-                                    setReleaseData({
-                                        ...releaseData,
-                                        Comments: e.target.value,
-                                    })
-                                }
-                            />
-                        </div>
-
-                        <div className="modal-footer border-0">
-                            <button
-                                className="btn btn-dark btn-sm"
-                                data-bs-dismiss="modal"
-                                disabled={releaseLoading}
-                            >
-                                Cancel
-                            </button>
-
-                            <button
-                                className="btn btn-success px-4 btn-sm"
-                                onClick={handleRelease}
-                                disabled={releaseLoading}
-                            >
-                                {releaseLoading ? (
-                                    <>
-                                        <span className="spinner-border spinner-border-sm me-2"></span>
-                                        Releasing...
-                                    </>
-                                ) : (
-                                    <>
-                                        <i className="bi bi-check-circle me-2"></i>
-                                        Release
-                                    </>
-                                )}
-                            </button>
-
-                        </div>
-
                     </div>
                 </div>
             </div>
@@ -1178,8 +1283,262 @@ export default function ReviewCycles() {
                         )
                     }))}
                 />
-
             </Modal>
+
+             {/* System settings Modal */}
+             <div
+                className="modal fade"
+                id="systemSettingsModal"
+                tabIndex="-1"
+                aria-labelledby="systemSettingsModalLabel"
+                aria-hidden="true"
+            >
+                <div className="modal-dialog modal-dialog-centered modal-lg">
+                    <div className="modal-content border-0 shadow rounded-4">
+                        <div className="modal-header border-0 px-4 pt-4 pb-3">
+                            <div>
+                                <h5
+                                    className="modal-title fw-bold d-flex align-items-center"
+                                    id="systemSettingsModalLabel"
+                                >
+                                    <span
+                                        className="d-flex align-items-center justify-content-center rounded-2 bg-light-primary text-primary me-2"
+                                        style={{
+                                            width: "34px",
+                                            height: "34px",
+                                        }}
+                                    >
+                                        <i className="bi bi-calendar-range text-info"></i>
+                                    </span>
+                                    Config Dates
+                                </h5>
+                                <small className="text-muted">
+                                    Configure KPI review and reminder dates
+                                </small>
+                            </div>
+                            <button
+                                type="button"
+                                className="btn-close"
+                                data-bs-dismiss="modal"
+                                aria-label="Close"
+                            ></button>
+                        </div>
+
+                        <div className="modal-body px-4 pt-2 pb-4">
+                            {reminderStartDays?.length > 0 ? (
+                                <div className="d-flex flex-column gap-3">
+                                    <div className="border rounded-3 p-3 shadow-sm">
+                                        <div className="d-flex justify-content-between align-items-center gap-3">
+                                            <div className="d-flex align-items-center flex-grow-1 min-w-0">
+                                                <div
+                                                    className="rounded-circle bg-light-primary text-primary d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                                                    style={{
+                                                        width: "44px",
+                                                        height: "44px",
+                                                    }}
+                                                >
+                                                    <i className="bi bi-lock-fill fs-5 text-primary"></i>
+                                                </div>
+                                                <div>
+                                                    <div className="fw-semibold">
+                                                        Lock Self Assessment
+                                                    </div>
+
+                                                    <small className="text-muted">
+                                                        Controls whether employee
+                                                        self-assessment is locked.
+                                                    </small>
+                                                </div>
+                                            </div>
+
+                                            <div className="d-flex align-items-center gap-3 flex-shrink-0">
+                                                <div className="form-check form-switch mb-0">
+                                                    <input
+                                                        className="form-check-input"
+                                                        type="checkbox"
+                                                        role="switch"
+                                                        id="lockSelfAssessment"
+                                                        checked={
+                                                            systemSettings.KPILockSelfAssessment
+                                                        }
+                                                        onChange={(e) =>
+                                                            handleSystemSettingChange(
+                                                                "KPILockSelfAssessment",
+                                                                e.target.checked
+                                                            )
+                                                        }
+                                                        style={{
+                                                            width: "42px",
+                                                            height: "22px",
+                                                            cursor: "pointer",
+                                                        }}
+                                                    />
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-primary btn-sm px-3"
+                                                    onClick={() =>
+                                                        handleSaveSystemSetting(
+                                                            "KPILockSelfAssessment"
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        savingSettings.KPILockSelfAssessment
+                                                    }
+                                                >
+                                                    {savingSettings.KPILockSelfAssessment ? (
+                                                        <>
+                                                            <span
+                                                                className="spinner-border spinner-border-sm me-1"
+                                                                role="status"
+                                                            ></span>
+                                                            Saving
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <i className="bi bi-check2 me-1"></i>
+                                                            Submit
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="border-top mt-3 pt-2 d-flex align-items-center">
+                                            <span className="text-muted small me-2">
+                                                Status:
+                                            </span>
+                                            <span
+                                                className={`badge ${systemSettings.KPILockSelfAssessment
+                                                    ? "bg-success"
+                                                    : "bg-danger"
+                                                    }`}
+                                            >
+                                                {systemSettings.KPILockSelfAssessment
+                                                    ? "Enabled"
+                                                    : "Disabled"}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="border rounded-3 p-3 shadow-sm">
+                                        <div className="d-flex align-items-center">
+                                            <div
+                                                className="rounded-circle bg-light-primary text-primary d-flex align-items-center justify-content-center me-3 flex-shrink-0"
+                                                style={{
+                                                    width: "44px",
+                                                    height: "44px",
+                                                }}
+                                            >
+                                                <i className="bi bi-bell-fill fs-5 text-warning"></i>
+                                            </div>
+                                            <div>
+                                                <div className="fw-semibold">
+                                                    Reminder Start Days
+                                                </div>
+                                                <small className="text-muted">
+                                                    Number of days before the deadline
+                                                    to start reminders.
+                                                </small>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3">
+                                            <label
+                                                htmlFor="reminderStartDays"
+                                                className="form-label fw-semibold mb-2"
+                                            >
+                                                Number of Days
+                                            </label>
+                                            <div className="d-flex align-items-center gap-2">
+                                                <div className="input-group" style={{ width: "200px" }}>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        className="form-control form-control-sm"
+                                                        id="reminderStartDays"
+                                                        value={systemSettings.KPIReminderStartDays}
+                                                        onChange={(e) =>
+                                                            handleSystemSettingChange(
+                                                                "KPIReminderStartDays",
+                                                                e.target.value
+                                                            )
+                                                        }
+                                                        onWheel={(e) => e.currentTarget.blur()}
+                                                        placeholder="Days"
+                                                        style={{
+                                                            height: "38px",
+                                                        }}
+                                                    />
+                                                    <span
+                                                        className="input-group-text"
+                                                        style={{
+                                                            height: "38px",
+                                                        }}
+                                                    >
+                                                        Days
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="btn btn-primary btn-sm px-3"
+                                                    onClick={() =>
+                                                        handleSaveSystemSetting(
+                                                            "KPIReminderStartDays"
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        savingSettings.KPIReminderStartDays ||
+                                                        systemSettings.KPIReminderStartDays === "" ||
+                                                        Number(systemSettings.KPIReminderStartDays) < 0
+                                                    }
+                                                    style={{
+                                                        height: "38px",
+                                                    }}
+                                                >
+                                                    {savingSettings.KPIReminderStartDays ? (
+                                                        <>
+                                                            <span
+                                                                className="spinner-border spinner-border-sm me-1"
+                                                                role="status"
+                                                            ></span>
+                                                            Saving
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <i className="bi bi-check2 me-1"></i>
+                                                            Submit
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-5 text-muted">
+                                    <div
+                                        className="rounded-circle bg-light-primary text-primary d-flex align-items-center justify-content-center mx-auto mb-3"
+                                        style={{
+                                            width: "60px",
+                                            height: "60px",
+                                        }}
+                                    >
+                                        <i className="bi bi-info-circle fs-3"></i>
+                                    </div>
+                                    <div className="fw-semibold">
+                                        No system settings found
+                                    </div>
+                                    <small>
+                                        There are no configuration settings available.
+                                    </small>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
 
 
             <style>
@@ -1221,73 +1580,73 @@ export default function ReviewCycles() {
                         font-size: 16px;
                     }
                     .status-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 120px;
-    height: 34px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-    transition: all .25s ease;
-}
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 8px;
+                        width: 120px;
+                        height: 34px;
+                        border-radius: 999px;
+                        font-size: 12px;
+                        font-weight: 600;
+                        letter-spacing: 0.4px;
+                        transition: all .25s ease;
+                    }
 
-.status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-}
+                    .status-dot {
+                        width: 8px;
+                        height: 8px;
+                        border-radius: 50%;
+                    }
 
-/* Draft - Orange */
-.status-draft {
-    background: #fff7ed;
-    color: #c2410c;
-    border: 1px solid #fdba74;
-}
+                    /* Draft - Orange */
+                    .status-draft {
+                        background: #fff7ed;
+                        color: #c2410c;
+                        border: 1px solid #fdba74;
+                    }
 
-.status-draft .status-dot {
-    background: #f97316;
-}
+                    .status-draft .status-dot {
+                        background: #f97316;
+                    }
 
-/* Released - Blue */
-.status-released {
-    background: #eff6ff;
-    color: #1d4ed8;
-    border: 1px solid #93c5fd;
-}
+                    /* Released - Blue */
+                    .status-released {
+                        background: #eff6ff;
+                        color: #1d4ed8;
+                        border: 1px solid #93c5fd;
+                    }
 
-.status-released .status-dot {
-    background: #3b82f6;
-}
+                    .status-released .status-dot {
+                        background: #3b82f6;
+                    }
 
-/* Open - Green */
-.status-open {
-    background: #ecfdf3;
-    color: #15803d;
-    border: 1px solid #bbf7d0;
-}
+                    /* Open - Green */
+                    .status-open {
+                        background: #ecfdf3;
+                        color: #15803d;
+                        border: 1px solid #bbf7d0;
+                    }
 
-.status-open .status-dot {
-    background: #22c55e;
-}
+                    .status-open .status-dot {
+                        background: #22c55e;
+                    }
 
-/* Closed - Red */
-.status-closed {
-    background: #fef2f2;
-    color: #b91c1c;
-    border: 1px solid #fecaca;
-}
+                    /* Closed - Red */
+                    .status-closed {
+                        background: #fef2f2;
+                        color: #b91c1c;
+                        border: 1px solid #fecaca;
+                    }
 
-.status-closed .status-dot {
-    background: #ef4444;
-}
+                    .status-closed .status-dot {
+                        background: #ef4444;
+                    }
 
-.status-pill:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
-}
+                    .status-pill:hover {
+                        transform: translateY(-1px);
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
+                    }
                     .action-btn{
                         width:40px;
                         height:40px;
@@ -1378,6 +1737,11 @@ export default function ReviewCycles() {
 
             <AddReviewCycle kpiPeriodsData={kpiPeriodsData} />
             <EditReviewCycle editReviewCycleData={editData} />
+            <ReleaseReviewCycle
+                releaseReviewCycleData={releaseData}
+                employees={employees}
+                onReleased={fetchReviewCycles}
+            />
         </Base1>
     )
 }

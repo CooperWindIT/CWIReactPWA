@@ -60,6 +60,7 @@ export default function Canvas({
   showGrid,
   canvasBg,
   sessionUserData,
+  onConnectionLabelChange,
 }) {
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
@@ -232,7 +233,16 @@ export default function Canvas({
     if (!node) return;
     if (event.ctrlKey || event.metaKey) return;
     const point = toCanvasPoint(event.clientX, event.clientY);
-    const dragIds = selectedIds.includes(nodeId) ? selectedIds : [nodeId];
+    // const dragIds = selectedIds.includes(nodeId) ? selectedIds : [nodeId];
+    const isAlreadySelected = selectedIds.includes(nodeId);
+
+const dragIds = isAlreadySelected
+    ? selectedIds
+    : [nodeId];
+
+if (!isAlreadySelected) {
+    onSelectNodes([nodeId]);   // <-- important
+}
     dragging.current = {
       nodeIds: dragIds,
       startPoint: point,
@@ -315,14 +325,14 @@ export default function Canvas({
 
     if (activeShape && !readMode) {
       const point = toCanvasPoint(event.clientX, event.clientY);
-  
+
       onCreateNode(activeShape, point);
-  
+
       // Automatically switch back to Select tool
       setActiveShape(null);
-  
+
       return;
-  }
+    }
 
     if (!readMode && mode === 'select') {
       const point = toCanvasPoint(event.clientX, event.clientY);
@@ -369,256 +379,254 @@ export default function Canvas({
       y: node.y + node.h / 2,
     };
   }
-  
+
   function getChildSide(parent, child) {
     const parentCenter = getNodeCenter(parent);
     const childCenter = getNodeCenter(child);
-  
+
     const dx = childCenter.x - parentCenter.x;
     const dy = childCenter.y - parentCenter.y;
-  
+
     if (Math.abs(dx) > Math.abs(dy)) {
       return dx > 0 ? "right" : "left";
     }
-  
+
     return dy > 0 ? "bottom" : "top";
   }
-  
+
   function collectBranchNodeIds(rootId, connections) {
     const visited = new Set();
     const queue = [rootId];
-  
+
     while (queue.length) {
       const current = queue.shift();
       if (visited.has(current)) continue;
       visited.add(current);
-  
+
       connections.forEach((conn) => {
         if (conn.from === current && !visited.has(conn.to)) {
           queue.push(conn.to);
         }
       });
     }
-  
+
     return visited;
   }
   const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
 
-const hiddenNodeIds = new Set();
-
-if (readMode) {
-  nodes.forEach((node) => {
-    const collapsedSides = node.collapsedSides || {};
-
-    connections.forEach((conn) => {
-      if (conn.from !== node.id) return;
-
-      const child = nodeMap[conn.to];
-      if (!child) return;
-
-      const side = getChildSide(node, child);
-
-      if (collapsedSides[side]) {
-        const subtreeIds = collectBranchNodeIds(child.id, connections);
-        subtreeIds.forEach((id) => hiddenNodeIds.add(id));
-      }
-    });
-  });
-}
-
-
-  return (
-    <div className={styles.canvasShell}>
-    {sessionUserData?.ImageUrl && (
-      <div className={styles.fixedLogoLayer}>
-        <div
-          className={styles.fixedLogo}
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            width: "100%",
-            height: "100%",
-            backgroundImage: `url(${BASE_IMAGE_API_GET}${sessionUserData.ImageUrl})`,
-            backgroundRepeat: "no-repeat",
-            backgroundPosition: "center",
-            backgroundSize: "60%",
-            opacity: 0.08,
-            pointerEvents: "none",
-            zIndex: 0,
-          }}
-        />
-      </div>
-    )}
-  
-    <div
-      ref={wrapRef}
-      className={styles.wrap}
-      id="canvas-wrap"
-      onWheel={handleWheel}
-      style={{
-        cursor: mode === "pan" ? "grab" : activeShape ? "crosshair" : "default",
-      }}
-    >
-      <div
-        className={styles.viewport}
-        style={{ width: BASE_WIDTH * zoom, height: BASE_HEIGHT * zoom }}
-      >
-        <div
-          ref={canvasRef}
-          className={styles.canvas}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
-          onMouseDown={handleCanvasMouseDown}
-          onDoubleClick={handleCanvasDoubleClick}
-          style={{
-            width: BASE_WIDTH,
-            height: BASE_HEIGHT,
-            transform: `scale(${zoom})`,
-            background: canvasBg,
-          }}
-        >
-          {showGrid && <div className={styles.grid} />}
-  
-          {selectionRect && (
-            <div
-              className={styles.selectionRect}
-              style={{
-                left: selectionRect.x,
-                top: selectionRect.y,
-                width: selectionRect.w,
-                height: selectionRect.h,
-              }}
-            />
-          )}
-  
-  {(() => {
-  const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
   const hiddenNodeIds = new Set();
-
-  const collectChildren = (parentId) => {
-    connections.forEach((connection) => {
-      if (connection.from === parentId && !hiddenNodeIds.has(connection.to)) {
-        hiddenNodeIds.add(connection.to);
-        collectChildren(connection.to);
-      }
-    });
-  };
 
   if (readMode) {
     nodes.forEach((node) => {
       const collapsedSides = node.collapsedSides || {};
 
-      Object.keys(collapsedSides).forEach((side) => {
-        if (!collapsedSides[side]) return;
+      connections.forEach((conn) => {
+        if (conn.from !== node.id) return;
 
-        connections.forEach((connection) => {
-          if (connection.from !== node.id) return;
+        const child = nodeMap[conn.to];
+        if (!child) return;
 
-          const child = nodeMap[connection.to];
-          if (!child) return;
+        const side = getChildSide(node, child);
 
-          const childSide = getConnectionSide(node, child);
-
-          if (childSide === side) {
-            hiddenNodeIds.add(child.id);
-            collectChildren(child.id);
-          }
-        });
+        if (collapsedSides[side]) {
+          const subtreeIds = collectBranchNodeIds(child.id, connections);
+          subtreeIds.forEach((id) => hiddenNodeIds.add(id));
+        }
       });
     });
   }
 
-  const visibleNodes = readMode
-    ? nodes.filter((node) => !hiddenNodeIds.has(node.id))
-    : nodes;
-
-  const visibleConnections = readMode
-    ? connections.filter((connection) => {
-        if (hiddenNodeIds.has(connection.from) || hiddenNodeIds.has(connection.to)) {
-          return false;
-        }
-
-        const fromNode = nodeMap[connection.from];
-        const toNode = nodeMap[connection.to];
-
-        if (!fromNode || !toNode) return false;
-
-        const side = getConnectionSide(fromNode, toNode);
-        return !fromNode.collapsedSides?.[side];
-      })
-    : connections;
 
   return (
-    <>
-      {visibleConnections.map((connection) => (
-        <Connections
-          key={connection.id}
-          connection={connection}
-          nodes={visibleNodes}
-          theme={theme}
-          selected={selectedConnectionId === connection.id}
-          dimmed={
-            focusedNodeIds.length > 0 &&
-            (!focusedNodeIds.includes(connection.from) ||
-              !focusedNodeIds.includes(connection.to))
-          }
-          onSelectConnection={onSelectConnection}
-          onControlPointDragStart={handleConnectionControlDragStart}
-          onDeleteConnection={onDeleteConnection}
-        />
-      ))}
-
-      {visibleNodes.map((node) => {
-        const sideControls = ["top", "right", "bottom", "left"]
-          .map((side) => {
-            const hasChildren = connections.some((connection) => {
-              if (connection.from !== node.id) return false;
-              const child = nodeMap[connection.to];
-              return child ? getConnectionSide(node, child) === side : false;
-            });
-
-            return hasChildren
-              ? { side, collapsed: Boolean(node.collapsedSides?.[side]) }
-              : null;
-          })
-          .filter(Boolean);
-
-        return (
-          <Node
-            key={node.id}
-            node={node}
-            sideControls={sideControls}
-            dimmed={
-              readMode &&
-              focusedNodeIds.length > 0 &&
-              !focusedNodeIds.includes(node.id)
-            }
-            searchMatched={matchedNodeIds.includes(node.id)}
-            searchActive={activeSearchNodeId === node.id}
-            onToggle={onToggle}
-            selected={selectedIds.includes(node.id)}
-            mode={mode}
-            connectFrom={connectFrom}
-            onMouseDown={handleNodeMouseDown}
-            onResizeStart={handleResizeStart}
-            onSelect={onSelectNode}
-            onConnect={onConnect}
-            onQuickCreateFromNode={onQuickCreateFromNode}
-            onReadModeDoubleClick={onFocusBranch}
-            onLabelChange={onLabelChange}
-            readMode={readMode}
-            theme={theme}
+    <div className={styles.canvasShell}>
+      {sessionUserData?.ImageUrl && (
+        <div className={styles.fixedLogoLayer}>
+          <div
+            className={styles.fixedLogo}
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "100%",
+              height: "100%",
+              backgroundImage: `url(${BASE_IMAGE_API_GET}${sessionUserData.ImageUrl})`,
+              backgroundRepeat: "no-repeat",
+              backgroundPosition: "center",
+              backgroundSize: "60%",
+              opacity: 0.08,
+              pointerEvents: "none",
+              zIndex: 0,
+            }}
           />
-        );
-      })}
-    </>
-  );
-})()}
+        </div>
+      )}
+
+      <div
+        ref={wrapRef}
+        className={styles.wrap}
+        id="canvas-wrap"
+        onWheel={handleWheel}
+        style={{
+          cursor: mode === "pan" ? "grab" : activeShape ? "crosshair" : "default",
+        }}
+      >
+        <div
+          className={styles.viewport}
+          style={{ width: BASE_WIDTH * zoom, height: BASE_HEIGHT * zoom }}
+        >
+          <div
+            ref={canvasRef}
+            className={styles.canvas}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onMouseDown={handleCanvasMouseDown}
+            onDoubleClick={handleCanvasDoubleClick}
+            style={{
+              width: BASE_WIDTH,
+              height: BASE_HEIGHT,
+              transform: `scale(${zoom})`,
+              background: canvasBg,
+            }}
+          >
+            {showGrid && <div className={styles.grid} />}
+
+            {selectionRect && (
+              <div
+                className={styles.selectionRect}
+                style={{
+                  left: selectionRect.x,
+                  top: selectionRect.y,
+                  width: selectionRect.w,
+                  height: selectionRect.h,
+                }}
+              />
+            )}
+
+            {(() => {
+              const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
+              const hiddenNodeIds = new Set();
+
+              const collectChildren = (parentId) => {
+                connections.forEach((connection) => {
+                  if (connection.from === parentId && !hiddenNodeIds.has(connection.to)) {
+                    hiddenNodeIds.add(connection.to);
+                    collectChildren(connection.to);
+                  }
+                });
+              };
+
+              // Removed the `if (readMode)` gate — collapsed branches should stay
+              // hidden regardless of read/edit mode, since the collapse toggle is
+              // available in both.
+              nodes.forEach((node) => {
+                const collapsedSides = node.collapsedSides || {};
+
+                Object.keys(collapsedSides).forEach((side) => {
+                  if (!collapsedSides[side]) return;
+
+                  connections.forEach((connection) => {
+                    if (connection.from !== node.id) return;
+
+                    const child = nodeMap[connection.to];
+                    if (!child) return;
+
+                    const childSide = getConnectionSide(node, child);
+
+                    if (childSide === side) {
+                      hiddenNodeIds.add(child.id);
+                      collectChildren(child.id);
+                    }
+                  });
+                });
+              });
+
+              const visibleNodes = nodes.filter((node) => !hiddenNodeIds.has(node.id));
+
+              const visibleConnections = connections.filter((connection) => {
+                if (hiddenNodeIds.has(connection.from) || hiddenNodeIds.has(connection.to)) {
+                  return false;
+                }
+
+                const fromNode = nodeMap[connection.from];
+                const toNode = nodeMap[connection.to];
+
+                if (!fromNode || !toNode) return false;
+
+                const side = getConnectionSide(fromNode, toNode);
+                return !fromNode.collapsedSides?.[side];
+              });
+
+              return (
+                <>
+                  {visibleConnections.map((connection) => (
+                    <Connections
+                      key={connection.id}
+                      connection={connection}
+                      nodes={visibleNodes}
+                      theme={theme}
+                      selected={selectedConnectionId === connection.id}
+                      dimmed={
+                        focusedNodeIds.length > 0 &&
+                        (!focusedNodeIds.includes(connection.from) ||
+                          !focusedNodeIds.includes(connection.to))
+                      }
+                      onSelectConnection={onSelectConnection}
+                      onControlPointDragStart={handleConnectionControlDragStart}
+                      onDeleteConnection={onDeleteConnection}
+                      onLabelChange={onConnectionLabelChange}
+                    />
+                  ))}
+
+                  {visibleNodes.map((node) => {
+                    const sideControls = ["top", "right", "bottom", "left"]
+                      .map((side) => {
+                        const hasChildren = connections.some((connection) => {
+                          if (connection.from !== node.id) return false;
+                          const child = nodeMap[connection.to];
+                          return child ? getConnectionSide(node, child) === side : false;
+                        });
+
+                        return hasChildren
+                          ? { side, collapsed: Boolean(node.collapsedSides?.[side]) }
+                          : null;
+                      })
+                      .filter(Boolean);
+
+                    return (
+                      <Node
+                        key={node.id}
+                        node={node}
+                        sideControls={sideControls}
+                        dimmed={
+                          readMode &&
+                          focusedNodeIds.length > 0 &&
+                          !focusedNodeIds.includes(node.id)
+                        }
+                        searchMatched={matchedNodeIds.includes(node.id)}
+                        searchActive={activeSearchNodeId === node.id}
+                        onToggle={onToggle}
+                        selected={selectedIds.includes(node.id)}
+                        mode={mode}
+                        connectFrom={connectFrom}
+                        onMouseDown={handleNodeMouseDown}
+                        onResizeStart={handleResizeStart}
+                        onSelect={onSelectNode}
+                        onConnect={onConnect}
+                        onQuickCreateFromNode={onQuickCreateFromNode}
+                        onReadModeDoubleClick={onFocusBranch}
+                        onLabelChange={onLabelChange}
+                        readMode={readMode}
+                        theme={theme}
+                      />
+                    );
+                  })}
+                </>
+              );
+            })()}
+          </div>
         </div>
       </div>
     </div>
-  </div>
   );
 }

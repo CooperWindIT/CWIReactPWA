@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from "react";
 import { getNodeCenter, getEdgePoint } from './Geometry';
 
 function getDefaultControlPoint(start, end) {
@@ -26,7 +26,11 @@ export default function Connections({
   onSelectConnection,
   onControlPointDragStart,
   onDeleteConnection,
+  onLabelChange,
 }) {
+  const [editing, setEditing] = useState(false);
+
+const inputRef = useRef(null);
   const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
   const from = nodeMap[connection.from];
   const to = nodeMap[connection.to];
@@ -39,8 +43,18 @@ export default function Connections({
   const start = getEdgePoint(from, toCenter);
   const end = getEdgePoint(to, fromCenter);
   const controlPoint = connection.controlPoint || getDefaultControlPoint(start, end);
+  const labelX =
+    0.25 * start.x +
+    0.5 * controlPoint.x +
+    0.25 * end.x;
+
+const labelY =
+    0.25 * start.y +
+    0.5 * controlPoint.y +
+    0.25 * end.y;
   const endShort = shortenTowards(controlPoint, end, 10);
   const pathData = `M${start.x},${start.y} Q${controlPoint.x},${controlPoint.y} ${endShort.x},${endShort.y}`;
+
 
   return (
     <svg
@@ -83,7 +97,61 @@ export default function Connections({
             onSelectConnection(connection.id);
           }}
         />
+<foreignObject
+    x={labelX - 70}
+    y={labelY - 14}
+    width={140}
+    height={30}
+    style={{
+        pointerEvents: "all",
+        overflow: "visible",
+    }}
+>
+    {editing ? (
+        <input
+            ref={inputRef}
+            autoFocus
+            defaultValue={connection.label || ""}
+            style={{
+                width: "100%",
+                border: "1px solid #696eff",
+                borderRadius: 5,
+                fontSize: 13,
+                padding: "2px 6px",
+                textAlign: "center",
+            }}
+            onBlur={(e) => {
+                onLabelChange(connection.id, e.target.value);
+                setEditing(false);
+            }}
+            onKeyDown={(e) => {
+                if (e.key === "Enter") {
 
+                    onLabelChange(connection.id, e.target.value);
+
+                    setEditing(false);
+                }
+            }}
+        />
+    ) : (
+        <div
+            onDoubleClick={() => setEditing(true)}
+            style={{
+                background: "#fff",
+                padding: "2px 8px",
+                borderRadius: 10,
+                textAlign: "center",
+                cursor: "text",
+                fontSize: 13,
+                color: "#222",
+                whiteSpace: "nowrap",
+                userSelect: "none",
+            }}
+        >
+            {connection.label || ""}
+        </div>
+    )}
+</foreignObject>
         {selected && (
           <g>
             <line

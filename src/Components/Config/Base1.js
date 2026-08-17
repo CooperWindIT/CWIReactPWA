@@ -23,8 +23,7 @@ const Base1 = ({ children }) => {
     const navigate = useNavigate();
     const currentPath = window.location.pathname;
     const location = useLocation();
-    const shouldHideSidebar = ["/vms/", "/alert/", "/edm/", "/faq", "/kpi", "/service-requests"].some(path => location.pathname.includes(path));
-    const shouldDocComponents = location.pathname.includes("/pmms/");
+    const shouldHideSidebar = ["/vms/",  "/edm/", "/faq", "/kpi/", "/service-requests"].some(path => location.pathname.includes(path));
     const searchParams = new URLSearchParams(location.search);
     const reportId = searchParams.get("reportId");
 
@@ -369,10 +368,10 @@ const Base1 = ({ children }) => {
                     <div className="app-container container-fluid d-flex align-items-stretch justify-content-between" id="kt_app_header_container">
                         <div className="d-flex align-items-center d-lg-none ms-n3 me-1 me-md-2" title="Show sidebar menu">
                             <div className="btn btn-icon btn-active-color-primary w-35px h-35px" id="kt_app_sidebar_mobile_toggle"
-                                style={{
-                                    pointerEvents: (shouldHideSidebar || reportId === '3') ? 'none' : 'auto',
-                                    opacity: (shouldHideSidebar || reportId === '3') ? 0.3 : 1
-                                }}
+                                // style={{
+                                //     pointerEvents: (shouldHideSidebar || reportId === '3') ? 'none' : 'auto',
+                                //     opacity: (shouldHideSidebar || reportId === '3') ? 0.3 : 1
+                                // }}
                             >
                                 <i className="ki-duotone ki-abstract-14 fs-2 fs-md-1 text-white"
                                     data-bs-toggle="offcanvas"
@@ -479,90 +478,77 @@ const Base1 = ({ children }) => {
                 </div>
 
                 <div className="app-wrapper flex-row flex-row-fluid pt-20" id="kt_app_wrapper">
-                    {!(shouldHideSidebar || reportId === '3' || reportId === '19' || reportId === '21' || reportId === '22') && (
-                        <div id="kt_app_sidebar" className="app-sidebar flex-column" data-kt-drawer="true" style={{ width: '205px' }}>
-                            <div className="app-sidebar-menu overflow-hidden flex-column-fluid bg-white shadow-sm">
-                                <div id="kt_app_sidebar_menu_wrapper" className="app-sidebar-wrapper">
-                                    <div id="kt_app_sidebar_menu_scroll" style={{ minHeight: '90vh' }} className="scroll-y my-5 mx-3" data-kt-scroll="true" data-kt-scroll-activate="true"
-                                        data-kt-scroll-height="auto" data-kt-scroll-dependencies="#kt_app_sidebar_logo, #kt_app_sidebar_footer" data-kt-scroll-wrappers="#kt_app_sidebar_menu" data-kt-scroll-offset="5px" data-kt-scroll-save-state="true">
-                                        <div className="menu menu-column menu-rounded menu-sub-indention fw-semibold fs-4" id="#kt_app_sidebar_menu" data-kt-menu="true" data-kt-menu-expand="false">
-                                            <div data-kt-menu-trigger="click" className="menu-item menu-accordion">
-                                                <div className="sidebar-menu">
-                                                    {menuItems &&
-                                                        menuItems?.map((item, index) => (
-                                                            <div key={index} className="menu-item">
-                                                                <a
-                                                                    href={item.MenuPath}
-                                                                    // to={item.MenuPath}
-                                                                    className={`menu-link d-flex align-items-center p-2 ${activeDropdown === index ? "active" : ""
-                                                                        }  ${item.MenuPath === currentPath ? "text-highligh fw-bold border border-primary border-2" : "text-dark"} hover-effect`}
-                                                                    onClick={(e) => {
-                                                                        if (item.SubItems?.length) {
-                                                                            e.preventDefault();
-                                                                            toggleDropdown(index);
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    <i className={`me-2 fs-5 ${item.IconName}`}></i>
-                                                                    <span className="menu-title">{item.MenuName}</span>
-                                                                    {item.SubItems?.length > 0 && (
-                                                                        <i
-                                                                            className={`ms-auto fa-solid ${activeDropdown === index ? "fa-chevron-up" : "fa-chevron-down"
-                                                                                }`}
-                                                                        ></i>
-                                                                    )}
-                                                                </a>
-
-                                                                {item.SubItems?.length > 0 && (
-                                                                    <ul
-                                                                        className={`submenu list-unstyled ps-4 ${activeDropdown === index ? "d-block" : "d-none"
-                                                                            }`}
+                    {!(
+                        shouldHideSidebar ||
+                        ["3", "19", "21", "22"].includes(reportId)
+                    ) && (
+                            <div id="kt_app_sidebar" className="app-sidebar flex-column" data-kt-drawer="true" style={{ width: '205px' }}>
+                                <div className="app-sidebar-menu overflow-hidden flex-column-fluid bg-white shadow-sm">
+                                    <div id="kt_app_sidebar_menu_wrapper" className="app-sidebar-wrapper">
+                                        <div id="kt_app_sidebar_menu_scroll" style={{ minHeight: '90vh' }} className="scroll-y my-5 mx-3" data-kt-scroll="true" data-kt-scroll-activate="true"
+                                            data-kt-scroll-height="auto" data-kt-scroll-dependencies="#kt_app_sidebar_logo, #kt_app_sidebar_footer" data-kt-scroll-wrappers="#kt_app_sidebar_menu" data-kt-scroll-offset="5px" data-kt-scroll-save-state="true">
+                                            <div className="menu menu-column menu-rounded menu-sub-indention fw-semibold fs-4" id="#kt_app_sidebar_menu" data-kt-menu="true" data-kt-menu-expand="false">
+                                                <div data-kt-menu-trigger="click" className="menu-item menu-accordion">
+                                                    <div className="sidebar-menu">
+                                                        {menuItems &&
+                                                            menuItems?.map((item, index) => (
+                                                                <div key={index} className="menu-item">
+                                                                    <a
+                                                                        href={item.MenuPath}
+                                                                        className={`menu-link d-flex align-items-center p-2 ${activeDropdown === index ? "active" : ""
+                                                                            }  ${item.MenuPath === currentPath ? "text-highligh fw-bold border border-primary border-2" : "text-dark"} hover-effect`}
+                                                                        onClick={(e) => {
+                                                                            if (item.SubItems?.length) {
+                                                                                e.preventDefault();
+                                                                                toggleDropdown(index);
+                                                                            }
+                                                                        }}
                                                                     >
-                                                                        {item.SubItems.map((subItem, subIndex) => (
-                                                                            <li key={subIndex}>
-                                                                                <Link
-                                                                                    to={`/${subItem.MenuPath}`}
-                                                                                    className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath}` === currentSubPath ? "fw-bold text-primary" : "text-dark"
-                                                                                        }`}
-                                                                                    onClick={() => window.location.href = `/${subItem.MenuPath}`}
-                                                                                >
-                                                                                    <i className="fa-solid fa-arrow-right me-2"></i>
-                                                                                    {subItem.MenuName}
-                                                                                </Link>
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                )}
-                                                            </div>
-                                                        ))}
+                                                                        <i className={`me-2 fs-5 ${item.IconName}`}></i>
+                                                                        <span className="menu-title">{item.MenuName}</span>
+                                                                        {item.SubItems?.length > 0 && (
+                                                                            <i
+                                                                                className={`ms-auto fa-solid ${activeDropdown === index ? "fa-chevron-up" : "fa-chevron-down"
+                                                                                    }`}
+                                                                            ></i>
+                                                                        )}
+                                                                    </a>
+
+                                                                    {item.SubItems?.length > 0 && (
+                                                                        <ul
+                                                                            className={`submenu list-unstyled ps-4 ${activeDropdown === index ? "d-block" : "d-none"
+                                                                                }`}
+                                                                        >
+                                                                            {item.SubItems.map((subItem, subIndex) => (
+                                                                                <li key={subIndex}>
+                                                                                    <Link
+                                                                                        to={`/${subItem.MenuPath}`}
+                                                                                        className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath}` === currentSubPath ? "fw-bold text-primary" : "text-dark"
+                                                                                            }`}
+                                                                                        onClick={() => window.location.href = `/${subItem.MenuPath}`}
+                                                                                    >
+                                                                                        <i className="fa-solid fa-arrow-right me-2"></i>
+                                                                                        {subItem.MenuName}
+                                                                                    </Link>
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
                     <div className="app-main flex-column flex-row-fluid mb-11" id="kt_app_main">
 
                         {children}
 
                         <div id="kt_app_footer" className="app-footer bg-white shadow-sm fixed-bottom row">
-                            {shouldDocComponents &&
-                                <div className='col-2 d-none d-md-block'>
-                                    <a href="https://services.cooperwind.online/uploads/CWIDocs/1758281305350-PMMS%20User%20Guide%20(1).pdf" target='_blank'
-                                        className="btn btn-flex flex-center btn-custom btn-primary overflow-hidden text-nowrap px-0 h-40px w-100 ms-2"
-                                        data-bs-toggle="tooltip" data-bs-trigger="hover" data-bs-dismiss-="click"
-                                        data-bs-original-title="200+ in-house components and 3rd-party plugins"
-                                        data-kt-initialized="1">
-                                        <span className="btn-label">User Manual</span>
-                                        <i className="ki-duotone ki-document btn-icon fs-2 ">
-                                            <span className="path1"></span>
-                                            <span className="path2"></span>
-                                        </i>
-                                    </a>
-                                </div>
-                            }
                             <div className="app-container container-fluid d-flex flex-column flex-md-row flex-center flex-md-stack py-3 col-10">
                                 <div className="text-gray-900 order-2 order-md-1">
                                     <span className="text-muted fw-semibold me-1">2025&copy;</span>
@@ -647,22 +633,6 @@ const Base1 = ({ children }) => {
                             </div>
                         ))}
                 </div>
-
-                {shouldDocComponents && (
-                    <div className="offcanvas-footer border-top p-3 mt-auto">
-                        <a
-                            href="https://services.cooperwind.online/uploads/CWIDocs/1758281305350-PMMS%20User%20Guide%20(1).pdf"
-                            target="_blank"
-                            className="btn btn-flex flex-center btn-custom btn-primary w-100"
-                        >
-                            <span className="btn-label">Docs &amp; Components</span>
-                            <i className="ki-duotone ki-document btn-icon fs-2 ms-2">
-                                <span className="path1"></span>
-                                <span className="path2"></span>
-                            </i>
-                        </a>
-                    </div>
-                )}
             </div>
 
             <style>
@@ -919,58 +889,58 @@ const Base1 = ({ children }) => {
             <style>
                 {`
                 .profile-avatar-wrap {
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  position: relative;
-  overflow: hidden;
-  flex: 0 0 58px;
-  cursor: pointer;
-  border: 2px solid #e5edff;
-  background: #f8fafc;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-}
+                    width: 58px;
+                    height: 58px;
+                    border-radius: 50%;
+                    position: relative;
+                    overflow: hidden;
+                    flex: 0 0 58px;
+                    cursor: pointer;
+                    border: 2px solid #e5edff;
+                    background: #f8fafc;
+                    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+                    }
 
-.profile-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: center;
-  display: block;
-  padding: 3px;
-  border-radius: 50%;
-  background: #fff;
-  transition: transform 0.25s ease, filter 0.25s ease;
-}
+                    .profile-avatar-img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: contain;
+                    object-position: center;
+                    display: block;
+                    padding: 3px;
+                    border-radius: 50%;
+                    background: #fff;
+                    transition: transform 0.25s ease, filter 0.25s ease;
+                    }
 
-.profile-avatar-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 800;
-  background: rgba(15, 23, 42, 0.62);
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
+                    .profile-avatar-overlay {
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 2px;
+                    color: #fff;
+                    font-size: 10px;
+                    font-weight: 800;
+                    background: rgba(15, 23, 42, 0.62);
+                    opacity: 0;
+                    transition: opacity 0.25s ease;
+                    }
 
-.profile-avatar-overlay i {
-  font-size: 14px;
-}
+                    .profile-avatar-overlay i {
+                    font-size: 14px;
+                    }
 
-.profile-avatar-wrap:hover .profile-avatar-img {
-  transform: scale(1.06);
-  filter: brightness(0.82);
-}
+                    .profile-avatar-wrap:hover .profile-avatar-img {
+                    transform: scale(1.06);
+                    filter: brightness(0.82);
+                    }
 
-.profile-avatar-wrap:hover .profile-avatar-overlay {
-  opacity: 1;
-}
+                    .profile-avatar-wrap:hover .profile-avatar-overlay {
+                    opacity: 1;
+                    }
 
                 .progress-bar-animated-smooth {
                     transition: width 1.2s ease-in-out;

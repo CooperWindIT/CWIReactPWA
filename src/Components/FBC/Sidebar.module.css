@@ -143,7 +143,127 @@
   border: 0;
   background: transparent;
 }
+.sidebarTabs{
+  display:flex;
+  background:#f5f8ff;
+  padding:5px;
+  border-radius:14px;
+  margin-bottom:18px;
+  border:1px solid #e4ebff;
+  box-shadow:0 3px 12px rgba(0,0,0,.05);
+}
 
+.sidebarTab{
+  flex:1;
+  height:34px;
+
+  border:none;
+  background:transparent;
+
+  border-radius:10px;
+
+  font-size:12px;
+  font-weight:600;
+
+  color:#6b7280;
+
+  transition:.25s;
+
+  display:flex;
+  justify-content:center;
+  align-items:center;
+
+  gap:6px;
+
+  cursor:pointer;
+}
+
+.sidebarTab:hover{
+  background:#eef4ff;
+  color:#2563eb;
+}
+
+.sidebarTabActive{
+  background:#2563eb;
+  color:#fff;
+
+  box-shadow:
+      0 8px 22px rgba(37,99,235,.28);
+}
+.fileCard{
+  background:#fff;
+  border:1px solid #e6ebf2;
+  border-radius:14px;
+  padding:14px;
+  transition:.25s;
+  flex:1;          /* Takes remaining space */
+
+}
+
+.fileCard:hover{
+  border-color:#1677ff;
+  box-shadow:0 8px 24px rgba(22,119,255,.08);
+}
+
+.fileInfo{
+  margin-bottom:14px;
+}
+
+.fileName{
+  font-size:16px;
+  font-weight:700;
+  color:#1e293b;
+  margin-bottom:4px;
+}
+
+.fileDate{
+  font-size:12px;
+  color:#7b8794;
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+
+.actionRow{
+  display:flex;
+  gap:10px;
+}
+
+.actionBtn{
+  flex:1;
+  height:38px;
+  border-radius:10px;
+  border:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-size:13px;
+  font-weight:600;
+  transition:.25s;
+}
+
+.viewBtn{
+  background:#eef7ff;
+  color:#1677ff;
+  height: 30px;
+}
+
+.viewBtn:hover{
+  background:#1677ff;
+  color:#fff;
+}
+
+.editBtn{
+  background:#f5f2ff;
+  color:#6f42c1;
+  height: 30px;
+}
+
+.editBtn:hover{
+  background:#6f42c1;
+  color:#fff;
+}
 .drawer {
   position: absolute;
   top: 75px;

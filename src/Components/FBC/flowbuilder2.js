@@ -232,9 +232,68 @@ export default function FlowBuilderC() {
   const [isVersionEditMode, setIsVersionEditMode] = useState(false);
   const [versionJson, setVersionJson] = useState(null);
   const [sharedWriteAccess, setSharedWriteAccess] = useState(true);
+  const [isViewMode, setIsViewMode] = useState(false);
 
 
   const navigate = useNavigate();
+  const clipboardRef = useRef(null);
+
+  const handleCopy = useCallback(() => {
+    if (!selectedIds.length) return;
+
+    const copiedNodes = nodes
+      .filter(n => selectedIds.includes(n.id))
+      .map(n => ({ ...n }));
+
+    const copiedConnections = connections
+      .filter(
+        c =>
+          selectedIds.includes(c.from) &&
+          selectedIds.includes(c.to)
+      )
+      .map(c => ({ ...c }));
+
+    clipboardRef.current = {
+      nodes: copiedNodes,
+      connections: copiedConnections,
+    };
+  }, [nodes, connections, selectedIds]);
+
+
+  // const handlePaste = useCallback(() => {
+  //   if (!clipboardRef.current) return;
+
+  //   const idMap = {};
+
+  //   const pastedNodes = clipboardRef.current.nodes.map(node => {
+  //     const newId = uid();
+
+  //     idMap[node.id] = newId;
+
+  //     return {
+  //       ...node,
+  //       id: newId,
+  //       x: node.x + 40,
+  //       y: node.y + 40,
+  //     };
+  //   });
+
+  //   const pastedConnections =
+  //     clipboardRef.current.connections.map(conn => ({
+  //       ...conn,
+  //       id: uid(),
+  //       from: idMap[conn.from],
+  //       to: idMap[conn.to],
+  //     }));
+
+  //   setNodes(prev => [...prev, ...pastedNodes]);
+  //   setConnections(prev => [...prev, ...pastedConnections]);
+
+  //   setSelectedIds(pastedNodes.map(n => n.id));
+  // }, [setNodes, setConnections]);
+
+
+
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -285,6 +344,104 @@ export default function FlowBuilderC() {
     historyIdx.current = history.current.length - 1;
   }, []);
 
+  const commitCurrentSnapshot = useCallback(() => {
+    const currentNodes = nodesRef.current;
+    const currentConnections = connectionsRef.current;
+    const latest = history.current[historyIdx.current];
+    const nextSnap = snapshot(currentNodes, currentConnections);
+    if (latest && JSON.stringify(latest) === JSON.stringify(nextSnap)) return;
+    pushHistory(currentNodes, currentConnections);
+  }, [pushHistory]);
+
+  const handlePaste = useCallback(() => {
+    if (!clipboardRef.current) return;
+
+    const idMap = {};
+
+    const pastedNodes = clipboardRef.current.nodes.map(node => {
+      const newId = uid();
+
+      idMap[node.id] = newId;
+
+      return normalizeNode({
+        ...structuredClone(node),
+        id: newId,
+        x: node.x + 40,
+        y: node.y + 40,
+      });
+    });
+
+    const pastedConnections =
+      clipboardRef.current.connections.map(conn => ({
+        ...structuredClone(conn),
+        id: uid(),
+        from: idMap[conn.from],
+        to: idMap[conn.to],
+      }));
+
+    // setNodes((prev) => [...prev, ...pastedNodes]);
+    // setConnections((prev) => [...prev, ...pastedConnections]);
+    const nextNodes = [...nodes, ...pastedNodes];
+    const nextConnections = [...connections, ...pastedConnections];
+
+    // setNodes(nextNodes);
+    // setConnections(nextConnections);
+
+    setNodes((prev) => [...prev, ...pastedNodes]);
+    setConnections((prev) => [...prev, ...pastedConnections]);
+
+    const newSelectedIds = pastedNodes.map((n) => n.id);
+    setSelectedIds(newSelectedIds);
+    setSelectedId(newSelectedIds[0]);
+
+    setActiveShape(null);
+    setShowShapeHint(false);
+
+    pushHistory(nextNodes, nextConnections);
+
+
+    // setSelectedIds(newSelectedIds);
+    // setSelectedId(newSelectedIds[0]);
+
+    // Also notify the Canvas selection handler
+    handleSelectNodes(newSelectedIds);
+
+    // setTimeout(() => {
+    //   commitCurrentSnapshot();
+    // }, 0);
+  }, [
+    nodes,
+    connections,
+    normalizeNode,
+    pushHistory
+  ]);
+
+
+  useEffect(() => {
+
+    const handleKeyDown = (e) => {
+
+      if (!(e.ctrlKey || e.metaKey)) return;
+
+      if (e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        handleCopy();
+      }
+
+      if (e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        handlePaste();
+      }
+
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown);
+
+  }, [handleCopy, handlePaste]);
+
   const undo = useCallback(() => {
     if (historyIdx.current <= 0) return;
     historyIdx.current -= 1;
@@ -306,6 +463,10 @@ export default function FlowBuilderC() {
     setSelectedIds([]);
     setSelectedConnectionId(null);
   }, []);
+
+  useEffect(() => {
+    setReadMode(isViewMode);
+  }, [isViewMode]);
 
   const handleSave = useCallback(async () => {
     const updatedConnections = connections.map((connection) => ({
@@ -390,34 +551,34 @@ export default function FlowBuilderC() {
 
   const handleLoadDiagram = useCallback((diagram) => {
     if (!diagram) return;
-  
+
     skipFileLoadEffect.current = true;
-  
+
     setNodes((diagram.nodes || []).map(normalizeNode));
-  
+
     setConnections(
       (diagram.connections || []).map((c) => ({
         ...c,
         isNew: false,
       }))
     );
-  
+
     setFileName(diagram.name || "Untitled diagram");
-  
+
     setSelectedId(null);
     setSelectedIds([]);
     setSelectedConnectionId(null);
-  
+
     setMode("select");
     setConnectFrom(null);
-  
+
     history.current = [
       snapshot(
         (diagram.nodes || []).map(normalizeNode),
         diagram.connections || []
       ),
     ];
-  
+
     historyIdx.current = 0;
   }, []);
 
@@ -580,7 +741,7 @@ export default function FlowBuilderC() {
       setConnections((currentConnections) => {
         const key = `${prev}->${nodeId}`;
         const isNew = !deletedConnectionsRef.current.has(key);
-        const nextConnections = [...currentConnections, { id: uid(), from: prev, to: nodeId, ...(isNew ? { isNew: true } : {}) }];
+        const nextConnections = [...currentConnections, { id: uid(), from: prev, to: nodeId, label: "", ...(isNew ? { isNew: true } : {}) }];
 
         if (!isNew) deletedConnectionsRef.current.delete(key);
         setNodes((currentNodes) => {
@@ -703,14 +864,14 @@ export default function FlowBuilderC() {
     setSelectedConnectionId((prev) => (prev === id ? null : prev));
   }, [nodes, pushHistory]);
 
-  const commitCurrentSnapshot = useCallback(() => {
-    const currentNodes = nodesRef.current;
-    const currentConnections = connectionsRef.current;
-    const latest = history.current[historyIdx.current];
-    const nextSnap = snapshot(currentNodes, currentConnections);
-    if (latest && JSON.stringify(latest) === JSON.stringify(nextSnap)) return;
-    pushHistory(currentNodes, currentConnections);
-  }, [pushHistory]);
+  // const commitCurrentSnapshot = useCallback(() => {
+  //   const currentNodes = nodesRef.current;
+  //   const currentConnections = connectionsRef.current;
+  //   const latest = history.current[historyIdx.current];
+  //   const nextSnap = snapshot(currentNodes, currentConnections);
+  //   if (latest && JSON.stringify(latest) === JSON.stringify(nextSnap)) return;
+  //   pushHistory(currentNodes, currentConnections);
+  // }, [pushHistory]);
 
   const expandAll = useCallback(() => {
     setNodes((prev) => prev.map((node) => ({
@@ -907,7 +1068,7 @@ export default function FlowBuilderC() {
 
   useEffect(() => {
     setReadMode(!sharedWriteAccess);
-}, [sharedWriteAccess]);
+  }, [sharedWriteAccess]);
 
 
   const handleSearchChange = useCallback((value) => {
@@ -1008,13 +1169,13 @@ export default function FlowBuilderC() {
       connections,
       savedAt: Date.now(),
       version: 1,
-  };
-  
-  const compressedJson = LZString.compressToBase64(
+    };
+
+    const compressedJson = LZString.compressToBase64(
       JSON.stringify(diagram)
-  );
-  
-  setVersionJson(compressedJson);
+    );
+
+    setVersionJson(compressedJson);
   };
 
   const handleSubmitEditVersion = () => {
@@ -1024,16 +1185,32 @@ export default function FlowBuilderC() {
       connections,
       savedAt: Date.now(),
       version: 1,
-  };
-  
-  const compressedJson = LZString.compressToBase64(
+    };
+
+    const compressedJson = LZString.compressToBase64(
       JSON.stringify(diagram)
-  );
-  
-  setVersionJson(compressedJson);
+    );
+
+    setVersionJson(compressedJson);
   };
 
-  
+  const handleConnectionLabelChange = useCallback((id, label) => {
+
+    setConnections(prev => {
+
+        const next = prev.map(c =>
+            c.id === id
+                ? { ...c, label }
+                : c
+        );
+
+        pushHistory(nodes, next);
+
+        return next;
+    });
+
+}, [nodes, pushHistory]);
+
   return (
     <div className="fc-app" data-theme={theme}>
       <Sidebar
@@ -1067,6 +1244,8 @@ export default function FlowBuilderC() {
         onChangeCanvasBg={setCanvasBg}
         onGetFileData={handleGetFileData}
         onUploadToEdm={handleUploadToEdm}
+
+        onOpenView={(value) => setIsViewMode(value)}
       />
 
       <div className="fc-main">
@@ -1156,6 +1335,7 @@ export default function FlowBuilderC() {
             showGrid={showGrid}
             canvasBg={canvasBg}
             sessionUserData={sessionUserData}
+            onConnectionLabelChange={handleConnectionLabelChange}
           />
 
           <PropertiesPanel

@@ -122,6 +122,16 @@ export default function AddReviewCycle({ kpiPeriodsData }) {
         });
     };
 
+    const formatPayloadDate = (date) => {
+        const d = new Date(date);
+    
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+    
+        return `${year}-${month}-${day}T00:00:00`;
+    };
+
     const validateCycles = () => {
         if (!selectedPeriod) {
             message.warning("Please select a Performance Period.");
@@ -186,9 +196,9 @@ export default function AddReviewCycle({ kpiPeriodsData }) {
                 Cycles: cycles.map(cycle => ({
                     PeriodId: Number(selectedPeriod),
                     CycleName: cycle.CycleName,
-                    StartDate: cycle.StartDate,
-                    EndDate: cycle.EndDate,
-                    Comments: ""
+                    StartDate: formatPayloadDate(cycle.StartDate),
+                    EndDate: formatPayloadDate(cycle.EndDate),
+                    Comments: cycle.Comments || "",
                 })),
             },
         };
@@ -339,7 +349,7 @@ export default function AddReviewCycle({ kpiPeriodsData }) {
                                 }`
                         }}
                     >
-                        <div className="px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
+                        {/* <div className="px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
                             <div className="d-flex align-items-center">
                                 <div
                                     className="rounded-circle text-white d-flex align-items-center justify-content-center me-3"
@@ -361,7 +371,7 @@ export default function AddReviewCycle({ kpiPeriodsData }) {
                                     </small>
                                 </div>
                             </div>
-                        </div>
+                        </div> */}
 
                         <div
                             className="bg-white rounded-4 shadow-sm mb-3 p-4"

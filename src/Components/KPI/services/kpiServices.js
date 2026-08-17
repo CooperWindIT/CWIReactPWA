@@ -170,7 +170,7 @@ export const getCanEditKPIAllocation = async ({ orgId, periodId, employeeId }) =
     return response.json();
 };
 
-export const getKPIDashboardStats = async ({ orgId, periodId }) => {
+export const getKPIDashboardStats = async ({ orgId, periodId, userId }) => {
 
     const response = await fetchWithAuth("KPI/GetKPIDashboardStats", {
         method: "POST",
@@ -180,6 +180,7 @@ export const getKPIDashboardStats = async ({ orgId, periodId }) => {
         body: JSON.stringify({
             OrgId: orgId,
             PeriodId: periodId,
+            UserId: userId,
         })
     });
 
@@ -353,8 +354,53 @@ export const getIsCreateCyclesBtn = async ({ orgId }) => {
     return response.json();
 };
 
+export const getIsOpenbtnEnable = async ({ orgId }) => {
+
+    const response = await fetchWithAuth("KPI/MasterAPI", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            OrgId: orgId,
+            Action: "IsOpenbtnEnable",
+            JsonData: {}
+        })
+    });
+
+    return response.json();
+};
+
+export const getIsPublishbtnEnable = async ({ orgId }) => {
+
+    const response = await fetchWithAuth("KPI/MasterAPI", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            OrgId: orgId,
+            Action: "IsPublishbtnEnable",
+            JsonData: {}
+        })
+    });
+
+    return response.json();
+};
+
 export const addNewComments = async (payload) => {
     const response = await fetchWithAuth("Portal/AddNewComments", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+    return response.json();
+};
+
+export const editSystemSettings = async (payload) => {
+    const response = await fetchWithAuth("Portal/EditSystemSettings", {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
@@ -383,6 +429,42 @@ export const getFeedBacks = async ({ orgId, id }) => {
     return response.json();
 };
 
+export const getCyclePendingActions = async ({ orgId, status }) => {
+
+    const response = await fetchWithAuth("KPI/MasterAPI", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            OrgId: orgId,
+            Action: "GetCyclePendingActions",
+            JsonData: {
+                Status: status,
+            }
+        })
+    });
+
+    return response.json();
+};
+
+export const getIsSelfBtnEnable = async ({ orgId }) => {
+
+    const response = await fetchWithAuth("KPI/MasterAPI", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            OrgId: orgId,
+            Action: "IsSelfBtnEnable",
+            JsonData: {}
+        })
+    });
+
+    return response.json();
+};
+
 export const getPendingCycleScores = async ({ orgId, id }) => {
 
     const response = await fetchWithAuth("KPI/MasterAPI", {
@@ -396,6 +478,22 @@ export const getPendingCycleScores = async ({ orgId, id }) => {
             JsonData: {
                 Id: id,
             }
+        })
+    });
+
+    return response.json();
+};
+
+export const getSystemSettings = async () => {
+
+    const response = await fetchWithAuth("KPI/MasterAPI", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            Action: "GetSystemSettings",
+            JsonData: { }
         })
     });
 

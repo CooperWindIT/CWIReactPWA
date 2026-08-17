@@ -24,6 +24,7 @@ export default function AssetlessTechMyTickets() {
     const [comments, setComments] = useState([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
     const [editingComment, setEditingComment] = useState(null);
+    const [cmtSubmitLoading, setCmtSubmitLoading] = useState(false);
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem("userData");
@@ -153,6 +154,8 @@ export default function AssetlessTechMyTickets() {
             return;
         }
 
+        setCmtSubmitLoading(true);
+
         const payload = {
             OrgId: sessionUserData.OrgId,
             Priority: selectedTicket.Priority,
@@ -191,6 +194,7 @@ export default function AssetlessTechMyTickets() {
             setEditingComment(null);
 
             fetchComments(selectedTicket.Id);
+            setCmtSubmitLoading(false);
         }
     };
 
@@ -729,16 +733,31 @@ export default function AssetlessTechMyTickets() {
                             </button>
                         )}
 
-                        <button
+<button
                             className="btn btn-primary btn-sm"
                             onClick={handleAddComment}
+                            disabled={cmtSubmitLoading}
                         >
-                            <i
-                                className={`fa-solid ${editingComment ? "fa-pen-to-square" : "fa-paper-plane"
-                                    } me-2`}
-                            ></i>
-
-                            {editingComment ? "Update Comment" : "Submit Comment"}
+                            {cmtSubmitLoading ? (
+                                <>
+                                    <span
+                                        className="spinner-border spinner-border-sm me-2"
+                                        role="status"
+                                        aria-hidden="true"
+                                    ></span>
+                                    {editingComment ? "Updating..." : "Submitting..."}
+                                </>
+                            ) : (
+                                <>
+                                    <i
+                                        className={`fa-solid ${editingComment
+                                                ? "fa-pen-to-square"
+                                                : "fa-paper-plane"
+                                            } me-2`}
+                                    ></i>
+                                    {editingComment ? "Update Comment" : "Submit Comment"}
+                                </>
+                            )}
                         </button>
                     </div>
                 </Modal>

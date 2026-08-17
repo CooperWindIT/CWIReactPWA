@@ -87,6 +87,7 @@ export default function ReportData() {
 
         try {
             const parsedMenu = JSON.parse(sessionMenuData);
+            // console.log(parsedMenu)
 
             if (ReportId) {
                 const reportsMenu = parsedMenu.find(item => item.MenuName === "Reports");
@@ -343,7 +344,13 @@ export default function ReportData() {
                     periodId: selectedPeriodId,
                 });
     
-                setCyclesData(response?.data || []);
+                const cycles = response?.data || [];
+
+                setCyclesData(cycles);
+
+                const openCycle = cycles.find(cycle => cycle.Status === "OPEN");
+
+                setSelectedCycleId(openCycle ? openCycle.Id : null);
     
             } catch (error) {
                 console.error(error);
@@ -867,7 +874,6 @@ export default function ReportData() {
 
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
     const showExportBtn = sessionActionIds?.includes(32);
-    // console.log(showExportBtn)
 
     return (
         <Base1>
@@ -976,8 +982,8 @@ export default function ReportData() {
                                                         <i className={`bi bi-file-earmark-arrow-down fs-2 ${!showExportBtn ? 'text-muted' : 'text-success'}`}></i>
                                                     </div>
                                                     <div className="text-wrapper text-start ms-3">
-                                                        <span className="d-block btn-label fw-bold">Export Report</span>
-                                                        <small className="d-block btn-subtitle text-uppercase opacity-75">
+                                                        <span className=" btn-label fw-bold">Export Report</span>
+                                                        <small className=" btn-subtitle text-uppercase opacity-75">
                                                             {!showExportBtn ? "Access Restricted" : `Excel Format (${totalRecords} rows)`}
                                                         </small>
                                                     </div>
@@ -1053,7 +1059,7 @@ export default function ReportData() {
                             </a>
                         </div>
 
-                        {sessionModuleId !== '15' || sessionModuleId !== '16' && (
+                        {(sessionModuleId !== "15" && sessionModuleId !== "16") && (
                             <>
                                 <div className={`page-title d-flex flex-column justify-content-center flex-wrap me-3 ${(shouldHideSidebar || reportId === '3') ? 'd-none' : 'd-block'}`}>
                                     <h1 className="page-heading d-flex text-gray-900 fw-bold fs-3 flex-column justify-content-center my-0">{reportHead && reportHead?.ReportTitle}</h1>
@@ -1073,7 +1079,7 @@ export default function ReportData() {
                                         title={!showExportBtn ? "You do not have permission to export" : (reportData.length === 0 ? "No data available to export" : "")}
                                     >
                                         {/* The span catches the hover event even when the button is disabled */}
-                                        <span className="d-inline-block">
+                                        <span className="">
                                             <button
                                                 className={`btn custom-export-btn btn-sm d-flex align-items-center border border-success 
                                                     ${(reportData.length === 0 || !showExportBtn) ? "btn-blur opacity-50" : "btn-glass-shine"}`}
@@ -1087,8 +1093,8 @@ export default function ReportData() {
                                                     <i className={`bi bi-file-earmark-arrow-down fs-2 ${!showExportBtn ? 'text-muted' : 'text-success'}`}></i>
                                                 </div>
                                                 <div className="text-wrapper text-start ms-3">
-                                                    <span className="d-block btn-label fw-bold">Export Report</span>
-                                                    <small className="d-block btn-subtitle text-uppercase opacity-75">
+                                                    <span className=" btn-label fw-bold">Export Report</span>
+                                                    <small className=" btn-subtitle text-uppercase opacity-75">
                                                         {!showExportBtn ? "Access Restricted" : `Excel Format (${totalRecords} rows)`}
                                                     </small>
                                                 </div>
@@ -1256,10 +1262,8 @@ export default function ReportData() {
                                             <label className="form-label fw-bold fs-8 text-uppercase">
                                                 Performance Periods
                                             </label>
-
                                             <Select
                                                 showSearch
-                                                allowClear
                                                 placeholder="Select Period"
                                                 value={selectedPeriodId ?? undefined}
                                                 style={{ width: "100%", height: "3rem" }}
@@ -1279,10 +1283,8 @@ export default function ReportData() {
                                             <label className="form-label fw-bold fs-8 text-uppercase">
                                                 Review Cycles<span className="text-danger">*</span>
                                             </label>
-
                                             <Select
                                                 showSearch
-                                                allowClear
                                                 placeholder="Select Cycle"
                                                 value={selectedCycleId ?? undefined}
                                                 style={{ width: "100%", height: "3rem" }}

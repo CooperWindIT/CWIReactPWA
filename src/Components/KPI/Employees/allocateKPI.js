@@ -693,18 +693,6 @@ export default function AllocateKPI() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a href='/edm/dashboard' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2 active">
-                                        <span className="menu-title"><i className="bi bi-columns-gap text-primary fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
-                                <a href='/edm/documents' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2">
-                                        <span className="menu-title"><i className="fa-solid fa-file-invoice fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
                             </div>
                         </div>
 
@@ -951,7 +939,7 @@ export default function AllocateKPI() {
                                         <div className="card-body">
                                             <div className="mb-4">
                                                 <label className="form-label fw-bold d-flex align-items-center">
-                                                    Select KPI(s)l
+                                                    Select KPI(s)
                                                     <Tooltip
                                                         placement="right"
                                                         title={

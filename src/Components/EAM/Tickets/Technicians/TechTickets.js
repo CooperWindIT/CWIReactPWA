@@ -648,7 +648,7 @@ export default function TechTicketsList() {
                             <li className="breadcrumb-item text-muted">Tickets</li>
                         </ul>
                     </div>
-                    <Link to="/service-requests/tech-tickets">General Tickets</Link>
+                    <Link to="/service-requests/tech-tickets" className="btn btn-primary btn-sm"><i className="bi bi-ticket-perforated"></i>General Tickets</Link>
                 </div>
             </div>
 

@@ -246,22 +246,23 @@ export default function SampleScreen2() {
                                             <p>Access Payslips, Leave & Attendance</p>
                                         </div>
                                     </a>
-                                    
-                                    <Link
-                                        className="text-decoration-none"
-                                        to="/kpi/my-kpis"
-                                    >
-                                        <div className="service-card">
-                                            <div className="service-icon">
-                                                <i
-                                                    className="fas fa-chart-line"
-                                                    style={{fontSize: '1.7rem'}}
-                                                ></i>
+                                    {sessionUserData?.RoleId !== 5 && (
+                                        <Link
+                                            className="text-decoration-none"
+                                            to="/kpi/my-kpis"
+                                        >
+                                            <div className="service-card">
+                                                <div className="service-icon">
+                                                    <i
+                                                        className="fas fa-chart-line"
+                                                        style={{fontSize: '1.7rem'}}
+                                                    ></i>
+                                                </div>
+                                                <h3>KPI</h3>
+                                                <p>My KPI's</p>
                                             </div>
-                                            <h3>KPI</h3>
-                                            <p>My KPI's</p>
-                                        </div>
-                                    </Link>
+                                        </Link>
+                                    )}
                                 </>
                             ) : (
                                 <div className="no-modules-message text-center">

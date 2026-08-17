@@ -10,6 +10,7 @@ import Pagination from "../Pagination/Pagination";
 import RegisterTicket from "./RaiseTicket";
 import CloseTicket from "./CloseTicket";
 import { BASE_IMAGE_API_GET } from "../Config/Config";
+import EditTicket from "./EditTicket";
 
 
 export default function AssetlessTicketRequest() {
@@ -37,8 +38,10 @@ export default function AssetlessTicketRequest() {
     const [commentText, setCommentText] = useState("");
     const [comments, setComments] = useState([]);
     const [commentsLoading, setCommentsLoading] = useState(false);
+    const [cmtSubmitLoading, setCmtSubmitLoading] = useState(false);
     const [editingComment, setEditingComment] = useState(null);
     const [closeData, setCloseData] = useState([]);
+    const [editTicObj, setEditTicObj] = useState([]);
 
     const savedTicketFilters = JSON.parse(
         sessionStorage.getItem("ticketFilters") || "null"
@@ -250,7 +253,7 @@ export default function AssetlessTicketRequest() {
             PageSize: finalPageSize,
             Params: {
                 OrgId: sessionUserData.OrgId,
-                DeptId: 0,
+                DeptId: selectedDeptId || 0,
                 UserId: sessionUserData?.RoleId !== 3 ? selectedUserId : sessionUserData?.Id,
                 Status: selectedStatus.includes("ALL")
                     ? "ALL"
@@ -488,6 +491,8 @@ export default function AssetlessTicketRequest() {
             return;
         }
 
+        setCmtSubmitLoading(true);
+
         const payload = {
             OrgId: sessionUserData.OrgId,
             Priority: selectedTicket.Priority,
@@ -526,6 +531,7 @@ export default function AssetlessTicketRequest() {
             setEditingComment(null);
 
             fetchComments(selectedTicket.Id);
+            setCmtSubmitLoading(false);
         }
     };
 
@@ -565,6 +571,7 @@ export default function AssetlessTicketRequest() {
     const showAddBtn = sessionActionIds?.includes(1);
     const showViewBtn = sessionActionIds?.includes(2);
     const showCloseBtn = true;
+    const showEditBtn = true;
 
 
     return (
@@ -697,7 +704,7 @@ export default function AssetlessTicketRequest() {
 
                                 <div className="col-12 col-md-3 mb-2 d-flex flex-column">
                                     <label className="form-label fw-bold fs-8 text-gray-700">
-                                        Service Type
+                                        Service Type<span className="text-danger">*</span>
                                     </label>
                                     <Select
                                         showSearch
@@ -742,59 +749,61 @@ export default function AssetlessTicketRequest() {
                                         ))}
                                     </Select>
                                 </div>
-                                <div className="col-12 col-md-2 mb-2 d-flex flex-column">
-                                    <label className="form-label fw-bold fs-8 text-gray-700">
-                                        Department
-                                    </label>
-                                    <Select
-                                        showSearch
-                                        allowClear
-                                        placeholder="Select Department"
-                                        className="w-100"
-                                        value={selectedDeptId || undefined}
-                                        style={{ height: "2.6rem" }}
-                                        onChange={(value) => setSelectedDeptId(value)}
-                                        filterOption={(input, option) => {
-                                            const text = `${option?.children}`.toLowerCase();
-                                            return text.includes(input.toLowerCase());
-                                        }}
-                                    >
-                                        <Option value="0">ALL</Option>
-                                        {Array.isArray(deptsData) && deptsData.map((ticTyp) => (
-                                            <Option key={ticTyp.ItemId} value={ticTyp.ItemId}>
-                                                {ticTyp.ItemValue}
-                                            </Option>
-                                        ))}
-                                    </Select>
-                                </div>
                                 {sessionUserData?.RoleId != 3 && (
+                                    <>
                                     <div className="col-12 col-md-2 mb-2 d-flex flex-column">
                                         <label className="form-label fw-bold fs-8 text-gray-700">
-                                            Raised User
+                                            Department
                                         </label>
-
                                         <Select
                                             showSearch
                                             allowClear
-                                            placeholder="Select User"
+                                            placeholder="Select Department"
                                             className="w-100"
-                                            value={selectedUserId || undefined}
+                                            value={selectedDeptId || undefined}
                                             style={{ height: "2.6rem" }}
-                                            onChange={(value) => setSelectedUserId(value)}
-                                            filterOption={(input, option) =>
-                                                option?.label
-                                                    ?.toLowerCase()
-                                                    ?.includes(input.toLowerCase())
-                                            }
-                                            options={[
-                                                { value: "0", label: "ALL" },
-                                                ...filteredUsers.map((user) => ({
-                                                    value: user.ItemId,
-                                                    label: user.ItemValue,
-                                                })),
-                                            ]}
-                                        />
+                                            onChange={(value) => setSelectedDeptId(value)}
+                                            filterOption={(input, option) => {
+                                                const text = `${option?.children}`.toLowerCase();
+                                                return text.includes(input.toLowerCase());
+                                            }}
+                                        >
+                                            <Option value="0">ALL</Option>
+                                            {Array.isArray(deptsData) && deptsData.map((ticTyp) => (
+                                                <Option key={ticTyp.ItemId} value={ticTyp.ItemId}>
+                                                    {ticTyp.ItemValue}
+                                                </Option>
+                                            ))}
+                                        </Select>
                                     </div>
+                                        <div className="col-12 col-md-2 mb-2 d-flex flex-column">
+                                            <label className="form-label fw-bold fs-8 text-gray-700">
+                                                Raised User
+                                            </label>
+
+                                            <Select
+                                                showSearch
+                                                allowClear
+                                                placeholder="Select User"
+                                                className="w-100"
+                                                value={selectedUserId || undefined}
+                                                style={{ height: "2.6rem" }}
+                                                onChange={(value) => setSelectedUserId(value)}
+                                                filterOption={(input, option) =>
+                                                    option?.label
+                                                        ?.toLowerCase()
+                                                        ?.includes(input.toLowerCase())
+                                                }
+                                                options={[
+                                                    { value: "0", label: "ALL" },
+                                                    ...filteredUsers.map((user) => ({
+                                                        value: user.ItemId,
+                                                        label: user.ItemValue,
+                                                    })),
+                                                ]}
+                                            />
+                                        </div>
+                                    </>
                                 )}
 
                                 <div className="col-6 col-md-2 mb-2 d-flex flex-column">
@@ -1026,6 +1035,23 @@ export default function AssetlessTicketRequest() {
                                                                                 Close
                                                                             </p>
                                                                         )}
+                                                                    {item.CreatedBy === sessionUserData?.Id &&
+                                                                        item.Status === "NEW" && (
+                                                                            <p
+                                                                                style={{
+                                                                                    cursor: showEditBtn ? "pointer" : "not-allowed",
+                                                                                    opacity: showEditBtn ? 1 : 0.5,
+                                                                                    pointerEvents: showEditBtn ? "auto" : "none",
+                                                                                }}
+                                                                                className="text-hover-info"
+                                                                                data-bs-toggle="offcanvas"
+                                                                                data-bs-target="#offcanvasRightEdit"
+                                                                                onClick={() => setEditTicObj(item)}
+                                                                            >
+                                                                                <i className="bi bi-pencil-square me-2 text-info"></i>
+                                                                                Edit
+                                                                            </p>
+                                                                        )}
                                                                     {/* <p
                                                                         onClick={() => showApproveBtn && handleApproveTicket(item)}
                                                                         style={{
@@ -1085,7 +1111,7 @@ export default function AssetlessTicketRequest() {
                                 <i className="fa-solid fa-comments text-primary me-2"></i>
                                 <span>Ticket Comments</span>
                             </div>
-                    
+
                             {selectedTicket?.ImageUrl && (
                                 <button
                                     type="button"
@@ -1297,13 +1323,28 @@ export default function AssetlessTicketRequest() {
                         <button
                             className="btn btn-primary btn-sm"
                             onClick={handleAddComment}
+                            disabled={cmtSubmitLoading}
                         >
-                            <i
-                                className={`fa-solid ${editingComment ? "fa-pen-to-square" : "fa-paper-plane"
-                                    } me-2`}
-                            ></i>
-
-                            {editingComment ? "Update Comment" : "Submit Comment"}
+                            {cmtSubmitLoading ? (
+                                <>
+                                    <span
+                                        className="spinner-border spinner-border-sm me-2"
+                                        role="status"
+                                        aria-hidden="true"
+                                    ></span>
+                                    {editingComment ? "Updating..." : "Submitting..."}
+                                </>
+                            ) : (
+                                <>
+                                    <i
+                                        className={`fa-solid ${editingComment
+                                                ? "fa-pen-to-square"
+                                                : "fa-paper-plane"
+                                            } me-2`}
+                                    ></i>
+                                    {editingComment ? "Update Comment" : "Submit Comment"}
+                                </>
+                            )}
                         </button>
                     </div>
                 </Modal>
@@ -1331,6 +1372,7 @@ export default function AssetlessTicketRequest() {
 
             <CloseTicket ticObj={closeData} />
             <RegisterTicket serviceTypesData={serviceTypesData} />
+            <EditTicket serviceTypesData={serviceTypesData} ticObj={editTicObj} />
         </Base1>
     )
 }

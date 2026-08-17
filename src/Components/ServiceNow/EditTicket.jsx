@@ -2,21 +2,17 @@ import React, { useEffect, useState } from "react";
 import Swal from 'sweetalert2';
 import { Select } from "antd";
 import { fetchWithAuth } from "../../utils/api";
-import { Upload } from "antd";
 import PropTypes from "prop-types";
 
+export default function EditTicket({ serviceTypesData, ticObj }) {
 
-export default function RegisterTicket({ serviceTypesData }) {
-
-    const { Dragger } = Upload;
     const [sessionUserData, setSessionUserData] = useState({});
-    const [addSubmitLoading, setAddSubmitLoading] = useState(false);
+    const [editSubmitLoading, setEditSubmitLoading] = useState(false);
     const [ticTypesData, setTicTypesData] = useState([]);
-    const [selectedTicTypeId, setSelectedTicTypeId] = useState(null);
-    const [selectedFile, setSelectedFile] = useState(null);
     const { Option } = Select;
 
     const [formData, setFormData] = useState({
+        Id: undefined,
         TicketTypeId: undefined,
         ServiceTypeId: undefined,
         IssueType: "",
@@ -30,13 +26,25 @@ export default function RegisterTicket({ serviceTypesData }) {
         if (userDataString) {
             const userData = JSON.parse(userDataString);
             setSessionUserData(userData);
-            setFormData((prev) => ({
-                ...prev,
-                CreatedBy: userData.Id,
-                OrgId: userData.OrgId,
-            }));
         }
     }, []);
+
+    // Prefill form from ticObj whenever it changes (e.g. offcanvas reopened for a different ticket)
+    useEffect(() => {
+        if (ticObj) {
+            setFormData({
+                Id: ticObj.Id,
+                ServiceTypeId: ticObj.ParentId,
+                TicketTypeId: ticObj.TicketTypeId,
+                IssueType: ticObj.IssueType || "",
+                Priority: ticObj.Priority ? String(ticObj.Priority) : undefined,
+                DueDate: ticObj.DueDate
+                    ? new Date(ticObj.DueDate).toISOString().split("T")[0]
+                    : null,
+                Description: ticObj.Description || "",
+            });
+        }
+    }, [ticObj]);
 
     const priorityOptions = [
         { label: "Low", value: "3" },
@@ -45,7 +53,6 @@ export default function RegisterTicket({ serviceTypesData }) {
     ];
 
     const fetchTicketTypes = async () => {
-
         try {
             const response = await fetchWithAuth(
                 `ServiceNow/GetticketTypes?OrgId=${sessionUserData?.OrgId}&ParentId=${formData?.ServiceTypeId}`,
@@ -77,6 +84,11 @@ export default function RegisterTicket({ serviceTypesData }) {
         e.preventDefault();
 
         if (!formData.ServiceTypeId) {
+            Swal.fire("Validation", "Please select Service Type.", "warning");
+            return;
+        }
+
+        if (!formData.TicketTypeId) {
             Swal.fire("Validation", "Please select Ticket Type.", "warning");
             return;
         }
@@ -96,37 +108,25 @@ export default function RegisterTicket({ serviceTypesData }) {
             return;
         }
 
-        const formPayload = new FormData();
-
-        formPayload.append("OrgId", sessionUserData.OrgId);
-        formPayload.append("Priority", Number(formData.Priority));
-        formPayload.append("TicketStatus", "NEW");
-        formPayload.append("UserId", sessionUserData.Id);
-
-        const jsonData = {
+        const payload = {
+            Id: formData.Id,
+            OrgId: sessionUserData.OrgId,
+            UserId: sessionUserData.Id,
+            Priority: Number(formData.Priority),
             IssueType: formData.IssueType.trim(),
             Description: formData.Description.trim(),
             DueDate: formData.DueDate || null,
             ServiceTypeId: formData.ServiceTypeId,
-            TicketTypeId: selectedTicTypeId,
+            TicketTypeId: formData.TicketTypeId,
         };
 
-        formPayload.append("JsonData", JSON.stringify(jsonData));
-
-        if (selectedFile) {
-            formPayload.append("ImageUrl", selectedFile);
-        }
-
-        for (const [key, value] of formPayload.entries()) {
-            console.log(key, value);
-        }
-
         try {
-            setAddSubmitLoading(true);
+            setEditSubmitLoading(true);
 
-            const response = await fetchWithAuth("file_upload/GeneralTickets", {
+            const response = await fetchWithAuth("ServiceNow/GeneralTickets", {
                 method: "POST",
-                body: formPayload,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
             });
 
             const data = await response.json();
@@ -139,12 +139,12 @@ export default function RegisterTicket({ serviceTypesData }) {
                 Swal.fire({
                     icon: "success",
                     title: "Success",
-                    text: "Ticket raised successfully.",
+                    text: "Ticket updated successfully.",
                     confirmButtonText: "OK",
                     allowOutsideClick: false,
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        // window.location.reload();
+                        window.location.reload();
                     }
                 });
 
@@ -154,7 +154,7 @@ export default function RegisterTicket({ serviceTypesData }) {
             Swal.fire({
                 icon: "error",
                 title: "Failed",
-                text: "Unable to raise ticket.",
+                text: "Unable to update ticket.",
             });
 
         } catch (error) {
@@ -166,7 +166,7 @@ export default function RegisterTicket({ serviceTypesData }) {
                 text: error.message || "Something went wrong.",
             });
         } finally {
-            setAddSubmitLoading(false);
+            setEditSubmitLoading(false);
         }
     };
 
@@ -174,14 +174,14 @@ export default function RegisterTicket({ serviceTypesData }) {
         <div
             className="offcanvas offcanvas-end"
             tabIndex="-1"
-            id="offcanvasRightAdd"
-            aria-labelledby="offcanvasRightLabel"
+            id="offcanvasRightEdit"
+            aria-labelledby="offcanvasRightEditLabel"
             style={{ width: "90%" }}
         >
             <style>
                 {`
-                @media (min-width: 768px) { /* Medium devices and up (md) */
-                        #offcanvasRightAdd {
+                @media (min-width: 768px) {
+                        #offcanvasRightEdit {
                             width: 44% !important;
                         }
                     }
@@ -194,15 +194,15 @@ export default function RegisterTicket({ serviceTypesData }) {
                         <div className="d-flex align-items-center gap-3">
                             <div className="rounded-3 d-flex align-items-center justify-content-center bg-primary bg-opacity-10 border border-primary-subtle shadow-sm"
                                 style={{ width: "46px", height: "46px" }}>
-                                <i className="fa-solid fa-ticket text-primary fs-5"></i>
+                                <i className="fa-solid fa-pen-to-square text-primary fs-5"></i>
                             </div>
 
                             <div>
-                                <h5 id="offcanvasRightLabel" className="mb-0 fw-bold text-dark">
-                                    Register Ticket
+                                <h5 id="offcanvasRightEditLabel" className="mb-0 fw-bold text-dark">
+                                    Edit Ticket {ticObj?.TicketCode ? `— ${ticObj.TicketCode}` : ""}
                                 </h5>
                                 <div className="small text-muted">
-                                    Create and manage a new asset issue ticket
+                                    Update the details of this ticket
                                 </div>
                             </div>
                         </div>
@@ -211,10 +211,10 @@ export default function RegisterTicket({ serviceTypesData }) {
                             <button
                                 className="btn btn-primary btn-sm px-3 d-flex align-items-center rounded-3 shadow-sm"
                                 type="submit"
-                                disabled={addSubmitLoading}
+                                disabled={editSubmitLoading}
                             >
                                 <i className="bi bi-bookmark-check me-2"></i>
-                                {addSubmitLoading ? "Submitting..." : "Submit"}
+                                {editSubmitLoading ? "Updating..." : "Update"}
                             </button>
 
                             <button
@@ -245,6 +245,7 @@ export default function RegisterTicket({ serviceTypesData }) {
                                     setFormData((prev) => ({
                                         ...prev,
                                         ServiceTypeId: value,
+                                        TicketTypeId: undefined, // reset dependent field when service type changes
                                     }))
                                 }
                                 options={
@@ -294,7 +295,12 @@ export default function RegisterTicket({ serviceTypesData }) {
                                 className="w-100"
                                 value={formData?.TicketTypeId || undefined}
                                 style={{ height: "2.6rem" }}
-                                onChange={(value) => setSelectedTicTypeId(value)}
+                                onChange={(value) =>
+                                    setFormData((prev) => ({
+                                        ...prev,
+                                        TicketTypeId: value,
+                                    }))
+                                }
                                 filterOption={(input, option) => {
                                     const text = `${option?.children}`.toLowerCase();
                                     return text.includes(input.toLowerCase());
@@ -333,7 +339,7 @@ export default function RegisterTicket({ serviceTypesData }) {
                                 type="date"
                                 className="form-control"
                                 min={new Date().toISOString().split("T")[0]}
-                                value={formData.DueDate}
+                                value={formData.DueDate || ""}
                                 onChange={(e) =>
                                     setFormData((prev) => ({
                                         ...prev,
@@ -378,31 +384,6 @@ export default function RegisterTicket({ serviceTypesData }) {
                                 placeholder="Describe the issue..."
                             />
                         </div>
-                        <div className="col-12 mb-3">
-                            <label className="form-label">
-                                Attachment
-                            </label>
-
-                            <input
-                                type="file"
-                                className="form-control"
-                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                                onChange={(e) => {
-                                    if (e.target.files.length > 0) {
-                                        setSelectedFile(e.target.files[0]);
-                                    } else {
-                                        setSelectedFile(null);
-                                    }
-                                }}
-                            />
-
-                            {selectedFile && (
-                                <small className="text-success mt-2 d-block">
-                                    <i className="fa fa-paperclip me-1"></i>
-                                    {selectedFile.name}
-                                </small>
-                            )}
-                        </div>
                     </div>
                 </div>
             </form>
@@ -410,7 +391,7 @@ export default function RegisterTicket({ serviceTypesData }) {
     );
 }
 
-
-RegisterTicket.propTypes = {
+EditTicket.propTypes = {
     serviceTypesData: PropTypes.object.isRequired,
+    ticObj: PropTypes.object,
 };

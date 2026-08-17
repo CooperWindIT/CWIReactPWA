@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import '../../Config/Loader.css';
 import Base1 from '../../Config/Base1';
 import { fetchWithAuth } from "../../../utils/api";
+import { capitalizeFirstLetter } from "../../../utils/capital";
 import Swal from 'sweetalert2';
 import { Dropdown, Menu, Select, Tooltip, message, Input, Skeleton, Modal, Progress, Button } from 'antd';
 import { getKPIsByPeriod, getPerformancePeriods, getUsersByMngrId, getReviewCyclesByUser, SaveAssessments, getCyclesScoreByUserId, saveEmployeeKPIs, addNewComments, getFeedBacks, getDeptKPIs, getKPIs, getCanEditKPIAllocation } from '../services/kpiServices';
@@ -338,7 +339,7 @@ export default function EmployeeKpi() {
             const response = await getCanEditKPIAllocation({
                 orgId: sessionUserData?.OrgId,
                 periodId: sessionUserData?.PeriodId,
-                employeeId: sessionUserData?.Id,
+                employeeId: selectedEmployee,
             });
 
             setCanEditKPI(response?.data[0]?.Status);
@@ -599,7 +600,6 @@ export default function EmployeeKpi() {
                     EmployeeId: selectedEmployee,
                     ReviewCycleId: selectedQuarter?.Id,
                     CycleScore: totalWeightedScore
-
                 },
                 Assessments: reviewData.map(item => ({
                     Id: item.Id,
@@ -607,7 +607,8 @@ export default function EmployeeKpi() {
                     Remarks2: item.Remarks2 || "",
                     CalculatedScore: Number(item.CalculatedScore),
                     WeightedScore: item.WeightedScore || "",
-                    Status: "EVALUATED"
+                    Status: "EVALUATED",
+                    Weightage: item.Weightage,
                 }))
             }
         };
@@ -688,6 +689,7 @@ export default function EmployeeKpi() {
                     Status: "SUBMITTED",
                     Score2: Number(item.Score2),
                     Remarks2: item.Remarks2 || "",
+                    Weightage: item.Weightage,
                 }))
             }
         };
@@ -798,22 +800,7 @@ export default function EmployeeKpi() {
             return updated;
         });
     };
-
-    const removeKPI = (index) => {
-
-        setEditableKPIs(prev =>
-            prev.map((item, i) =>
-                i === index
-                    ? {
-                        ...item,
-                        IsActive: 0
-                    }
-                    : item
-            )
-        );
-
-    };
-
+    
     const handleUpdateAll = async () => {
 
         const activeKPIs = empKPIData.filter(item => item.IsActive === 1);
@@ -954,6 +941,10 @@ export default function EmployeeKpi() {
     );
 
     const firstStatus = reviewCycleData?.[0]?.Status;
+
+    const isAllCyclesDraft =
+        reviewCycleData.length > 0 &&
+        reviewCycleData.every(cycle => cycle.Status === "DRAFT");
 
     useEffect(() => {
         if (
@@ -1179,18 +1170,6 @@ export default function EmployeeKpi() {
                                         </li>
                                     </ul>
                                 </div>
-                                <a href='/edm/dashboard' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2 active">
-                                        <span className="menu-title"><i className="bi bi-columns-gap text-primary fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
-                                <a href='/edm/documents' style={{ position: "relative", zIndex: 10 }}>
-                                    <span className="menu-link bg-white shadow-sm me-2">
-                                        <span className="menu-title"><i className="fa-solid fa-file-invoice fs-5"></i></span>
-                                        <span className="menu-arrow"></span>
-                                    </span>
-                                </a>
                             </div>
                         </div>
 
@@ -1310,7 +1289,7 @@ export default function EmployeeKpi() {
 
                                                 <Tooltip
                                                     title={canEditMessage}
-                                                 >
+                                                >
                                                     <span>
                                                         <button
                                                             className="btn btn-primary btn-sm"
@@ -1327,15 +1306,15 @@ export default function EmployeeKpi() {
 
                                         <div className="card-body pt-3">
                                             <div className="row g-3">
-                                                {reviewCycleData.map((quarter, index) => (
+                                                {reviewCycleData?.map((quarter, index) => (
                                                     <div className="col-lg-3 col-md-6 col-12" key={quarter.Id}>
                                                         <div
                                                             className={`review-quarter-card
                                                                 ${selectedQuarter?.Id === quarter.Id ? "active-quarter" : ""}
-                                                                ${quarter.Status !== "OPEN" ? "quarter-disabled" : ""}
+                                                                ${quarter.Status === "DRAFT" ? "quarter-disabled" : ""}
                                                             `}
                                                             onClick={() => {
-                                                                if (quarter.Status !== "OPEN") return;
+                                                                if (quarter.Status === "DRAFT") return;
                                                                 setSelectedQuarter(quarter);
                                                             }}
                                                         >
@@ -1357,7 +1336,7 @@ export default function EmployeeKpi() {
                                                                 </div>
                                                                 <Tooltip title={quarter.Comments || "No comments available"}>
                                                                     <i
-                                                                        className="bi bi-chat-square-text-fill text-secondary fs-5"
+                                                                        className="bi bi-chat-square-text-fill text-primary fa-fade fs-5"
                                                                         onClick={(e) => e.stopPropagation()}
                                                                         style={{ cursor: "pointer" }}
                                                                     />
@@ -1384,7 +1363,7 @@ export default function EmployeeKpi() {
                                 </div>
                             )}
 
-                            {selectedQuarter && selectedEmployee && (
+                            {reviewCycleData.length > 0 && selectedQuarter && selectedEmployee && (
                                 <div className='col-12'>
                                     <div className="card border-0 shadow-sm rounded-4">
                                         <div className="card-header border-0 py-3 px-4">
@@ -1559,7 +1538,7 @@ export default function EmployeeKpi() {
                                                                                                     size="large"
                                                                                                     style={{ height: 40 }}
                                                                                                     type="number"
-                                                                                                    value={item.Score1 ?? ""}
+                                                                                                    value={item.Status === "DRAFT" ? "" : (item.Score1 ?? "")}
                                                                                                     disabled
                                                                                                 />
                                                                                             </div>
@@ -1571,7 +1550,7 @@ export default function EmployeeKpi() {
                                                                                                 </label>
                                                                                                 <Input.TextArea
                                                                                                     rows={3}
-                                                                                                    value={item.Remarks1 ?? ""}
+                                                                                                    value={item.Status === "DRAFT" ? "" : (item.Remarks1 ?? "")}
                                                                                                     disabled
                                                                                                 />
                                                                                             </div>
@@ -1594,23 +1573,30 @@ export default function EmployeeKpi() {
                                                                                                     Manager Score
                                                                                                 </label>
                                                                                                 <Input
-                                                                                                    size="large"
-                                                                                                    style={{ height: 40 }}
-                                                                                                    type="number"
-                                                                                                    value={item.Score2 ?? ""}
-                                                                                                    disabled={
-                                                                                                        loading ||
-                                                                                                        sessionUserData?.RoleId === 3 ||
-                                                                                                        item.Status === "DRAFT" ||
-                                                                                                        !item.Remarks1 ||
-                                                                                                        reviewStatus === "SUBMITTED" ||
-                                                                                                        !["UNDER_REVIEW", "EVALUATED"].includes(reviewStatus)
-                                                                                                    }
-                                                                                                    onChange={(e) =>
-                                                                                                        handleInputChange(index, "Score2", e.target.value)
-                                                                                                    }
-                                                                                                    onWheel={(e) => e.target.blur()}
-                                                                                                />
+    size="large"
+    style={{ height: 40 }}
+    type="number"
+    min={0}
+    max={100}
+    step="0.01"
+    value={item.Score2 ?? ""}
+    disabled={
+        loading ||
+        sessionUserData?.RoleId === 3 ||
+        item.Status === "DRAFT" ||
+        !item.Remarks1 ||
+        reviewStatus === "SUBMITTED" ||
+        !["UNDER_REVIEW", "EVALUATED"].includes(reviewStatus)
+    }
+    onChange={(e) => {
+        const value = e.target.value;
+
+        if (value === "" || Number(value) <= 100) {
+            handleInputChange(index, "Score2", value);
+        }
+    }}
+    onWheel={(e) => e.target.blur()}
+/>
                                                                                             </div>
 
                                                                                             <div>
@@ -1630,7 +1616,7 @@ export default function EmployeeKpi() {
                                                                                                         !["UNDER_REVIEW", "EVALUATED"].includes(reviewStatus)
                                                                                                     }
                                                                                                     onChange={(e) =>
-                                                                                                        handleInputChange(index, "Remarks2", e.target.value)
+                                                                                                        handleInputChange(index, "Remarks2", capitalizeFirstLetter(e.target.value))
                                                                                                     }
                                                                                                 />
                                                                                             </div>
@@ -1649,7 +1635,6 @@ export default function EmployeeKpi() {
                                                                                         setSelectedFeedback(item);
                                                                                         setFeedbackModal(true);
                                                                                     }}
-                                                                                // disabled={reviewStatus === 'Pending'}
                                                                                 >
                                                                                     Any Time Feedback
                                                                                 </Button>
@@ -1812,7 +1797,6 @@ export default function EmployeeKpi() {
                     </div>
                 }
             >
-
                 <div className="card border-0 shadow-sm mt-5">
                     <div className="card-header border-0 pt-5">
                         <div className="d-flex align-items-center w-100">
@@ -1867,7 +1851,6 @@ export default function EmployeeKpi() {
                                         <th width="110" className="text-start">Objective</th>
                                         <th width="110" className="text-center">Target</th>
                                         <th width="110" className="text-center">Weightage</th>
-                                        <th width="100" className="text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1879,96 +1862,98 @@ export default function EmployeeKpi() {
                                         </tr>
                                     ) : empKPIData.length > 0 ? (
                                         <>
-                                            {empKPIData.map((item, index) => (
-                                                <tr
-                                                    key={item.Id}
-                                                    className={item.IsActive === 0 ? "table-danger opacity-50" : ""}
-                                                >
-                                                    <td className="text-center fw-bold">{index + 1}</td>
-                                                    <td>
-                                                        <div className="d-flex align-items-center">
-                                                            <div>
-                                                                <Tooltip
-                                                                    title={item.KPIName}
-                                                                    placement="topLeft"
-                                                                    overlayStyle={{ maxWidth: 350 }}
-                                                                >
-                                                                    <div
-                                                                        className="fw-bold"
-                                                                        style={{ cursor: "pointer" }}
-                                                                    >
-                                                                        {item.KPIName
-                                                                            ? item.KPIName.length > 26
-                                                                                ? `${item.KPIName.substring(0, 26)}...`
-                                                                                : item.KPIName
-                                                                            : "-"}
-                                                                    </div>
-                                                                </Tooltip>
+                                            {empKPIData.map((item, index) => {
+                                                const plainObjective = item.Objectives
+                                                    ? new DOMParser()
+                                                        .parseFromString(item.Objectives, "text/html")
+                                                        .body.textContent
+                                                    : "";
 
-                                                                <small className="text-muted">
-                                                                    KPI ID : {item.KPIId}
-                                                                </small>
+                                                const canEditTarget = item.IsNew || isAllCyclesDraft;
+
+                                                return (
+                                                    <tr
+                                                        key={item.Id}
+                                                        className={item.IsActive === 0 ? "table-danger opacity-50" : ""}
+                                                    >
+                                                        <td className="text-center fw-bold">{index + 1}</td>
+                                                        <td>
+                                                            <div className="d-flex align-items-center">
+                                                                <div>
+                                                                    <Tooltip
+                                                                        title={item.KPIName}
+                                                                        placement="topLeft"
+                                                                        overlayStyle={{ maxWidth: 350 }}
+                                                                    >
+                                                                        <div
+                                                                            className="fw-bold"
+                                                                            style={{ cursor: "pointer" }}
+                                                                        >
+                                                                            {item.KPIName
+                                                                                ? item.KPIName.length > 26
+                                                                                    ? `${item.KPIName.substring(0, 26)}...`
+                                                                                    : item.KPIName
+                                                                                : "-"}
+                                                                        </div>
+                                                                    </Tooltip>
+
+                                                                    <small className="text-muted">
+                                                                        KPI ID : {item.KPIId}
+                                                                    </small>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div className="d-inline-flex align-items-center px-3 py-2 rounded-3 bg-light">
-                                                            <i className="bi bi-speedometer2 text-primary me-2"></i>
-                                                            <span className="fw-semibold text-dark">{item.UOMName}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className='text-start' style={{ maxWidth: "230px" }}>
-                                                        <Tooltip
-                                                            title={item.Objectives || "No Objective"}
-                                                            placement="topLeft"
-                                                            overlayStyle={{ maxWidth: 350 }}
-                                                        >
-                                                            <span
-                                                                className="text-muted"
-                                                                style={{
-                                                                    cursor: "pointer",
-                                                                    display: "inline-block",
-                                                                    whiteSpace: "nowrap",
-                                                                    overflow: "hidden",
-                                                                    textOverflow: "ellipsis",
-                                                                    maxWidth: "200px"
-                                                                }}
+                                                        </td>
+                                                        <td>
+                                                            <div className="d-inline-flex align-items-center px-3 py-2 rounded-3 bg-light">
+                                                                <i className="bi bi-speedometer2 text-primary me-2"></i>
+                                                                <span className="fw-semibold text-dark">{item.UOMName}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="text-start" style={{ maxWidth: "230px" }}>
+                                                            <Tooltip
+                                                                title={plainObjective || "No Objective"}
+                                                                placement="topLeft"
+                                                                overlayStyle={{ maxWidth: 350 }}
                                                             >
-                                                                {item.Objectives
-                                                                    ? item.Objectives.length > 25
-                                                                        ? `${item.Objectives.substring(0, 25)}...`
-                                                                        : item.Objectives
-                                                                    : "-"}
-                                                            </span>
-                                                        </Tooltip>
-                                                    </td>
-                                                    <td className="text-center">
-                                                        <Input
-                                                            type="number"
-                                                            size="small"
-                                                            value={item.Target}
-                                                            onChange={(e) => updateField(index, "Target", e.target.value)}
-                                                            disabled={!canEditKPI}
-                                                        />
-                                                    </td>
-                                                    <td className="text-center">
-                                                        <Input
-                                                            type="number"
-                                                            size="small"
-                                                            value={item.Weightage}
-                                                            onChange={(e) => updateField(index, "Weightage", e.target.value)}
-                                                        />
-                                                    </td>
-                                                    <td className="text-center">
-                                                        <button
-                                                            className="btn btn-icon btn-light-danger btn-sm rounded-circle"
-                                                            onClick={() => removeKPI(index)}
-                                                        >
-                                                            <i className="fa fa-trash"></i>
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                                                <span
+                                                                    className="text-muted"
+                                                                    style={{
+                                                                        cursor: "pointer",
+                                                                        display: "inline-block",
+                                                                        whiteSpace: "nowrap",
+                                                                        overflow: "hidden",
+                                                                        textOverflow: "ellipsis",
+                                                                        maxWidth: "200px",
+                                                                    }}
+                                                                >
+                                                                    {plainObjective
+                                                                        ? plainObjective.length > 25
+                                                                            ? `${plainObjective.substring(0, 25)}...`
+                                                                            : plainObjective
+                                                                        : "-"}
+                                                                </span>
+                                                            </Tooltip>
+                                                        </td>
+                                                        <td className="text-center">
+                                                            <Input
+                                                                type="number"
+                                                                size="small"
+                                                                value={item.Target}
+                                                                onChange={(e) => updateField(index, "Target", e.target.value)}
+                                                                disabled={!canEditTarget}
+                                                            />
+                                                        </td>
+                                                        <td className="text-center">
+                                                            <Input
+                                                                type="number"
+                                                                size="small"
+                                                                value={item.Weightage}
+                                                                onChange={(e) => updateField(index, "Weightage", e.target.value)}
+                                                            />
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
 
                                             <tr>
                                                 <td colSpan={9} className="text-end pt-4">
@@ -2248,7 +2233,8 @@ export default function EmployeeKpi() {
                         background:#0dcaf0 !important;
                         color:#fff !important;
                         border-color:#0dcaf0 !important;
-                    }
+                    }import { capitalizeFirstLetter } from './../../../utils/capital';
+
                                     .feedback-header{
                     display:flex;
                     align-items:center;

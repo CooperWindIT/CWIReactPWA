@@ -372,6 +372,12 @@ export default function RegisterMasterTypes({ typeCategory }) {
         3: "Alert",
     };
 
+    const capitalizeWords = (value) => {
+        return value
+            .toLowerCase()
+            .replace(/\b\w/g, (char) => char.toUpperCase());
+    };
+
     const isDeleteDisabled = sessionActionIds?.includes(29) ? true : false;
     const isEditDocType = sessionActionIds?.includes(34) ? true : false;
 
@@ -465,7 +471,7 @@ export default function RegisterMasterTypes({ typeCategory }) {
                                             placeholder={`Enter ${typeLabelMap[typeCategory] || "Type"} Name`}
                                             style={{ height: "40px" }}
                                             value={typeName}
-                                            onChange={(e) => setTypeName(e.target.value)}
+                                            onChange={(e) => setTypeName(capitalizeWords(e.target.value))}
                                             disabled={addTypeLoading}
                                             required
                                         />
