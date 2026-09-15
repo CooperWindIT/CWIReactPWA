@@ -234,11 +234,11 @@ export default function RegisterTicket({ serviceTypesData }) {
                     <div className="row">
                         <div className="col-md-6 mb-3">
                             <label className="form-label">
-                                Service Type <span className="text-danger">*</span>
+                                Category <span className="text-danger">*</span>
                             </label>
                             <Select
                                 className="w-100"
-                                placeholder="Select Service Type"
+                                placeholder="Select Category"
                                 value={formData.ServiceTypeId}
                                 optionLabelProp="label"
                                 onChange={(value) =>
@@ -285,12 +285,12 @@ export default function RegisterTicket({ serviceTypesData }) {
                         </div>
                         <div className="col-md-6 mb-3">
                             <label className="form-label">
-                                Ticket Type <span className="text-danger">*</span>
+                                Sub-category <span className="text-danger">*</span>
                             </label>
                             <Select
                                 showSearch
                                 allowClear
-                                placeholder="Select Ticket Type"
+                                placeholder="Select Sub-category"
                                 className="w-100"
                                 value={formData?.TicketTypeId || undefined}
                                 style={{ height: "2.6rem" }}

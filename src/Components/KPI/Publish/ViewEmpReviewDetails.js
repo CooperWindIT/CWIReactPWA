@@ -483,83 +483,99 @@ export default function ViewEmpReview({ empReviewData }) {
                                                 <div className="card-body p-3">
                                                     {/* KPI HEADER */}
                                                     <div
-                                                        className="d-flex justify-content-between align-items-center"
-                                                        style={{
-                                                            cursor: "pointer",
-                                                        }}
-                                                        onClick={() =>
-                                                            toggleReviewCard(cardId)
-                                                        }
-                                                    >
-                                                        <div className="d-flex align-items-center">
-                                                            <i
-                                                                className={`bi ${isExpanded
-                                                                    ? "bi-chevron-down"
-                                                                    : "bi-chevron-right"
-                                                                    } text-muted me-3`}
-                                                            ></i>
+    className="d-flex justify-content-between align-items-center gap-2"
+    style={{ cursor: "pointer" }}
+    onClick={() => toggleReviewCard(cardId)}
+>
+    <div className="d-flex align-items-center flex-grow-1 min-w-0">
 
-                                                            <div
-                                                                className="rounded-circle bg-light-success text-success fw-bold d-flex align-items-center justify-content-center"
-                                                                style={{
-                                                                    width: 34,
-                                                                    height: 34,
-                                                                    fontSize: 13,
-                                                                }}
-                                                            >
-                                                                {String(index + 1).padStart(
-                                                                    2,
-                                                                    "0"
-                                                                )}
-                                                            </div>
+        <i
+            className={`bi ${
+                isExpanded
+                    ? "bi-chevron-down"
+                    : "bi-chevron-right"
+            } text-muted me-2 me-md-3`}
+        ></i>
 
-                                                            <div className="ms-3">
-                                                                <div className="d-flex align-items-center">
-                                                                    <h6 className="fw-bold mb-0">
-                                                                        {item.KPIName}
-                                                                    </h6>
-                                                                    {item.Objectives && (
-                                                                        <Tooltip
-                                                                            title={
-                                                                                <div
-                                                                                    dangerouslySetInnerHTML={{
-                                                                                        __html:
-                                                                                            item.Objectives,
-                                                                                    }}
-                                                                                />
-                                                                            }
-                                                                        >
-                                                                            <i className="bi bi-question-circle-fill text-primary ms-2"></i>
-                                                                        </Tooltip>
-                                                                    )}
-                                                                </div>
-                                                                <div>
-                                                                    <span className="badge bg-light-primary text-primary mt-1 me-2">
-                                                                        <i className="bi bi-rulers me-1"></i>
-                                                                        {item.UOMName ||
-                                                                            "N/A"}
-                                                                    </span>
-                                                                    <span className="badge bg-light-success text-success mt-1">
-                                                                        <i className="bi bi-check-circle me-1"></i>
-                                                                        {item.Status ||
-                                                                            "Pending"}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
+        <div
+            className="rounded-circle bg-light-success text-success fw-bold d-flex align-items-center justify-content-center flex-shrink-0"
+            style={{
+                width: 34,
+                height: 34,
+                fontSize: 13,
+            }}
+        >
+            {String(index + 1).padStart(2, "0")}
+        </div>
 
-                                                        <div className="text-end">
-                                                            <small className="text-muted d-block">
-                                                                Final Score
-                                                            </small>
-                                                            <h5 className="fw-bold text-primary mb-0">
-                                                                {Number(
-                                                                    item.WeightedScore ??
-                                                                    0
-                                                                ).toFixed(2)}
-                                                            </h5>
-                                                        </div>
-                                                    </div>
+        <div className="ms-2 ms-md-3 min-w-0">
+
+            <div className="d-flex align-items-center min-w-0">
+
+            <Tooltip title={item.KPIName}>
+                                                                                        <h6
+                                                                                            className="fw-bold mb-0 kpi-name d-block d-md-none"
+                                                                                            title={item.KPIName}
+                                                                                        >
+                                                                                            {item.KPIName?.length > 10
+                                                                                                ? `${item.KPIName.substring(0, 10)}...`
+                                                                                                : item.KPIName}
+                                                                                        </h6>
+                                                                                        <h6
+                                                                                            className="fw-bold mb-0 kpi-name d-none d-md-block"
+                                                                                            title={item.KPIName}
+                                                                                        >
+                                                                                            {item.KPIName?.length > 70
+                                                                                                ? `${item.KPIName.substring(0, 70)}...`
+                                                                                                : item.KPIName}
+                                                                                        </h6>
+                                                                                    </Tooltip>
+
+                {item.Objectives && (
+                    <Tooltip
+                        title={
+                            <div
+                                dangerouslySetInnerHTML={{
+                                    __html: item.Objectives,
+                                }}
+                            />
+                        }
+                    >
+                        <i className="bi bi-question-circle-fill text-primary ms-2 flex-shrink-0"></i>
+                    </Tooltip>
+                )}
+
+            </div>
+
+            <div className="d-flex flex-wrap gap-1">
+
+                <span className="badge bg-light-primary text-primary mt-1">
+                    <i className="bi bi-rulers me-1"></i>
+                    {item.UOMName || "N/A"}
+                </span>
+
+                <span className="badge bg-light-success text-success mt-1">
+                    <i className="bi bi-check-circle me-1"></i>
+                    {item.Status || "Pending"}
+                </span>
+
+            </div>
+
+        </div>
+    </div>
+
+    <div className="text-end flex-shrink-0">
+
+        <small className="text-muted d-block">
+            Final Score
+        </small>
+
+        <h5 className="fw-bold text-primary mb-0">
+            {Number(item.WeightedScore ?? 0).toFixed(2)}
+        </h5>
+
+    </div>
+</div>
 
                                                     {/* KPI DETAILS */}
                                                     {isExpanded && (
@@ -737,20 +753,22 @@ export default function ViewEmpReview({ empReviewData }) {
                                                                         </div>
                                                                     </div>
                                                                 </div>
-                                                                <div className="d-flex justify-content-end mt-3">
-                                                                    <Button
-                                                                        type="default"
-                                                                        className="btn-premium-outline-info"
-                                                                        icon={<i className="bi bi-chat-square-text-fill"></i>}
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            setSelectedFeedback(item);
-                                                                            setFeedbackModal(true);
-                                                                        }}
-                                                                    >
-                                                                        Any Time Feedback
-                                                                    </Button>
-                                                                </div>
+                                                                <div className="d-flex justify-content-end mt-3 mobile-feedback-button">
+    <Button
+        type="default"
+        className="btn-premium-outline-info"
+        icon={
+            <i className="bi bi-chat-square-text-fill"></i>
+        }
+        onClick={(e) => {
+            e.stopPropagation();
+            setSelectedFeedback(item);
+            setFeedbackModal(true);
+        }}
+    >
+        Any Time Feedback
+    </Button>
+</div>
                                                             </div>
                                                         </div>
                                                     )}
@@ -935,6 +953,15 @@ export default function ViewEmpReview({ empReviewData }) {
 
             <style>
                 {`
+                @media (max-width: 767.98px) {
+    .mobile-feedback-button {
+        justify-content: stretch !important;
+    }
+
+    .mobile-feedback-button .ant-btn {
+        width: 100%;
+    }
+}
                  .feedback-header{
                         display:flex;
                         align-items:center;

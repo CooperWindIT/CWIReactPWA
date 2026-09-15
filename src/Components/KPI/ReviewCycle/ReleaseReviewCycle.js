@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { message } from "antd";
 import { saveReviewCycles } from "../services/kpiServices";
+import Swal from "sweetalert2";
 
 export default function ReleaseReviewCycle({
     releaseReviewCycleData,
@@ -176,34 +177,41 @@ export default function ReleaseReviewCycle({
                 response?.success &&
                 response?.data?.result?.[0]?.ResponseCode === 200
             ) {
-                message.success(
-                    response.data.result[0].Message ||
-                    "Review cycle released successfully..!"
-                );
-
+                Swal.fire({
+                    icon: "success",
+                    title: "Success!",
+                    text:
+                        response.data.result[0].Message ||
+                        "Review cycle released successfully!",
+                    confirmButtonText: "OK",
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.reload();
+                    }
+                });
+            
                 // Close modal
                 document
                     .getElementById("releaseReviewCycleModal")
                     ?.querySelector(".btn-close")
                     ?.click();
-
+            
                 // Reset selection
                 setSelectedEmployees([]);
-
+            
                 setReleaseData({
                     Id: "",
                     Comments: "",
                 });
-
-                // Refresh review cycles
-                if (onReleased) {
-                    onReleased();
-                }
             } else {
-                message.error(
-                    response?.data?.result?.[0]?.Message ||
-                    "Release failed."
-                );
+                Swal.fire({
+                    icon: "error",
+                    title: "Release Failed",
+                    text:
+                        response?.data?.result?.[0]?.Message ||
+                        "Release failed.",
+                    confirmButtonText: "OK",
+                });
             }
         } catch (err) {
             console.error("Release Review Cycle Error:", err);

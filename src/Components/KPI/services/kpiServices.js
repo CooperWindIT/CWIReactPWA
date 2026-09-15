@@ -12,7 +12,7 @@ export const manageKPI = async (payload) => {
     return response.json();
 };
 
-export const getKPIs = async ({ orgId, deptId, kpiLevel }) => {
+export const getKPIs = async ({ orgId, deptId, kpiLevel, userId }) => {
 
     const response = await fetchWithAuth("KPI/MasterAPI", {
         method: "POST",
@@ -24,7 +24,8 @@ export const getKPIs = async ({ orgId, deptId, kpiLevel }) => {
             Action: "GetKPIs",
             JsonData: {
                 DeptId: deptId,
-                KPILevel: kpiLevel
+                KPILevel: kpiLevel,
+                UserId: userId
             }
         })
     });

@@ -222,9 +222,10 @@ export default function UserAccessDoc() {
         const name = user.ItemValue?.toLowerCase() || "";
         const email = user.DisplayValue?.toLowerCase() || "";
         const dept = user.DisplayValue2?.toLowerCase() || "";
+        const empNo = user.DisplayValue3?.toLowerCase() || "";
         const query = searchQuery.toLowerCase();
 
-        return name.includes(query) || email.includes(query) || dept.includes(query);
+        return name.includes(query) || email.includes(query) || dept.includes(query) || empNo.includes(query);
     });
 
     const filteredDocTypes = (docTypes || []).filter(type =>
@@ -293,7 +294,7 @@ export default function UserAccessDoc() {
                             <div className="card-title flex-column">
                                 <h3 className="fw-bolder text-gray-800 fs-4 mb-0">Permission Management</h3>
                                 <span className="text-muted fs-7 fw-bold mt-1">
-                                    Configuring permissions for: <span className="text-primary">{selectedUser.ItemValue} - {selectedUser.DisplayValue}</span>
+                                    Configuring permissions for: <span className="text-primary">{selectedUser.ItemValue} - {selectedUser.DisplayValue} - {selectedUser.DisplayValue3}</span>
                                 </span>
                             </div>
 
@@ -366,7 +367,7 @@ export default function UserAccessDoc() {
                                     disabled={isNoUserSelected || docPermisLoading || userDocPermsSaveLoading}
                                 >
                                     <i className="fa-solid fa-floppy-disk me-2 fs-7"></i>
-                                    Save Changes for {selectedUser.ItemValue}
+                                    Save Changes for {selectedUser.ItemValue} - {selectedUser.DisplayValue3}
                                 </button>
                             </div>
                         </div>
@@ -417,7 +418,7 @@ export default function UserAccessDoc() {
                                                         <span className="fs-7 fw-bolder">{(user.ItemValue || "?").charAt(0)}</span>
                                                     </div>
                                                     <div className="d-flex flex-column overflow-hidden">
-                                                        <span className={`fs-7 fw-bolder text-truncate ${selectedUser.ItemId === user.ItemId ? 'text-primary' : 'text-gray-800'}`}>{user.ItemValue}</span>
+                                                        <span className={`fs-7 fw-bolder text-truncate ${selectedUser.ItemId === user.ItemId ? 'text-primary' : 'text-gray-800'}`}>{user.ItemValue} - {user.DisplayValue3}</span>
                                                         <span className="text-muted fs-8 fw-bold text-truncate">{user.DisplayValue}</span>
                                                     </div>
                                                 </div>

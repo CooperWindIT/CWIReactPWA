@@ -72,11 +72,11 @@ const Help1 = () => {
     //                     headers: { "Content-Type": "application/json" },
     //                 }
     //             );
-    
+
     //             if (!response.ok) throw new Error("Network response was not ok");
-    
+
     //             const data = await response.json();
-    
+
     //             if (data.success) {
     //                 setFaqsData(data.data);
     //                 setFilteredFaqs(data.data);
@@ -84,7 +84,7 @@ const Help1 = () => {
     //                 setFaqsData([]);
     //                 setFilteredFaqs([]);
     //             }
-    
+
     //         } catch (error) {
     //             console.error("Failed to fetch types data:", error);
     //             setFilteredFaqs([]);
@@ -107,22 +107,28 @@ const Help1 = () => {
 
         const searchTree = (list) => {
             return list
-                .map((item) => ({ ...item })) // Clone to avoid mutating original state
+                .map((item) => ({ ...item }))
                 .filter((item) => {
-                    const searchTerm = search.toLowerCase();
-
-                    // Check if the current item matches
+                    const searchTerm = (search || "").toLowerCase();
+        
+                    // Safely handle null values
+                    const question = (item.Question || "").toLowerCase();
+                    const answer = (item.Answer || "").toLowerCase();
+        
                     const matchesCurrent =
-                        item.Question.toLowerCase().includes(searchTerm) ||
-                        item.Answer.toLowerCase().includes(searchTerm);
-
-                    // Recursively check if any children match
+                        question.includes(searchTerm) ||
+                        answer.includes(searchTerm);
+        
+                    // Recursively check children
                     if (item.children && item.children.length > 0) {
                         item.children = searchTree(item.children);
                     }
-
-                    // Keep the item if it matches OR if any of its children matched
-                    return matchesCurrent || (item.children && item.children.length > 0);
+        
+                    // Keep parent if current item or any child matches
+                    return (
+                        matchesCurrent ||
+                        (item.children && item.children.length > 0)
+                    );
                 });
         };
 

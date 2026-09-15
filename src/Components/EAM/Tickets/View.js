@@ -838,14 +838,6 @@ export default function EAMTicketView() {
         });
     };
 
-    const handleEdit = (item) => {
-        setEditData(item);
-    };
-
-    // const handleCloseTicket = (item) => {
-    //     setCloseData(item);
-    // };
-
     const handleAssignTech = (item) => {
         setTicketData(item);
     };

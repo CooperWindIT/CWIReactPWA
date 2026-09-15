@@ -631,7 +631,7 @@ export default function KPIDashboard() {
                                                                         {action.UserName?.charAt(0)}
                                                                     </div>
                                                                 </div>
-                                                                <span className="text-gray-900 fw-bold fs-6">{action.UserName}</span>
+                                                                <span className="text-gray-900 fw-bold fs-6">{action.UserName} - {action.EmpNo}</span>
                                                             </div>
                                                             <span className="badge badge-light-primary fw-semibold fs-8">
                                                                 {action.PendingAction}

@@ -5,7 +5,7 @@ import Base1 from '../../Config/Base1';
 import { fetchWithAuth } from "../../../utils/api";
 import { capitalizeFirstLetter } from "../../../utils/capital";
 import Swal from 'sweetalert2';
-import { Dropdown, Menu, Select, Tooltip, message, Input, Skeleton, Modal, Progress, Button } from 'antd';
+import { Dropdown, Menu, Select, Tooltip, message, Input, Skeleton, Modal, Checkbox, Button, Switch } from 'antd';
 import { getKPIsByPeriod, getPerformancePeriods, getUsersByMngrId, getReviewCyclesByUser, SaveAssessments, getCyclesScoreByUserId, saveEmployeeKPIs, addNewComments, getFeedBacks, getDeptKPIs, getKPIs, getCanEditKPIAllocation } from '../services/kpiServices';
 import { calculateKPI } from './../../../utils/kpiCalculator';
 
@@ -22,6 +22,7 @@ export default function EmployeeKpi() {
     const [modules, setModules] = useState([]);
     const [menuData, setMenuData] = useState([]);
     const [reviewCycleData, setReviewCycleData] = useState([]);
+    const [reviewCycleMessage, setReviewCycleMessage] = useState("");
     const [selectedEmployeeName, setSelectedEmployeeName] = useState("");
     const [sessionModuleId, setSessionModuleId] = useState(null);
     const [totalWeightedScore, setTotalWeightedScore] = useState(0);
@@ -356,9 +357,38 @@ export default function EmployeeKpi() {
         }
     }, [sessionUserData?.OrgId]);
 
+    // const fetchCyclesScoreByUserId = async () => {
+    //     try {
+    //         setLoading(true);
+
+    //         const response = await getCyclesScoreByUserId({
+    //             orgId: sessionUserData?.OrgId,
+    //             cycleId: selectedQuarter?.Id,
+    //             employeeId: selectedEmployee,
+    //             periodId: selectedPeriod,
+    //         });
+
+    //         setReviewData(response?.data || []);
+    //         setReviewStatus(response?.data[0]?.Status || "Pending");
+    //         const { updatedData, total } = recalculateScores(response?.data || []);
+
+    //         setReviewData(updatedData);
+    //         setEditableKPIs(updatedData);
+    //         setTotalWeightedScore(total);
+
+    //     } catch (error) {
+    //         console.error(error);
+    //     } finally {
+    //         setLoading(false);
+    //     }
+    // };
+
     const fetchCyclesScoreByUserId = async () => {
         try {
             setLoading(true);
+
+            // Clear previous message
+            setReviewCycleMessage("");
 
             const response = await getCyclesScoreByUserId({
                 orgId: sessionUserData?.OrgId,
@@ -367,9 +397,34 @@ export default function EmployeeKpi() {
                 periodId: selectedPeriod,
             });
 
-            setReviewData(response?.data || []);
-            setReviewStatus(response?.data[0]?.Status || "Pending");
-            const { updatedData, total } = recalculateScores(response?.data || []);
+            console.log("Cycles Score Response:", response);
+
+            // Check 409 Response
+            if (
+                response?.code === 409 ||
+                response?.data?.[0]?.ResponseCode === 409
+            ) {
+                setReviewData([]);
+                setEditableKPIs([]);
+                setTotalWeightedScore(0);
+                setReviewStatus("Pending");
+
+                setReviewCycleMessage(
+                    response?.data?.[0]?.Message ||
+                    response?.message ||
+                    "Employee is not participating in this Review Cycle."
+                );
+
+                return;
+            }
+
+            // Normal response
+            const data = response?.data || [];
+
+            setReviewData(data);
+            setReviewStatus(data?.[0]?.Status || "Pending");
+
+            const { updatedData, total } = recalculateScores(data);
 
             setReviewData(updatedData);
             setEditableKPIs(updatedData);
@@ -377,6 +432,15 @@ export default function EmployeeKpi() {
 
         } catch (error) {
             console.error(error);
+
+            setReviewData([]);
+            setEditableKPIs([]);
+            setTotalWeightedScore(0);
+
+            setReviewCycleMessage(
+                "Unable to fetch review cycle details."
+            );
+
         } finally {
             setLoading(false);
         }
@@ -403,6 +467,7 @@ export default function EmployeeKpi() {
                 orgId: sessionUserData?.OrgId,
                 deptId: 0,
                 kpiLevel: 1,
+                userId: sessionUserData?.Id,
             });
 
             setOrgKPIs(response?.data || []);
@@ -639,6 +704,88 @@ export default function EmployeeKpi() {
 
     };
 
+    // const handleSubmitReview = async () => {
+    //     // Validation
+    //     for (const item of reviewData) {
+    //         if (sessionUserData?.RoleId !== 3) {
+    //             if (
+    //                 item.Score2 === null ||
+    //                 item.Score2 === "" ||
+    //                 item.Score2 === undefined
+    //             ) {
+    //                 message.warning(`${item.KPIName}: Please enter Manager Score.`);
+    //                 return;
+    //             }
+    //             if (!item.Remarks2?.trim()) {
+    //                 message.warning(`${item.KPIName}: Please enter Manager Remarks.`);
+    //                 return;
+    //             }
+    //         } else {
+    //             if (
+    //                 item.Score1 === null ||
+    //                 item.Score1 === "" ||
+    //                 item.Score1 === undefined
+    //             ) {
+    //                 message.warning(`${item.KPIName}: Please enter Self Score.`);
+    //                 return;
+    //             }
+    //             if (!item.Remarks1?.trim()) {
+    //                 message.warning(`${item.KPIName}: Please enter Self Remarks.`);
+    //                 return;
+    //             }
+    //         }
+    //     }
+
+    //     const payload = {
+    //         OrgId: sessionUserData.OrgId,
+    //         UserId: sessionUserData.Id,
+    //         Action: "MANAGER",
+    //         JsonData: {
+    //             CycleScore: {
+    //                 EmployeeId: selectedEmployee,
+    //                 ReviewCycleId: selectedQuarter?.Id,
+    //                 CycleScore: totalWeightedScore,
+    //                 IsPriority: true
+    //             },
+    //             Assessments: reviewData.map(item => ({
+    //                 Id: item.Id,
+    //                 CalculatedScore: Number(item.CalculatedScore),
+    //                 WeightedScore: item.WeightedScore || "",
+    //                 Status: "SUBMITTED",
+    //                 Score2: Number(item.Score2),
+    //                 Remarks2: item.Remarks2 || "",
+    //                 Weightage: item.Weightage,
+    //             }))
+    //         }
+    //     };
+
+    //     try {
+    //         setLoading(true);
+    //         const response = await SaveAssessments(payload);
+    //         if (
+    //             response?.success &&
+    //             response?.data?.result?.[0]?.ResponseCode === 200
+    //         ) {
+    //             message.success(
+    //                 response.data.result[0].Message
+    //             );
+    //             fetchCyclesScoreByUserId();
+    //         } else {
+    //             message.error(
+    //                 response?.data?.result?.[0]?.Message ||
+    //                 "Failed to save review."
+    //             );
+    //         }
+    //     } catch (error) {
+    //         console.error(error);
+    //         message.error("Something went wrong.");
+    //     } finally {
+    //         setLoading(false);
+    //     }
+
+    // };
+
+
     const handleSubmitReview = async () => {
         // Validation
         for (const item of reviewData) {
@@ -651,6 +798,7 @@ export default function EmployeeKpi() {
                     message.warning(`${item.KPIName}: Please enter Manager Score.`);
                     return;
                 }
+
                 if (!item.Remarks2?.trim()) {
                     message.warning(`${item.KPIName}: Please enter Manager Remarks.`);
                     return;
@@ -664,6 +812,7 @@ export default function EmployeeKpi() {
                     message.warning(`${item.KPIName}: Please enter Self Score.`);
                     return;
                 }
+
                 if (!item.Remarks1?.trim()) {
                     message.warning(`${item.KPIName}: Please enter Self Remarks.`);
                     return;
@@ -671,53 +820,148 @@ export default function EmployeeKpi() {
             }
         }
 
-        const payload = {
-            OrgId: sessionUserData.OrgId,
-            UserId: sessionUserData.Id,
-            Action: "MANAGER",
-            JsonData: {
-                CycleScore: {
-                    EmployeeId: selectedEmployee,
-                    ReviewCycleId: selectedQuarter?.Id,
-                    CycleScore: totalWeightedScore
+        // Priority confirmation
+        let isPriority = true;
 
-                },
-                Assessments: reviewData.map(item => ({
-                    Id: item.Id,
-                    CalculatedScore: Number(item.CalculatedScore),
-                    WeightedScore: item.WeightedScore || "",
-                    Status: "SUBMITTED",
-                    Score2: Number(item.Score2),
-                    Remarks2: item.Remarks2 || "",
-                    Weightage: item.Weightage,
-                }))
+        Modal.confirm({
+            title: "Confirm Review Submission",
+            centered: true,
+            width: 480,
+
+            content: (
+                <div style={{ paddingTop: 8 }}>
+                    <div
+                        style={{
+                            background: "#f8fafc",
+                            border: "1px solid #e5e7eb",
+                            borderRadius: 12,
+                            padding: "16px 18px",
+                            marginBottom: 16
+                        }}
+                    >
+                        <div
+                            style={{
+                                fontSize: 15,
+                                fontWeight: 600,
+                                color: "#111827",
+                                marginBottom: 6
+                            }}
+                        >
+                            Review is ready to submit
+                        </div>
+
+                        <div
+                            style={{
+                                fontSize: 13,
+                                color: "#6b7280",
+                                lineHeight: 1.6
+                            }}
+                        >
+                            Please confirm whether this review should be marked
+                            as a priority.
+                        </div>
+                    </div>
+
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: "14px 16px",
+                            borderRadius: 12,
+                            border: "1px solid #fde68a",
+                            background: "#fffbeb"
+                        }}
+                    >
+                        <Checkbox
+                            defaultChecked={false}
+                            onChange={(e) => {
+                                isPriority = e.target.checked;
+                            }}
+                        >
+                            <span
+                                style={{
+                                    fontWeight: 600,
+                                    color: "#92400e"
+                                }}
+                            >
+                                ⭐ Mark this review as Priority
+                            </span>
+                        </Checkbox>
+                    </div>
+                </div>
+            ),
+
+            okText: "Confirm & Submit",
+            cancelText: "Cancel",
+
+            okButtonProps: {
+                style: {
+                    borderRadius: 8,
+                    fontWeight: 600
+                }
+            },
+
+            cancelButtonProps: {
+                style: {
+                    borderRadius: 8
+                }
+            },
+
+            onOk: async () => {
+                const payload = {
+                    OrgId: sessionUserData.OrgId,
+                    UserId: sessionUserData.Id,
+                    Action: "MANAGER",
+
+                    JsonData: {
+                        CycleScore: {
+                            EmployeeId: selectedEmployee,
+                            ReviewCycleId: selectedQuarter?.Id,
+                            CycleScore: totalWeightedScore,
+                            IsPriority: isPriority ? 1 : 0,
+                        },
+
+                        Assessments: reviewData.map(item => ({
+                            Id: item.Id,
+                            CalculatedScore: Number(item.CalculatedScore),
+                            WeightedScore: item.WeightedScore || "",
+                            Status: "SUBMITTED",
+                            Score2: Number(item.Score2),
+                            Remarks2: item.Remarks2 || "",
+                            Weightage: item.Weightage
+                        }))
+                    }
+                };
+
+                try {
+                    setLoading(true);
+
+                    const response = await SaveAssessments(payload);
+
+                    if (
+                        response?.success &&
+                        response?.data?.result?.[0]?.ResponseCode === 200
+                    ) {
+                        message.success(
+                            response.data.result[0].Message
+                        );
+
+                        fetchCyclesScoreByUserId();
+                    } else {
+                        message.error(
+                            response?.data?.result?.[0]?.Message ||
+                            "Failed to save review."
+                        );
+                    }
+                } catch (error) {
+                    console.error(error);
+                    message.error("Something went wrong.");
+                } finally {
+                    setLoading(false);
+                }
             }
-        };
-
-        try {
-            setLoading(true);
-            const response = await SaveAssessments(payload);
-            if (
-                response?.success &&
-                response?.data?.result?.[0]?.ResponseCode === 200
-            ) {
-                message.success(
-                    response.data.result[0].Message
-                );
-                fetchCyclesScoreByUserId();
-            } else {
-                message.error(
-                    response?.data?.result?.[0]?.Message ||
-                    "Failed to save review."
-                );
-            }
-        } catch (error) {
-            console.error(error);
-            message.error("Something went wrong.");
-        } finally {
-            setLoading(false);
-        }
-
+        });
     };
 
     const handleInputChange = (index, field, value) => {
@@ -766,41 +1010,63 @@ export default function EmployeeKpi() {
     };
 
     const updateField = (index, field, value) => {
-
-        const newValue = Number(value) || 0;
-
-        setEmpKPIData(prev => {
-
+        setEmpKPIData((prev) => {
             const updated = [...prev];
 
-            // Target Validation (Individual)
+            // Handle IsActive Toggle
+            if (field === "IsActive") {
+                updated[index] = {
+                    ...updated[index],
+                    IsActive: value ? 1 : 0,
+                };
+
+                return updated;
+            }
+
+            // Allow empty input while typing
+            const newValue = value === "" ? "" : Number(value);
+
+            // Target Validation
             if (field === "Target") {
-                if (newValue > 100) {
+                if (newValue !== "" && newValue > 100) {
                     message.warning("Target cannot be greater than 100.");
                     return prev;
                 }
 
-                updated[index].Target = newValue;
+                updated[index] = {
+                    ...updated[index],
+                    Target: newValue,
+                };
             }
 
-            // Weightage Validation (Total)
+            // Weightage Validation
             if (field === "Weightage") {
                 const totalWeightage = updated.reduce((sum, item, i) => {
-                    if (item.IsActive === 0) return sum;
+                    if (Number(item.IsActive) === 0) return sum;
 
-                    return sum + (i === index ? newValue : Number(item.Weightage || 0));
+                    const weight =
+                        i === index
+                            ? Number(newValue || 0)
+                            : Number(item.Weightage || 0);
+
+                    return sum + weight;
                 }, 0);
 
                 if (totalWeightage > 100) {
                     message.warning("Total Weightage cannot exceed 100%.");
                     return prev;
                 }
-                updated[index].Weightage = newValue;
+
+                updated[index] = {
+                    ...updated[index],
+                    Weightage: newValue,
+                };
             }
+
             return updated;
         });
     };
-    
+
     const handleUpdateAll = async () => {
 
         const activeKPIs = empKPIData.filter(item => item.IsActive === 1);
@@ -879,7 +1145,6 @@ export default function EmployeeKpi() {
             message.warning("Please enter feedback.");
             return;
         }
-        console.log(selectedFeedback)
 
         if (!selectedFeedback?.Id) {
             message.error("KPI details not found.");
@@ -1236,7 +1501,7 @@ export default function EmployeeKpi() {
                                                     key={emp.Id}
                                                     value={emp.Id}
                                                 >
-                                                    {emp.Name}
+                                                    {emp.Name} - {emp.EmpNo}
                                                 </Select.Option>
                                             ))}
                                         </Select>
@@ -1276,7 +1541,6 @@ export default function EmployeeKpi() {
                                     <div className="card border-0 shadow-sm rounded-4 mb-4">
                                         <div className="card-header bg-white border-0 px-4 py-3">
                                             <div className="d-flex justify-content-between align-items-center w-100">
-
                                                 <div>
                                                     <h5 className="fw-bold mb-1">
                                                         <i className="bi bi-calendar2-week text-primary me-2"></i>
@@ -1384,219 +1648,450 @@ export default function EmployeeKpi() {
                                             <div className="p-4">
                                                 <Skeleton active paragraph={{ rows: 8 }} title />
                                             </div>
+                                        ) : reviewCycleMessage ? (
+                                            <div className="card-body">
+                                                <div className="text-center py-5">
+
+                                                    <div className="mb-3">
+                                                        <i
+                                                            className="bi bi-person-x-fill text-warning"
+                                                            style={{ fontSize: "45px" }}
+                                                        />
+                                                    </div>
+
+                                                    <h5 className="fw-bold mb-2">
+                                                        Employee Not Participating
+                                                    </h5>
+
+                                                    <p className="text-muted mb-0">
+                                                        {reviewCycleMessage}
+                                                    </p>
+
+                                                </div>
+                                            </div>
                                         ) : (
-                                            <div className='card-body'>
+                                            <div className="card-body">
                                                 <div
                                                     className="table-responsive review-table-container custom-scrollbar mb-4"
-                                                    style={{ maxHeight: "500px", overflowY: "auto" }}
+                                                    style={{
+                                                        maxHeight: "500px",
+                                                        overflowY: "auto"
+                                                    }}
                                                 >
                                                     {editableKPIs?.map((item, index) => {
                                                         const cardId = item.Id ?? index;
                                                         const isExpanded = expandedCards.has(cardId);
-                                                        return (
-                                                            <div className="card shadow-sm border-0 rounded-4 mb-4 mx-2" key={cardId}>
-                                                                <div className="card-body p-3">
 
-                                                                    {/* ===== Header (always visible, click to expand/collapse) ===== */}
+                                                        return (
+                                                            <div className="card shadow-sm border-0 rounded-4 mb-3 mx-1 mx-md-2"
+                                                                key={cardId}
+                                                            >
+                                                                <div className="card-body p-3">
                                                                     <div
-                                                                        className="d-flex justify-content-between align-items-center"
+                                                                        className="kpi-review-header"
                                                                         style={{ cursor: "pointer" }}
                                                                         onClick={() => toggleCard(cardId)}
                                                                     >
-                                                                        <div className="d-flex align-items-center">
-                                                                            <i className={`bi ${isExpanded ? "bi-chevron-down" : "bi-chevron-right"} text-muted me-3`}></i>
-
-                                                                            <div
-                                                                                className="rounded-circle bg-light-success text-success fw-bold d-flex align-items-center justify-content-center shadow-sm"
-                                                                                style={{
-                                                                                    width: 34,
-                                                                                    height: 34,
-                                                                                    fontSize: 13
-                                                                                }}
-                                                                            >
+                                                                        <div className="kpi-review-title-section">
+                                                                            <i
+                                                                                className={`bi ${isExpanded
+                                                                                    ? "bi-chevron-down"
+                                                                                    : "bi-chevron-right"
+                                                                                    } text-muted kpi-chevron`}
+                                                                            ></i>
+                                                                            <div className="kpi-number">
                                                                                 {String(index + 1).padStart(2, "0")}
                                                                             </div>
 
-                                                                            <div className="ms-3">
-                                                                                <div className="d-flex align-items-center">
-                                                                                    <h5 className="fw-bold mb-0">{item.KPIName}</h5>
-
-                                                                                    {item.Objectives && (
-                                                                                        <Tooltip
-                                                                                            title={
-                                                                                                <div
-                                                                                                    dangerouslySetInnerHTML={{ __html: item.Objectives }}
-                                                                                                />
-                                                                                            }
+                                                                            <div className="kpi-review-details">
+                                                                                <div className="kpi-name-row">
+                                                                                    <Tooltip title={item.KPIName}>
+                                                                                        <h5
+                                                                                            className="fw-bold mb-0 kpi-name d-block d-md-none"
+                                                                                            title={item.KPIName}
                                                                                         >
-                                                                                            <i className="bi bi-question-circle-fill text-primary ms-2 fs-6"></i>
-                                                                                        </Tooltip>
-                                                                                    )}
+                                                                                            {item.KPIName?.length > 10
+                                                                                                ? `${item.KPIName.substring(0, 10)}...`
+                                                                                                : item.KPIName}
+                                                                                        </h5>
+                                                                                        <h5
+                                                                                            className="fw-bold mb-0 kpi-name d-none d-md-block"
+                                                                                            title={item.KPIName}
+                                                                                        >
+                                                                                            {item.KPIName?.length > 70
+                                                                                                ? `${item.KPIName.substring(0, 70)}...`
+                                                                                                : item.KPIName}
+                                                                                        </h5>
+                                                                                    </Tooltip>
+
                                                                                 </div>
-                                                                                <span className="badge bg-light-primary text-primary mt-1 me-2">
-                                                                                    <i className="bi bi-rulers me-1 text-primary"></i>
-                                                                                    {item.UOMName || 'N/A'}
-                                                                                </span>
-                                                                                <span className="badge bg-light-success text-success mt-1">
-                                                                                    <i className="bi bi-check-circle me-1 text-success"></i>
-                                                                                    {item.Status || 'Pending'}
-                                                                                </span>
+
+                                                                                <div className="kpi-badges">
+                                                                                    <span className="badge bg-light-primary text-primary">
+                                                                                        <i className="bi bi-rulers me-1"></i>
+                                                                                        {item.UOMName || "N/A"}
+                                                                                    </span>
+                                                                                    <span className="badge bg-light-success text-success">
+                                                                                        <i className="bi bi-check-circle me-1"></i>
+                                                                                        {item.Status || "Pending"}
+                                                                                    </span>
+                                                                                </div>
                                                                             </div>
                                                                         </div>
 
-                                                                        <div className="text-end me-2">
-                                                                            <small className="text-muted">
+                                                                        <div className="kpi-final-score">
+                                                                            <small className="text-muted d-block">
                                                                                 <i className="bi bi-award me-1"></i>
                                                                                 Final Score
                                                                             </small>
-
                                                                             <h3 className="fw-bold text-primary mb-0">
-                                                                                {Number(item.WeightedScore ?? 0).toFixed(2)}
+                                                                                {Number(
+                                                                                    item.WeightedScore ?? 0
+                                                                                ).toFixed(2)}
                                                                             </h3>
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* ===== Remaining content (only shown when this card is expanded) ===== */}
                                                                     {isExpanded && (
                                                                         <>
-                                                                            <hr />
+                                                                            <hr className="my-3" />
 
-                                                                            <div className="d-flex gap-2 mb-3 flex-wrap">
-                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
-                                                                                    <div className="metric-box">
+                                                                            <div className="row g-2 mb-3">
+
+                                                                                {/* Target */}
+                                                                                <div className="col-6 col-md">
+
+                                                                                    <div className="metric-box h-100">
+
                                                                                         <div className="metric-icon bg-light-primary">
                                                                                             <i className="bi bi-bullseye text-primary"></i>
                                                                                         </div>
+
                                                                                         <div className="metric-content">
+
                                                                                             <span>Target</span>
-                                                                                            <h6>{item.Target ?? "-"}</h6>
+
+                                                                                            <h6>
+                                                                                                {item.Target ?? "-"}
+                                                                                            </h6>
+
                                                                                         </div>
+
                                                                                     </div>
+
                                                                                 </div>
-                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
-                                                                                    <div className="metric-box">
+
+
+                                                                                {/* Weight */}
+                                                                                <div className="col-6 col-md">
+
+                                                                                    <div className="metric-box h-100">
+
                                                                                         <div className="metric-icon bg-light-info">
                                                                                             <i className="bi bi-percent text-info"></i>
                                                                                         </div>
+
                                                                                         <div className="metric-content">
-                                                                                            <span>{item.AppliedWeightage ? 'Applied ' : ''}Weight{item.AppliedWeightage ? 'age' : ''}</span>
-                                                                                            <h6>{item.AppliedWeightage ? item.AppliedWeightage : item.Weightage}%</h6>
+
+                                                                                            <span>
+                                                                                                {item.AppliedWeightage
+                                                                                                    ? "Applied Weightage"
+                                                                                                    : "Weight"}
+                                                                                            </span>
+
+                                                                                            <h6>
+                                                                                                {item.AppliedWeightage
+                                                                                                    ? item.AppliedWeightage
+                                                                                                    : item.Weightage}
+                                                                                                %
+                                                                                            </h6>
+
                                                                                         </div>
+
                                                                                     </div>
+
                                                                                 </div>
-                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
-                                                                                    <div className="metric-box">
+
+
+                                                                                {/* Calculated Score */}
+                                                                                <div className="col-6 col-md">
+
+                                                                                    <div className="metric-box h-100">
+
                                                                                         <div className="metric-icon bg-light-success">
                                                                                             <i className="bi bi-calculator-fill text-success"></i>
                                                                                         </div>
+
                                                                                         <div className="metric-content">
-                                                                                            <span>Calculated Score</span>
-                                                                                            <h6>{item.CalculatedScore ?? "-"}</h6>
+
+                                                                                            <span>
+                                                                                                Calculated Score
+                                                                                            </span>
+
+                                                                                            <h6>
+                                                                                                {item.CalculatedScore ?? "-"}
+                                                                                            </h6>
+
                                                                                         </div>
+
                                                                                     </div>
+
                                                                                 </div>
-                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
-                                                                                    <div className="metric-box">
+
+
+                                                                                {/* Weighted Score */}
+                                                                                <div className="col-6 col-md">
+
+                                                                                    <div className="metric-box h-100">
+
                                                                                         <div className="metric-icon bg-light-danger">
                                                                                             <i className="bi bi-bar-chart-line-fill text-danger"></i>
                                                                                         </div>
+
                                                                                         <div className="metric-content">
-                                                                                            <span>Weighted Score</span>
-                                                                                            <h6>{item.WeightedScore ?? "-"}</h6>
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
-                                                                                    <div className="metric-box">
-                                                                                        <div className="metric-icon bg-light-dark">
-                                                                                            <i className="bi bi-rulers text-dark"></i>
-                                                                                        </div>
-                                                                                        <div className="metric-content">
-                                                                                            <span>Measurables</span>
-                                                                                            <h6>{item.Measurables ?? "-"}</h6>
+
+                                                                                            <span>
+                                                                                                Weighted Score
+                                                                                            </span>
+
+                                                                                            <h6>
+                                                                                                {item.WeightedScore ?? "-"}
+                                                                                            </h6>
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
                                                                             </div>
+                                                                            <div className="row g-3 mt-1">
 
-                                                                            <div className="row g-4">
-                                                                                {/* Self Review */}
-                                                                                <div className="col-lg-6">
-                                                                                    <div className="card border h-100">
-                                                                                        <div className="card-body">
-                                                                                            <div className="d-flex align-items-center border-bottom pb-2 mb-3">
-                                                                                                <i className="bi bi-person-fill text-primary me-2 fs-5"></i>
-                                                                                                <h6 className="mb-0 fw-bold">Self Review</h6>
+                                                                                {/* Objectives */}
+                                                                                <div className="col-12 col-md-6">
+
+                                                                                    <div className="border rounded-3 p-3 h-100 bg-light">
+
+                                                                                        <div className="d-flex align-items-center gap-2 mb-2">
+
+                                                                                            <div
+                                                                                                className="d-flex align-items-center justify-content-center rounded-circle bg-primary-subtle"
+                                                                                                style={{
+                                                                                                    width: "32px",
+                                                                                                    height: "32px",
+                                                                                                }}
+                                                                                            >
+                                                                                                <i className="bi bi-bullseye text-primary"></i>
                                                                                             </div>
 
+                                                                                            <span className="fw-semibold text-dark">
+                                                                                                Objectives
+                                                                                            </span>
+
+                                                                                        </div>
+
+                                                                                        <div
+                                                                                            className="text-muted small"
+                                                                                            dangerouslySetInnerHTML={{
+                                                                                                __html: item.Objectives || "-"
+                                                                                            }}
+                                                                                        />
+
+                                                                                    </div>
+
+                                                                                </div>
+
+
+                                                                                {/* Measurables */}
+                                                                                <div className="col-12 col-md-6">
+
+                                                                                    <div className="border rounded-3 p-3 h-100 bg-light">
+
+                                                                                        <div className="d-flex align-items-center gap-2 mb-2">
+
+                                                                                            <div
+                                                                                                className="d-flex align-items-center justify-content-center rounded-circle bg-success-subtle"
+                                                                                                style={{
+                                                                                                    width: "32px",
+                                                                                                    height: "32px",
+                                                                                                }}
+                                                                                            >
+                                                                                                <i className="bi bi-bar-chart-line-fill text-success"></i>
+                                                                                            </div>
+
+                                                                                            <span className="fw-semibold text-dark">
+                                                                                                Measurables
+                                                                                            </span>
+
+                                                                                        </div>
+
+                                                                                        <div className="text-muted small">
+                                                                                            {item.Measurables ?? "-"}
+                                                                                        </div>
+
+                                                                                    </div>
+
+                                                                                </div>
+
+                                                                            </div>
+
+
+                                                                            <div className="row g-3">
+
+                                                                                <div className="col-12 col-lg-6">
+
+                                                                                    <div className="card border h-100">
+
+                                                                                        <div className="card-body p-3">
+
+                                                                                            <div className="d-flex align-items-center border-bottom pb-2 mb-3">
+
+                                                                                                <i className="bi bi-person-fill text-primary me-2 fs-5"></i>
+
+                                                                                                <h6 className="mb-0 fw-bold">
+                                                                                                    Self Review
+                                                                                                </h6>
+
+                                                                                            </div>
+
+
+                                                                                            {/* Self Score */}
                                                                                             <div className="mb-3">
+
                                                                                                 <label className="small fw-semibold mb-1">
                                                                                                     <i className="bi bi-star me-1 text-warning"></i>
                                                                                                     Self Score
                                                                                                 </label>
+
                                                                                                 <Input
                                                                                                     size="large"
-                                                                                                    style={{ height: 40 }}
+                                                                                                    style={{
+                                                                                                        height: 40,
+                                                                                                        width: "100%"
+                                                                                                    }}
                                                                                                     type="number"
-                                                                                                    value={item.Status === "DRAFT" ? "" : (item.Score1 ?? "")}
+                                                                                                    value={
+                                                                                                        item.Status ===
+                                                                                                            "DRAFT"
+                                                                                                            ? ""
+                                                                                                            : (
+                                                                                                                item.Score1 ??
+                                                                                                                ""
+                                                                                                            )
+                                                                                                    }
                                                                                                     disabled
                                                                                                 />
+
                                                                                             </div>
 
+
+                                                                                            {/* Self Feedback */}
                                                                                             <div>
+
                                                                                                 <label className="small fw-semibold mb-1">
                                                                                                     <i className="bi bi-chat-left-text me-1 text-primary"></i>
                                                                                                     Self Feedback
                                                                                                 </label>
+
                                                                                                 <Input.TextArea
                                                                                                     rows={3}
-                                                                                                    value={item.Status === "DRAFT" ? "" : (item.Remarks1 ?? "")}
+                                                                                                    value={
+                                                                                                        item.Status ===
+                                                                                                            "DRAFT"
+                                                                                                            ? ""
+                                                                                                            : (
+                                                                                                                item.Remarks1 ??
+                                                                                                                ""
+                                                                                                            )
+                                                                                                    }
                                                                                                     disabled
                                                                                                 />
+
                                                                                             </div>
+
                                                                                         </div>
+
                                                                                     </div>
+
                                                                                 </div>
 
-                                                                                {/* Manager Review */}
-                                                                                <div className="col-lg-6">
+
+                                                                                {/* ================= MANAGER REVIEW ================= */}
+                                                                                <div className="col-12 col-lg-6">
+
                                                                                     <div className="card border h-100">
-                                                                                        <div className="card-body">
+
+                                                                                        <div className="card-body p-3">
+
                                                                                             <div className="d-flex align-items-center border-bottom pb-2 mb-3">
+
                                                                                                 <i className="bi bi-person-workspace text-success me-2 fs-5"></i>
-                                                                                                <h6 className="mb-0 fw-bold">Manager Review</h6>
+
+                                                                                                <h6 className="mb-0 fw-bold">
+                                                                                                    Manager Review
+                                                                                                </h6>
+
                                                                                             </div>
 
+
+                                                                                            {/* Manager Score */}
                                                                                             <div className="mb-3">
+
                                                                                                 <label className="small fw-semibold mb-1">
                                                                                                     <i className="bi bi-star-fill me-1 text-warning"></i>
                                                                                                     Manager Score
                                                                                                 </label>
-                                                                                                <Input
-    size="large"
-    style={{ height: 40 }}
-    type="number"
-    min={0}
-    max={100}
-    step="0.01"
-    value={item.Score2 ?? ""}
-    disabled={
-        loading ||
-        sessionUserData?.RoleId === 3 ||
-        item.Status === "DRAFT" ||
-        !item.Remarks1 ||
-        reviewStatus === "SUBMITTED" ||
-        !["UNDER_REVIEW", "EVALUATED"].includes(reviewStatus)
-    }
-    onChange={(e) => {
-        const value = e.target.value;
 
-        if (value === "" || Number(value) <= 100) {
-            handleInputChange(index, "Score2", value);
-        }
-    }}
-    onWheel={(e) => e.target.blur()}
-/>
+                                                                                                <Input
+                                                                                                    size="large"
+                                                                                                    style={{
+                                                                                                        height: 40,
+                                                                                                        width: "100%"
+                                                                                                    }}
+                                                                                                    type="number"
+                                                                                                    min={0}
+                                                                                                    max={100}
+                                                                                                    step="0.01"
+                                                                                                    value={
+                                                                                                        item.Score2 ??
+                                                                                                        ""
+                                                                                                    }
+                                                                                                    disabled={
+                                                                                                        loading ||
+                                                                                                        sessionUserData?.RoleId === 3 ||
+                                                                                                        selectedQuarter?.Status === "CLOSED" ||
+                                                                                                        item.Status ===
+                                                                                                        "DRAFT" ||
+                                                                                                        !item.Remarks1 ||
+                                                                                                        reviewStatus ===
+                                                                                                        "SUBMITTED" ||
+                                                                                                        ![
+                                                                                                            "UNDER_REVIEW",
+                                                                                                            "EVALUATED"
+                                                                                                        ].includes(
+                                                                                                            reviewStatus
+                                                                                                        )
+                                                                                                    }
+                                                                                                    onChange={(e) => {
+
+                                                                                                        const value =
+                                                                                                            e.target.value;
+
+                                                                                                        if (
+                                                                                                            value === "" ||
+                                                                                                            Number(value) <=
+                                                                                                            100
+                                                                                                        ) {
+                                                                                                            handleInputChange(
+                                                                                                                index,
+                                                                                                                "Score2",
+                                                                                                                value
+                                                                                                            );
+                                                                                                        }
+
+                                                                                                    }}
+                                                                                                    onWheel={(e) =>
+                                                                                                        e.target.blur()
+                                                                                                    }
+                                                                                                    required
+                                                                                                />
+
                                                                                             </div>
 
                                                                                             <div>
@@ -1604,43 +2099,76 @@ export default function EmployeeKpi() {
                                                                                                     <i className="bi bi-chat-left-text-fill me-1 text-success"></i>
                                                                                                     Manager Feedback
                                                                                                 </label>
+
                                                                                                 <Input.TextArea
                                                                                                     rows={3}
-                                                                                                    value={item.Remarks2 ?? ""}
+                                                                                                    value={
+                                                                                                        item.Remarks2 ??
+                                                                                                        ""
+                                                                                                    }
                                                                                                     disabled={
                                                                                                         loading ||
                                                                                                         sessionUserData?.RoleId === 3 ||
-                                                                                                        item.Status === "DRAFT" ||
+                                                                                                        selectedQuarter?.Status === "CLOSED" ||
+                                                                                                        item.Status ===
+                                                                                                        "DRAFT" ||
                                                                                                         !item.Remarks1 ||
-                                                                                                        reviewStatus === "SUBMITTED" ||
-                                                                                                        !["UNDER_REVIEW", "EVALUATED"].includes(reviewStatus)
+                                                                                                        reviewStatus ===
+                                                                                                        "SUBMITTED" ||
+                                                                                                        ![
+                                                                                                            "UNDER_REVIEW",
+                                                                                                            "EVALUATED"
+                                                                                                        ].includes(
+                                                                                                            reviewStatus
+                                                                                                        )
                                                                                                     }
                                                                                                     onChange={(e) =>
-                                                                                                        handleInputChange(index, "Remarks2", capitalizeFirstLetter(e.target.value))
+                                                                                                        handleInputChange(
+                                                                                                            index,
+                                                                                                            "Remarks2",
+                                                                                                            capitalizeFirstLetter(
+                                                                                                                e.target.value
+                                                                                                            )
+                                                                                                        )
                                                                                                     }
+                                                                                                    required
                                                                                                 />
+
                                                                                             </div>
+
                                                                                         </div>
+
                                                                                     </div>
+
                                                                                 </div>
+
                                                                             </div>
 
                                                                             <div className="d-flex justify-content-end mt-3">
+
                                                                                 <Button
                                                                                     type="default"
-                                                                                    className="btn-premium-outline-info"
-                                                                                    icon={<i className="bi bi-chat-square-text-fill"></i>}
+                                                                                    className="btn-premium-outline-info w-mobile-100"
+                                                                                    icon={
+                                                                                        <i className="bi bi-chat-square-text-fill"></i>
+                                                                                    }
                                                                                     onClick={(e) => {
+
                                                                                         e.stopPropagation();
+
                                                                                         setSelectedFeedback(item);
                                                                                         setFeedbackModal(true);
+
                                                                                     }}
                                                                                 >
                                                                                     Any Time Feedback
                                                                                 </Button>
+
                                                                             </div>
+
                                                                         </>
                                                                     )}
+
                                                                 </div>
                                                             </div>
                                                         )
@@ -1737,9 +2265,10 @@ export default function EmployeeKpi() {
                                                                     disabled={
                                                                         loading ||
                                                                         selectedQuarter?.Status === "CLOSED" ||
-                                                                        reviewStatus === "SUBMITTED" ||
-                                                                        (reviewStatus !== "UNDER_REVIEW" &&
-                                                                            reviewStatus !== "EVALUATED")
+                                                                        reviewStatus === "FEEDBACK_REVIEWED" ||
+                                                                        reviewStatus === "HR_REVIEWED"
+                                                                        // (reviewStatus !== "UNDER_REVIEW" &&
+                                                                        //     reviewStatus !== "EVALUATED")
                                                                     }
                                                                 >
                                                                     {loading ? (
@@ -1851,6 +2380,7 @@ export default function EmployeeKpi() {
                                         <th width="110" className="text-start">Objective</th>
                                         <th width="110" className="text-center">Target</th>
                                         <th width="110" className="text-center">Weightage</th>
+                                        <th width="110" className="text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1860,9 +2390,9 @@ export default function EmployeeKpi() {
                                                 Loading...
                                             </td>
                                         </tr>
-                                    ) : empKPIData.length > 0 ? (
+                                    ) : empKPIData?.length > 0 ? (
                                         <>
-                                            {empKPIData.map((item, index) => {
+                                            {empKPIData?.map((item, index) => {
                                                 const plainObjective = item.Objectives
                                                     ? new DOMParser()
                                                         .parseFromString(item.Objectives, "text/html")
@@ -1949,6 +2479,20 @@ export default function EmployeeKpi() {
                                                                 size="small"
                                                                 value={item.Weightage}
                                                                 onChange={(e) => updateField(index, "Weightage", e.target.value)}
+                                                            />
+                                                        </td>
+                                                        <td className="text-center">
+                                                            <Switch
+                                                                checked={Number(item.IsActive) === 1}
+                                                                checkedChildren="Active"
+                                                                unCheckedChildren="Disabled"
+                                                                onChange={(checked) =>
+                                                                    updateField(
+                                                                        index,
+                                                                        "IsActive",
+                                                                        checked ? 1 : 0
+                                                                    )
+                                                                }
                                                             />
                                                         </td>
                                                     </tr>
@@ -2164,6 +2708,285 @@ export default function EmployeeKpi() {
 
             <style>
                 {`
+                /* =====================================================
+   KPI REVIEW HEADER
+===================================================== */
+
+.kpi-review-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.kpi-review-title-section {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 1;
+}
+
+.kpi-chevron {
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.kpi-number {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+
+    border-radius: 50%;
+
+    background: #eaf8f0;
+    color: #16a34a;
+
+    font-size: 13px;
+    font-weight: 700;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.kpi-review-details {
+    margin-left: 12px;
+    min-width: 0;
+}
+
+.kpi-name-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.kpi-name-row h5 {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.kpi-info-icon {
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.kpi-badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.kpi-final-score {
+    text-align: right;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.kpi-final-score h3 {
+    font-size: 22px;
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 767.98px) {
+
+    .review-table-container {
+        max-height: calc(100vh - 180px) !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+
+        -webkit-overflow-scrolling: touch;
+    }
+
+
+    /* Card */
+    .review-table-container > .card {
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        margin-bottom: 12px !important;
+
+        border-radius: 12px !important;
+    }
+
+
+    .review-table-container > .card > .card-body {
+        padding: 12px !important;
+    }
+
+
+    /* Header */
+    .kpi-review-header {
+        align-items: flex-start;
+    }
+
+
+    .kpi-review-title-section {
+        align-items: flex-start;
+        min-width: 0;
+    }
+
+
+    .kpi-chevron {
+        margin-right: 7px;
+        margin-top: 9px;
+        font-size: 12px;
+    }
+
+
+    .kpi-number {
+        width: 30px;
+        height: 30px;
+        min-width: 30px;
+
+        font-size: 11px;
+    }
+
+
+    .kpi-review-details {
+        margin-left: 8px;
+        min-width: 0;
+        padding-right: 5px;
+    }
+
+
+    .kpi-name-row h5 {
+        font-size: 14px;
+        line-height: 1.25;
+
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+
+    .kpi-info-icon {
+        font-size: 12px !important;
+        margin-left: 5px;
+    }
+
+
+    .kpi-badges {
+        margin-top: 5px;
+    }
+
+
+    .kpi-badges .badge {
+        font-size: 9px;
+        padding: 4px 7px;
+    }
+
+
+    /* Final Score */
+    .kpi-final-score {
+        margin-right: 0;
+        margin-left: 5px;
+        min-width: 52px;
+        text-align: center;
+    }
+
+
+    .kpi-final-score small {
+        font-size: 8px;
+        white-space: nowrap;
+    }
+
+
+    .kpi-final-score h3 {
+        font-size: 18px;
+        margin-top: 2px !important;
+    }
+
+
+    /* =================================================
+       METRIC BOXES
+    ================================================= */
+
+    .metric-box {
+        min-width: 0 !important;
+        width: 100%;
+        padding: 9px !important;
+    }
+
+
+    .metric-icon {
+        width: 30px !important;
+        height: 30px !important;
+        min-width: 30px !important;
+    }
+
+
+    .metric-content {
+        min-width: 0;
+    }
+
+
+    .metric-content span {
+        font-size: 9px;
+        white-space: normal;
+        line-height: 1.2;
+    }
+
+
+    .metric-content h6 {
+        font-size: 13px;
+        margin-bottom: 0;
+        margin-top: 2px;
+        word-break: break-word;
+    }
+
+
+    /* =================================================
+       REVIEW CARDS
+    ================================================= */
+
+    .review-table-container .row.g-3 {
+        --bs-gutter-y: 0.75rem;
+    }
+
+
+    .review-table-container .card .card-body {
+        padding: 12px !important;
+    }
+
+
+    .review-table-container .card h6 {
+        font-size: 13px;
+    }
+
+
+    .review-table-container .form-label {
+        font-size: 11px;
+    }
+
+
+    /* Inputs */
+    .review-table-container .ant-input,
+    .review-table-container .ant-input-number,
+    .review-table-container .ant-input-number-input {
+        font-size: 12px !important;
+    }
+
+
+    /* Feedback button */
+    .w-mobile-100 {
+        width: 100% !important;
+    }
+
+
+    .review-table-container .btn-premium-outline-info {
+        justify-content: center;
+        font-size: 11px;
+    }
+
+}
                     .feedback-header{
                         display:flex;
                         align-items:center;

@@ -621,7 +621,6 @@ export default function TicketViewDetails({ ticObj }) {
                             </div>
                         )}
 
-
                         <div className="row row-cols-1 row-cols-sm-2 g-3">
                             <div className="col">
                                 <div className="info-box h-100">

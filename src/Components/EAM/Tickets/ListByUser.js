@@ -279,14 +279,15 @@ export default function TicketsListByUser() {
                                     <thead className="bg-light-primary">
                                         <tr className="text-start text-muted fw-bold fs-7 text-uppercase gs-0 border-bottom-2 border-primary">
                                             <th className="">S.No</th>
-                                            <th className="min-w-125px">Ticket Code</th>
+                                            <th className="min-w-105px">Code</th>
                                             <th className="min-w-145px">Asset</th>
+                                            <th className="min-w-145px">Issue Type</th>
                                             <th className="min-w-125px">Created On</th>
                                             <th className="min-w-205px">Technician</th>
                                             <th className="min-w-100px text-center">Priority</th>
                                             <th className="min-w-100px text-center">Status</th>
                                             <th className="min-w-100px">Aging</th>
-                                            <th className="min-w-50px text-center">Last Log</th>
+                                            <th className="min-w-40px text-center">Description</th>
                                         </tr>
                                     </thead>
                                     <tbody className="fw-semibold text-gray-700">
@@ -330,17 +331,28 @@ export default function TicketsListByUser() {
                                                                 <Link
                                                                     to={`/eam/ticket-view/${item.OrgId}/${item.Id}`}
                                                                     className="fw-bold text-primary"
-                                                                    style={{
-                                                                        display: "inline-block",
-                                                                        maxWidth: "190px",
-                                                                        whiteSpace: "nowrap",
-                                                                        overflow: "hidden",
-                                                                        textOverflow: "ellipsis",
-                                                                        verticalAlign: "middle",
-                                                                    }}
                                                                 >
-                                                                    {item.MachineName}
+                                                                    {item.MachineName
+                                                                        ? item.MachineName.length > 19
+                                                                            ? `${item.MachineName.substring(0, 19)}...`
+                                                                            : item.MachineName
+                                                                        : "N/A"}
                                                                 </Link>
+                                                            </Tooltip>
+                                                        </td>
+                                                        <td>
+                                                            <Tooltip
+                                                                title={item.IssueType}
+                                                                placement="topLeft"
+                                                                color="blue"
+                                                            >
+                                                                <span>
+                                                                    {item.IssueType
+                                                                        ? item.IssueType.length > 15
+                                                                            ? `${item.IssueType.substring(0, 15)}...`
+                                                                            : item.IssueType
+                                                                        : "N/A"}
+                                                                </span>
                                                             </Tooltip>
                                                         </td>
                                                         <td>{formatDate(item.CreatedOn) || 'N/A'}</td>
@@ -401,11 +413,11 @@ export default function TicketsListByUser() {
                                                             </Tooltip>
                                                         </td>
                                                         <td className="text-center">
-                                                            {item.StatusLogs ? (
+                                                            {item.Description ? (
                                                                 <Popover
                                                                     content={
                                                                         <div style={{ maxWidth: 250, whiteSpace: "pre-wrap" }}>
-                                                                            {item.StatusLogs}
+                                                                            {item.Description}
                                                                         </div>
                                                                     }
                                                                     title="Messaege"

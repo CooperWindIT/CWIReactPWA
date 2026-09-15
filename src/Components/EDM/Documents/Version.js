@@ -1411,7 +1411,7 @@ export default function DocVersion() {
                                 <div className="min-w-150px">
                                     <label className="text-muted fs-9 text-uppercase fw-bolder d-block lh-1 mb-2">Author & Date</label>
                                     <div className="d-flex align-items-center fs-7 fw-semibold text-gray-700">
-                                        <span className="text-dark fw-bold me-2">{docDetails?.Author || 'N/A'}</span>
+                                        <span className="text-dark fw-bold me-2">{docDetails?.Author || 'N/A'} - {docDetails?.AuthorEmpNo}</span>
                                         <span className="text-gray-400">|</span>
                                         <span className="ms-2">{formatToDDMMYYYY(docDetails?.VersionCreated)}</span>
                                     </div>
@@ -1552,7 +1552,7 @@ export default function DocVersion() {
 
                                                         <div className="d-flex align-items-center bg-light-secondary px-3 py-1 rounded-pill">
                                                             <i className="bi bi-person-circle text-gray-600 me-2"></i>
-                                                            <span className="text-gray-700 fw-semibold fs-7">{item.UserName}</span>
+                                                            <span className="text-gray-700 fw-semibold fs-7">{item.UserName} - {item.UserEmpNo}</span>
                                                         </div>
 
                                                         {item.VersionStatus === "PUBLISHED" && item.DocNumber && (

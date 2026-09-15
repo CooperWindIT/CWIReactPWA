@@ -388,7 +388,8 @@ export default function AssetDetailsView() {
         return (usersList || []).filter((item) => {
             const name = item.ItemValue?.toLowerCase() || "";
             const email = item.DisplayValue?.toLowerCase() || "";
-            return name.includes(search) || email.includes(search);
+            const empNo = item.DisplayValue3?.toLowerCase() || "";
+            return name.includes(search) || email.includes(search) || empNo.includes(search);
         });
     }, [usersList, operatorSearch]);
 
@@ -3021,8 +3022,8 @@ export default function AssetDetailsView() {
                                                     style={{ height: "2.8rem" }}
                                                     options={usersList?.map((item) => ({
                                                         value: item.ItemId,
-                                                        label: `${item.ItemValue} ${item.DisplayValue}`, // searchable text
-                                                        display: `${item.ItemValue} - ${item.DisplayValue}` // visible text
+                                                        label: `${item.ItemValue} ${item.DisplayValue} ${item.DisplayValue3}`, // searchable text
+                                                        display: `${item.ItemValue} - ${item.DisplayValue} - ${item.DisplayValue3}` // visible text
                                                     }))}
                                                     optionRender={(option) => (
                                                         <span>
@@ -3374,7 +3375,7 @@ export default function AssetDetailsView() {
                                                                             <div className="d-flex align-items-center mt-2 pt-2 border-top">
                                                                                 <div className="text-info small fw-bold">
                                                                                     <i className="bi bi-person-circle me-1"></i>
-                                                                                    {item.LoggedUser || "System"}
+                                                                                    {item.LoggedUser || "System"} - {item.EmpNo || "N/A"}
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -3408,7 +3409,7 @@ export default function AssetDetailsView() {
                                                                             </td>
                                                                             <td className="fw-semibold text-info">
                                                                                 <i className="bi bi-person-circle me-2"></i>
-                                                                                {item.LoggedUser || "N/A"}
+                                                                                {item.LoggedUser || "N/A"} - {item.EmpNo}
                                                                             </td>
                                                                         </tr>
                                                                     ))}
@@ -3939,10 +3940,18 @@ export default function AssetDetailsView() {
                                                     }}
                                                 />
 
-                                                <div className="flex-grow-1">
-                                                    <div className="fw-bold text-dark">{item.ItemValue}</div>
-                                                    <div className="text-muted small">{item.DisplayValue}</div>
-                                                </div>
+<div className="flex-grow-1">
+    <div className="fw-bold text-dark">
+        {item.ItemValue}
+    </div>
+
+    <div className="text-muted small">
+        {item.DisplayValue}
+        <span className="ms-2">
+            {item.DisplayValue3}
+        </span>
+    </div>
+</div>
                                             </label>
                                         </div>
                                     );

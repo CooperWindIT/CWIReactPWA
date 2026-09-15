@@ -83,16 +83,19 @@ export default function MyAssetsList() {
         }
     }, [sessionUserData]);
 
-    const filteredAssets = assetsData?.filter((item) => {
-        const query = searchQuery.toLowerCase();
+    const filteredAssets = Array.isArray(assetsData)
+    ? assetsData.filter((item) => {
+        const query = (searchQuery ?? "").toLowerCase();
+
         return (
-            item.AssetName?.toLowerCase().includes(query) ||
-            item.Code?.toLowerCase().includes(query) ||
-            item.AssetType?.toLowerCase().includes(query) ||
-            item.DeptName?.toLowerCase().includes(query) ||
-            item.Status?.toLowerCase().includes(query)
+            String(item.AssetName ?? "").toLowerCase().includes(query) ||
+            String(item.Code ?? "").toLowerCase().includes(query) ||
+            String(item.AssetType ?? "").toLowerCase().includes(query) ||
+            String(item.DeptName ?? "").toLowerCase().includes(query) ||
+            String(item.Status ?? "").toLowerCase().includes(query)
         );
-    }) || [];
+    })
+    : [];
 
     // Update your pagination variables to use filteredAssets
     const indexOfLastRecord = currentPage * recordsPerPage;

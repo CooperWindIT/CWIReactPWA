@@ -188,7 +188,7 @@ export default function EntityLogs({ entityObj }) {
                                     <span className="text-dark fw-bold text-hover-primary fs-7">
                                         {item.LoggedUser || "Anonymous"}
                                     </span>
-                                    <span className="text-muted fs-8">Administrator</span>
+                                    <span className="text-muted fs-8">{item.EmpNo}</span>
                                 </div>
                             </div>
                         </td>

@@ -11,6 +11,8 @@ import RegisterTicket from "./RaiseTicket";
 import CloseTicket from "./CloseTicket";
 import { BASE_IMAGE_API_GET } from "../Config/Config";
 import EditTicket from "./EditTicket";
+import QRCodeCard from "./GenerateQRCode";
+import Swal from "sweetalert2";
 
 
 export default function AssetlessTicketRequest() {
@@ -27,8 +29,8 @@ export default function AssetlessTicketRequest() {
     const [selectedTicketCode, setSelectedTicketCode] = useState("");
     const [serviceTypesData, setServiceTypesData] = useState([]);
     const [ticTypesData, setTicTypesData] = useState([]);
-    const [selectedTicTypeId, setSelectedTicTypeId] = useState(null);
-    const [selectedServiceTypeId, setSelectedServiceTypeId] = useState(null);
+    const [selectedTicTypeId, setSelectedTicTypeId] = useState("0");
+    const [selectedServiceTypeId, setSelectedServiceTypeId] = useState("0");
     const [usersData, setUsersData] = useState([]);
     const [deptsData, setDeptsData] = useState([]);
     const [selectedUserId, setSelectedUserId] = useState('0');
@@ -42,6 +44,7 @@ export default function AssetlessTicketRequest() {
     const [editingComment, setEditingComment] = useState(null);
     const [closeData, setCloseData] = useState([]);
     const [editTicObj, setEditTicObj] = useState([]);
+    const [closeSubmitLoadingditTicObj, setCloseSubmitLoading] = useState(false);
 
     const savedTicketFilters = JSON.parse(
         sessionStorage.getItem("ticketFilters") || "null"
@@ -231,7 +234,7 @@ export default function AssetlessTicketRequest() {
         if (!sessionUserData?.OrgId) return;
 
         if (!selectedServiceTypeId) {
-            message.warning("Please select Service Type.");
+            message.warning("Please select Category.");
             return;
         }
 
@@ -355,26 +358,12 @@ export default function AssetlessTicketRequest() {
 
     const getStatusBadgeClass = (status) => {
         switch (status?.toLowerCase()) {
-            case "new":
+            case "req-submitted":
                 return "badge-light-primary";
-            case "assigned":
-                return "badge-light-success";
-            case "approved":
-                return "badge-light-danger";
+            case "resolved":
+                return "badge-light-info";
             case "closed":
                 return "badge-light-success";
-            case "tech_fixed":
-                return "badge-light-info";
-            case "pending_with_client":
-                return "badge-light-warning";
-            case "resolved":
-                return "badge-light-primary";
-            case "req approval":
-                return "badge-light-info";
-            case "req approved":
-                return "badge-light-info";
-            case "filesupload":
-                return "badge-light-info";
             default:
                 return "badge-light";
         }
@@ -428,8 +417,8 @@ export default function AssetlessTicketRequest() {
 
     const statusOptions = [
         { value: "ALL", label: "All" },
-        { value: "NEW", label: "New" },
-        { value: "APPROVED", label: "Approved" },
+        { value: "REQ-SUBMITTED", label: "New" },
+        { value: "RESOLVED", label: "Resolved" },
         { value: "CLOSED", label: "Closed" },
     ];
 
@@ -535,9 +524,9 @@ export default function AssetlessTicketRequest() {
         }
     };
 
-    const handleCloseTicket = (item) => {
-        setCloseData(item);
-    };
+    // const handleCloseTicket = (item) => {
+    //     setCloseData(item);
+    // };
 
     const filteredUsers = selectedDeptId && selectedDeptId !== "0"
         ? usersData.filter(
@@ -565,13 +554,108 @@ export default function AssetlessTicketRequest() {
         }
     };
 
+    const handleCloseTicket = async (item) => {
+        setCloseData(item);
+    
+        const result = await Swal.fire({
+            title: "Close Ticket?",
+            text: `Are you sure you want to close ticket ${item?.TicketCode}?`,
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, Close",
+            cancelButtonText: "No",
+            reverseButtons: true,
+            confirmButtonColor: "#dc3545",
+            cancelButtonColor: "#6c757d",
+        });
+    
+        if (!result.isConfirmed) {
+            return;
+        }
+    
+        // User clicked Yes → proceed with API
+        await handleCloseSubmit(item);
+    };
+    
+    
+    const handleCloseSubmit = async (item) => {
+    
+        const payload = {
+            OrgId: sessionUserData.OrgId,
+            Priority: item.Priority,
+            TicketStatus: "CLOSED",
+            UserId: sessionUserData.Id,
+    
+            JsonData: {
+                TicketId: item.Id,
+            },
+        };
+    
+        try {
+            setCloseSubmitLoading(true);
+    
+            const response = await fetchWithAuth(
+                "ServiceNow/GeneralTickets",
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify(payload),
+                }
+            );
+    
+            const data = await response.json();
+    
+            const result = data?.data?.result?.[0];
+    
+            if (
+                response.ok &&
+                data.success &&
+                result?.ResponseCode === 2002
+            ) {
+                Swal.fire({
+                    icon: "success",
+                    title: "Success",
+                    text:
+                        result.ResponseMessage ||
+                        "Ticket closed successfully.",
+                    confirmButtonText: "OK",
+                }).then(() => {
+                    window.location.reload();
+                });
+    
+            } else {
+                Swal.fire({
+                    icon: "error",
+                    title: "Error",
+                    text:
+                        result?.ResponseMessage ||
+                        "Unable to close ticket.",
+                });
+            }
+    
+        } catch (err) {
+            console.error(err);
+    
+            Swal.fire(
+                "Error",
+                "Something went wrong.",
+                "error"
+            );
+    
+        } finally {
+            setCloseSubmitLoading(false);
+        }
+    };
+
+
     const priorityLabel = (p) => (p === 1 ? "High" : p === 2 ? "Medium" : "Low");
     const priorityColor = (p) => (p === 1 ? "danger" : p === 2 ? "warning" : "secondary");
 
     const showAddBtn = sessionActionIds?.includes(1);
     const showViewBtn = sessionActionIds?.includes(2);
     const showCloseBtn = true;
-    const showEditBtn = true;
 
 
     return (
@@ -605,7 +689,8 @@ export default function AssetlessTicketRequest() {
                         </div>
                     </div>
 
-                    <div className="d-flex align-items-center gap-2">
+                    <div className="d-flex align-items-center gap-2 bg-white p-2 rounded-4 shadow-sm">
+                        <QRCodeCard />
                         <Link
                             to="/service-requests/my-tickets"
                             className="btn btn-light-primary btn-sm"
@@ -704,11 +789,11 @@ export default function AssetlessTicketRequest() {
 
                                 <div className="col-12 col-md-3 mb-2 d-flex flex-column">
                                     <label className="form-label fw-bold fs-8 text-gray-700">
-                                        Service Type<span className="text-danger">*</span>
+                                        Category
                                     </label>
                                     <Select
                                         showSearch
-                                        placeholder="Select Service Type"
+                                        placeholder="Select a category"
                                         className="w-100"
                                         value={selectedServiceTypeId || undefined}
                                         style={{ height: "2.6rem" }}
@@ -718,6 +803,7 @@ export default function AssetlessTicketRequest() {
                                             return text.includes(input.toLowerCase());
                                         }}
                                     >
+                                        <Option value="0">ALL</Option>
                                         {Array.isArray(serviceTypesData) && serviceTypesData.map((ticTyp) => (
                                             <Option key={ticTyp.Id} value={ticTyp.Id}>
                                                 {ticTyp.TicketType}
@@ -727,12 +813,12 @@ export default function AssetlessTicketRequest() {
                                 </div>
                                 <div className="col-12 col-md-3 mb-2 d-flex flex-column">
                                     <label className="form-label fw-bold fs-8 text-gray-700">
-                                        Ticket Type
+                                        Sub-category
                                     </label>
                                     <Select
                                         showSearch
                                         allowClear
-                                        placeholder="Select Ticket Type"
+                                        placeholder="Select a sub-category"
                                         className="w-100"
                                         value={selectedTicTypeId || undefined}
                                         style={{ height: "2.6rem" }}
@@ -742,6 +828,7 @@ export default function AssetlessTicketRequest() {
                                             return text.includes(input.toLowerCase());
                                         }}
                                     >
+                                        <Option value="0">ALL</Option>
                                         {Array.isArray(ticTypesData) && ticTypesData.map((ticTyp) => (
                                             <Option key={ticTyp.Id} value={ticTyp.Id}>
                                                 {ticTyp.TicketType}
@@ -892,7 +979,7 @@ export default function AssetlessTicketRequest() {
                                         <th className="">S.No</th>
                                         <th className="min-w-125px">Ticket Code</th>
                                         <th className="min-w-125px">Created On</th>
-                                        <th className="min-w-205px">Ticket Type</th>
+                                        <th className="min-w-205px">Sub-category</th>
                                         <th className="min-w-100px text-center">Priority</th>
                                         <th className="min-w-100px text-center">Status</th>
                                         <th className="min-w-100px">Aging</th>
@@ -959,7 +1046,7 @@ export default function AssetlessTicketRequest() {
                                                     <td className="text-center">
                                                         <span
                                                             className={`badge ${getStatusBadgeClass(item.Status)} d-inline-flex align-items-center justify-content-center`}
-                                                            style={{ width: "80px" }}
+                                                            style={{ width: "95px" }}
                                                         >
                                                             {item.Status}
                                                         </span>
@@ -1019,7 +1106,7 @@ export default function AssetlessTicketRequest() {
                                                                         View
                                                                     </p>
                                                                     {item.CreatedBy === sessionUserData?.Id &&
-                                                                        item.Status === "APPROVED" && (
+                                                                        item.Status === "RESOLVED" && (
                                                                             <p
                                                                                 style={{
                                                                                     cursor: showCloseBtn ? "pointer" : "not-allowed",
@@ -1034,36 +1121,7 @@ export default function AssetlessTicketRequest() {
                                                                                 <i className="fa-solid fa-circle-check text-danger me-2"></i>
                                                                                 Close
                                                                             </p>
-                                                                        )}
-                                                                    {item.CreatedBy === sessionUserData?.Id &&
-                                                                        item.Status === "NEW" && (
-                                                                            <p
-                                                                                style={{
-                                                                                    cursor: showEditBtn ? "pointer" : "not-allowed",
-                                                                                    opacity: showEditBtn ? 1 : 0.5,
-                                                                                    pointerEvents: showEditBtn ? "auto" : "none",
-                                                                                }}
-                                                                                className="text-hover-info"
-                                                                                data-bs-toggle="offcanvas"
-                                                                                data-bs-target="#offcanvasRightEdit"
-                                                                                onClick={() => setEditTicObj(item)}
-                                                                            >
-                                                                                <i className="bi bi-pencil-square me-2 text-info"></i>
-                                                                                Edit
-                                                                            </p>
-                                                                        )}
-                                                                    {/* <p
-                                                                        onClick={() => showApproveBtn && handleApproveTicket(item)}
-                                                                        style={{
-                                                                            cursor: showApproveBtn ? "pointer" : "not-allowed",
-                                                                            opacity: showApproveBtn ? 1 : 0.5,
-                                                                            pointerEvents: showApproveBtn ? "auto" : "none",
-                                                                        }}
-                                                                        className="text-hover-success"
-                                                                    >
-                                                                        <i className="fa-solid fa-circle-check text-success me-2"></i>
-                                                                        Approve
-                                                                    </p> */}
+                                                                         )}
                                                                 </div>
                                                             }
                                                             trigger="hover"
@@ -1155,11 +1213,11 @@ export default function AssetlessTicketRequest() {
                             {/* Compact field grid */}
                             <div className="row g-2 mb-1">
                                 <div className="col-4">
-                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Service Type</div>
+                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Category</div>
                                     <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.ServiceType || "-"}</div>
                                 </div>
                                 <div className="col-4">
-                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Ticket Type</div>
+                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Sub-category</div>
                                     <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.TicketType || "-"}</div>
                                 </div>
                                 <div className="col-4">

@@ -120,39 +120,39 @@ export default function KpiModal({
         deptId: sessionUserData?.DeptId,
         parentId: activeTab === "department" ? selectedParentId : null,
     });
-    
+
     const handleSave = async () => {
         for (let i = 0; i < kpis.length; i++) {
             const item = kpis[i];
-    
-            if (activeTab === "department" && !item.parentId) {
+
+            if (activeTab === "department" && !item.parentId && selectedParentId) {
                 setActiveKeys([item.id.toString()]);
                 return message.warning(`Please select Parent KPI for KPI #${i + 1}.`);
             }
-    
+
             if (!item.KPIName?.trim()) {
                 setActiveKeys([item.id.toString()]);
                 return message.warning(`Please enter KPI Name for KPI #${i + 1}.`);
             }
-    
+
             if (!item.Measurables?.trim()) {
                 setActiveKeys([item.id.toString()]);
                 return message.warning(`Please enter Measurables for KPI #${i + 1}.`);
             }
-    
+
             if (!item.uom) {
                 setActiveKeys([item.id.toString()]);
                 return message.warning(`Please select Unit Of Measure for KPI #${i + 1}.`);
             }
-    
+
             if (!item.objective?.trim()) {
                 setActiveKeys([item.id.toString()]);
                 return message.warning(`Please enter Objective for KPI #${i + 1}.`);
             }
         }
-    
+
         const success = await onSave(kpis);
-    
+
         if (success) {
             setKpis([getInitialKPI()]);
             setActiveKeys([Date.now().toString()]);
@@ -227,13 +227,15 @@ export default function KpiModal({
                         KPI Configuration
                     </h6>
                 </div>
-                <button
-                    className="btn btn-primary btn-sm shadow-sm"
-                    onClick={addKPI}
-                >
-                    <i className="fa fa-plus me-2"></i>
-                    Add KPI
-                </button>
+                {activeTab !== "department" && (
+                    <button
+                        className="btn btn-primary btn-sm shadow-sm"
+                        onClick={addKPI}
+                    >
+                        <i className="fa fa-plus me-2"></i>
+                        Add KPI
+                    </button>
+                )}
             </div>
             <div
                 style={{
@@ -308,7 +310,7 @@ export default function KpiModal({
                                         placeholder="Enter Measurables"
                                     />
                                 </div>
-                                {activeTab === "organization" && (
+                                {(activeTab === "organization" || !selectedParentId) && (
                                     <div className="col-12 col-md-4">
                                         <label className="form-label">Unit Of Measure<span className="text-danger">*</span></label>
                                         <Select

@@ -5,8 +5,8 @@ import Base1 from '../../Config/Base1';
 import { fetchWithAuth } from "../../../utils/api";
 import Swal from 'sweetalert2';
 import { useLocation } from "react-router-dom";
-import { Dropdown, Menu, Tooltip, Select, message } from 'antd';
-import { getSystemSettings, getCyclePendingActions, getIsPublishbtnEnable, SaveAssessments } from '../services/kpiServices';
+import { Dropdown, Menu, Tooltip, Select } from 'antd';
+import { getCyclePendingActions, getIsPublishbtnEnable, SaveAssessments } from '../services/kpiServices';
 import ViewEmpReview from './ViewEmpReviewDetails';
 
 export default function KPIHRPublish() {
@@ -227,7 +227,7 @@ export default function KPIHRPublish() {
 
             setPublishStatus({
                 PendingCount: data?.PendingCount ?? 0,
-                TotalCount: data?.PendingCount ?? 0,
+                TotalCount: data?.TotalCount ?? 0,
                 ManagerFeedbackCount: data?.ManagerFeedbackCount ?? 0,
                 HRReviewRequiredCount: data?.HRReviewRequiredCount ?? 0,
                 HRReviewedCount: data?.HRReviewedCount ?? 0,
@@ -693,10 +693,10 @@ export default function KPIHRPublish() {
                                                         </div>
                                                         <div className="d-flex justify-content-between align-items-center py-2">
                                                             <span className="text-white-50">
-                                                                Published
+                                                                Total
                                                             </span>
-                                                            <span className="badge bg-primary rounded-pill px-2">
-                                                                {publishStatus.ToytalCount}
+                                                            <span className="badge bg-info rounded-pill px-2">
+                                                                {publishStatus.TotalCount}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -748,7 +748,7 @@ export default function KPIHRPublish() {
                             </div>
                         </div>
 
-                        <div className="card border-0 shadow-lg rounded-4 overflow-hidden">
+                        <div className="card border-0 shadow-sm rounded-4 overflow-hidden">
                             <div
                                 className="card-header border-0 py-3 d-flex justify-content-between align-items-center w-100"
                                 style={{
@@ -860,7 +860,7 @@ export default function KPIHRPublish() {
                                         </div>
                                     </div>
 
-                                    <div className="col">
+                                    {/* <div className="col">
                                         <div className="status-summary-card">
                                             <div className="status-summary-icon bg-primary-subtle text-primary">
                                                 <i className="bi bi-send-check-fill text-primary"></i>
@@ -876,7 +876,7 @@ export default function KPIHRPublish() {
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
+                                    </div> */}
 
                                     <div className="col">
                                         <div className="status-summary-card">
@@ -898,8 +898,7 @@ export default function KPIHRPublish() {
                                 </div>
                             </div>
 
-                            <div
-                                className="table-responsive review-cycle-score-table"
+                            <div className="table-responsive d-none d-md-block"
                                 style={{
                                     maxHeight: "500px",
                                     overflowY: "auto",
@@ -922,6 +921,7 @@ export default function KPIHRPublish() {
                                             <th className="text-center">Cycle Score</th>
                                             <th className="text-center">Employee Status</th>
                                             <th>Manager</th>
+                                            <th>Priority</th>
                                             <th className="text-center">Action</th>
                                         </tr>
                                     </thead>
@@ -1098,12 +1098,22 @@ export default function KPIHRPublish() {
                                                                         {item.ManagerName || "---"}
                                                                     </div>
                                                                     <div className="text-muted small">
-                                                                        No: {item.ManagerNo ?? "-"}
+                                                                        Emp No: {item.ManagerNo ?? "-"}
                                                                     </div>
                                                                 </div>
                                                             </div>
                                                         </td>
-
+                                                        <td>
+                                                            {item.IsPriority ? (
+                                                                <span className="badge badge-light-success px-3 py-2">
+                                                                    ⭐ Priority
+                                                                </span>
+                                                            ) : (
+                                                                <span className="badge badge-light-danger px-3 py-2">
+                                                                    Normal
+                                                                </span>
+                                                            )}
+                                                        </td>
                                                         <td className="text-center">
                                                             <div className="d-flex justify-content-center align-items-center gap-2">
                                                                 <Tooltip title="View Review">
@@ -1113,6 +1123,7 @@ export default function KPIHRPublish() {
                                                                         data-bs-toggle="offcanvas"
                                                                         data-bs-target="#offcanvasRightViewReview"
                                                                         onClick={() => handleViewReview(item)}
+                                                                        disabled={item.UserStatus !== "FEEDBACK REVIEWED" || item.UserStatus !== "HR_REVIEWED"}
                                                                     >
                                                                         <i className="bi bi-eye text-primary"></i>
                                                                     </button>
@@ -1126,6 +1137,190 @@ export default function KPIHRPublish() {
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* ================= MOBILE CARDS ================= */}
+                            <div className="d-block d-md-none">
+                                {loading ? (
+                                    <div className="text-center py-5">
+                                        <div className="spinner-border text-primary mb-3"></div>
+
+                                        <h6 className="fw-bold text-primary mb-1">
+                                            Loading Review Cycle Scores...
+                                        </h6>
+
+                                        <small className="text-muted">
+                                            Please wait while we fetch the data.
+                                        </small>
+                                    </div>
+                                ) : cyclePendingData?.length === 0 ? (
+                                    <div className="text-center py-5">
+                                        <div className="empty-state-icon mb-3">
+                                            <i className="bi bi-people"></i>
+                                        </div>
+
+                                        <h6 className="fw-bold mb-2">
+                                            No Employee Review Data Found
+                                        </h6>
+
+                                        <small className="text-muted">
+                                            No employee review cycle data is available.
+                                        </small>
+                                    </div>
+                                ) : (
+                                    <div className="employee-review-mobile-list">
+                                        {cyclePendingData.map((item, index) => {
+                                            const employeeStatusClass = {
+                                                PENDING: "status-pending",
+                                                FEEDBACK_SUBMITTED: "status-submitted",
+                                                FEEDBACK_REVIEWED: "status-reviewed",
+                                                HR_REVIEWED: "status-hr-reviewed",
+                                                PUBLISHED: "status-published",
+                                            }[
+                                                item.UserStatus?.trim().toUpperCase()
+                                            ] || "status-pending";
+
+                                            const score =
+                                                item.CycleScore !== null &&
+                                                    item.CycleScore !== undefined
+                                                    ? Number(item.CycleScore).toFixed(1)
+                                                    : "-";
+
+                                            return (
+                                                <div
+                                                    className="employee-review-mobile-card"
+                                                    key={item.CycleScoreId}
+                                                >
+                                                    {/* HEADER */}
+                                                    <div className="d-flex justify-content-between align-items-start mb-3">
+
+                                                        <div className="d-flex align-items-center gap-2">
+
+                                                            <div className="employee-mobile-avatar">
+                                                                {item.UserName
+                                                                    ?.charAt(0)
+                                                                    ?.toUpperCase() || "U"}
+                                                            </div>
+
+                                                            <div>
+                                                                <div className="fw-bold text-gray-800">
+                                                                    {item.UserName || "-"}
+                                                                </div>
+
+                                                                <div className="text-muted small">
+                                                                    Emp No: {item.UserNo || "-"}
+                                                                </div>
+                                                            </div>
+
+                                                        </div>
+
+                                                        <span
+                                                            className={`status-pill ${employeeStatusClass}`}
+                                                        >
+                                                            <span className="status-dot"></span>
+
+                                                            {item.UserStatus
+                                                                ?.trim()
+                                                                .replaceAll("_", " ") || "-"}
+                                                        </span>
+
+                                                    </div>
+
+
+                                                    {/* CYCLE + SCORE */}
+                                                    <div className="row g-2 mb-3">
+
+                                                        <div className="col-7">
+                                                            <div className="mobile-review-info">
+                                                                <small>
+                                                                    <i className="bi bi-calendar2-week me-1"></i>
+                                                                    Review Cycle
+                                                                </small>
+
+                                                                <span
+                                                                    className="badge rounded-pill px-3 py-2"
+                                                                    style={{
+                                                                        background: "#eef2ff",
+                                                                        color: "#4f46e5",
+                                                                    }}
+                                                                >
+                                                                    {item.CycleName || "-"}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="col-5">
+                                                            <div className="mobile-review-info">
+                                                                <small>
+                                                                    <i className="bi bi-graph-up-arrow me-1"></i>
+                                                                    Cycle Score
+                                                                </small>
+
+                                                                {item.CycleScore !== null &&
+                                                                    item.CycleScore !== undefined ? (
+                                                                    <span className="mobile-score-badge">
+                                                                        {score}%
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-muted fw-semibold">
+                                                                        -
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                    </div>
+
+
+                                                    {/* MANAGER */}
+                                                    <div className="mobile-review-section">
+                                                        <div className="mobile-review-section-title">
+                                                            Manager
+                                                        </div>
+
+                                                        <div className="d-flex align-items-center gap-2">
+
+                                                            <div className="manager-mobile-avatar">
+                                                                <i className="bi bi-person-badge"></i>
+                                                            </div>
+
+                                                            <div>
+                                                                <div className="fw-semibold text-gray-800">
+                                                                    {item.ManagerName || "---"}
+                                                                </div>
+
+                                                                <div className="text-muted small">
+                                                                    No: {item.ManagerNo ?? "-"}
+                                                                </div>
+                                                            </div>
+
+                                                        </div>
+                                                    </div>
+
+
+                                                    {/* ACTION */}
+                                                    <div className="mobile-review-action">
+
+                                                        <button
+                                                            type="button"
+                                                            className="btn btn-light-primary btn-sm w-100 fw-semibold"
+                                                            data-bs-toggle="offcanvas"
+                                                            data-bs-target="#offcanvasRightViewReview"
+                                                            onClick={() =>
+                                                                handleViewReview(item)
+                                                            }
+                                                        >
+                                                            <i className="bi bi-eye me-2"></i>
+                                                            View Review
+                                                        </button>
+
+                                                    </div>
+
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1134,6 +1329,103 @@ export default function KPIHRPublish() {
 
             <style>
                 {`
+                .employee-review-mobile-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 15px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+
+.employee-review-mobile-card:last-child {
+    margin-bottom: 0;
+}
+
+.employee-mobile-avatar {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef2ff;
+    color: #4f46e5;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.mobile-review-info {
+    min-height: 62px;
+    padding: 9px 10px;
+    border: 1px solid #eef2f7;
+    background: #f8fafc;
+    border-radius: 9px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+}
+
+.mobile-review-info small {
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.mobile-review-info small i {
+    color: #64748b;
+}
+
+.mobile-score-badge {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    padding: 5px 10px;
+    border-radius: 20px;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.mobile-review-section {
+    padding: 11px 0;
+    border-top: 1px solid #eef2f7;
+}
+
+.mobile-review-section-title {
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 7px;
+}
+
+.manager-mobile-avatar {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff7ed;
+    color: #f59e0b;
+    font-size: 14px;
+}
+
+.mobile-review-action {
+    border-top: 1px solid #eef2f7;
+    padding-top: 12px;
+    margin-top: 2px;
+}
+
+.mobile-review-action .btn {
+    min-height: 36px;
+}
                     .status-summary-card {
                         display: flex;
                         align-items: center;

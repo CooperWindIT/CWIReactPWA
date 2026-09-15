@@ -380,7 +380,7 @@ export default function AssetlessTechMyTickets() {
                                         <th className="">S.No</th>
                                         <th className="min-w-125px">Ticket Code</th>
                                         <th className="min-w-125px">Created On</th>
-                                        <th className="min-w-205px">Ticket Type</th>
+                                        <th className="min-w-205px">Sub-category</th>
                                         <th className="min-w-100px text-center">Priority</th>
                                         <th className="min-w-100px text-center">Status</th>
                                         <th className="min-w-100px">Aging</th>

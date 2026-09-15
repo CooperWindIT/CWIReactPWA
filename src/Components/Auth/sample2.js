@@ -5,6 +5,7 @@ import { useNavigate, Link } from "react-router-dom";
 import Swal from "sweetalert2";
 import greytHRLogoVar from "../Assests/Images/greytip_logo.svg";
 import { BASE_IMAGE_API_GET } from "../Config/Config";
+import EmployeeContactQR from "./EmployeeContactQR";
 // import WaterMarkLogo from '../Assests/SigninImages/cwilogo.png';
 // import CWIImg from '../Assests/SigninImages/cwinew.png';
 
@@ -138,6 +139,7 @@ export default function SampleScreen2() {
     return (
         <>
             <div className="watermark"></div>
+            
             <div
                 style={{
                     position: "absolute",
@@ -146,23 +148,76 @@ export default function SampleScreen2() {
                     zIndex: 1000,
                     display: "flex",
                     alignItems: "center",
-                    gap: "12px",
-                    background: "rgba(255, 255, 255, 0.8)",
-                    backdropFilter: "blur(8px)",
-                    padding: "5px 5px 5px 15px",
-                    borderRadius: "50px",
-                    boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
-                    border: "1px solid rgba(0,0,0,0.05)"
+                    gap: "10px",
                 }}
             >
-                <span className="fs-7 fw-bold text-gray-700">Sign Out</span>
                 <button
-                    onClick={handleLogout}
-                    className="btn btn-icon btn-sm btn-light-danger rounded-circle"
-                    style={{ width: "35px", height: "35px" }}
-                    title="Logout"
+                    type="button"
+                    onClick={() => navigate("/organization-chart")}
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        background: "rgba(255, 255, 255, 0.8)",
+                        backdropFilter: "blur(8px)",
+                        padding: "6px 15px",
+                        borderRadius: "50px",
+                        boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+                        border: "1px solid rgba(0,0,0,0.05)",
+                        cursor: "pointer",
+                    }}
+                    title="Organization Chart"
                 >
-                    <i className="fa-solid fa-power-off"></i>
+                    <span className="fs-7 fw-bold text-gray-700 text-hover-primary">
+                        Organization Chart
+                    </span>
+
+                    <span
+                        className="btn btn-icon btn-sm btn-light-primary rounded-circle"
+                        style={{
+                            width: "35px",
+                            height: "35px",
+                            pointerEvents: "none",
+                        }}
+                    >
+                        <i className="fa-solid fa-sitemap"></i>
+                    </span>
+                </button>
+               
+
+    {/* <EmployeeContactQR employee={sessionUserData} /> */}
+
+                <button
+                    type="button"
+                    onClick={handleLogout}
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        background: "rgba(255, 255, 255, 0.8)",
+                        backdropFilter: "blur(8px)",
+                        padding: "6px 15px",
+                        borderRadius: "50px",
+                        boxShadow: "0 4px 15px rgba(0,0,0,0.05)",
+                        border: "1px solid rgba(0,0,0,0.05)",
+                        cursor: "pointer",
+                    }}
+                    title="Sign Out"
+                >
+                    <span className="fs-7 fw-bold text-gray-700 text-hover-danger">
+                        Sign Out
+                    </span>
+
+                    <span
+                        className="btn btn-icon btn-sm btn-light-danger rounded-circle"
+                        style={{
+                            width: "35px",
+                            height: "35px",
+                            pointerEvents: "none",
+                        }}
+                    >
+                        <i className="fa-solid fa-power-off"></i>
+                    </span>
                 </button>
             </div>
 
@@ -188,8 +243,9 @@ export default function SampleScreen2() {
                                 <div className="premium-welcome-box text-center px-4 py-3">
                                     <div className="small text-uppercase fw-semibold text-muted mb-1 d-flex align-items-center justify-content-center gap-2">
                                         <i className="bi bi-person-circle text-primary"></i>
-                                        Welcome Back
+                                        Welcome Back  
                                     </div>
+                                    
 
                                     <div className="fs-4 fw-bold text-dark">
                                         Hello, <span className="animated-username">{sessionUserData.Name}</span>
@@ -255,7 +311,7 @@ export default function SampleScreen2() {
                                                 <div className="service-icon">
                                                     <i
                                                         className="fas fa-chart-line"
-                                                        style={{fontSize: '1.7rem'}}
+                                                        style={{ fontSize: '1.7rem' }}
                                                     ></i>
                                                 </div>
                                                 <h3>KPI</h3>
@@ -271,7 +327,7 @@ export default function SampleScreen2() {
                                 </div>
                             )}
                         </div>
-
+                       
                         <footer className="app-foote text-center justify-content-center mt-10">
                             <p>Powered by <span>Cooperwind.india</span></p>
                         </footer>

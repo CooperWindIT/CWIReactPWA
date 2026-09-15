@@ -395,14 +395,6 @@ const formatTree = (nodes) => {
         superiorId: node.IsSuperiorId,
         name: node.Name,
         role: node.RoleName,
-        // No confirmed field name for this yet (asked, got no answer) —
-        // checked defensively against the common API naming variants, and
-        // falls back to RoleName so the modal's Designation row is never
-        // blank even if the service turns out not to send a separate
-        // field after all. If designations still look wrong once this is
-        // wired to the real API, the fix is just changing the field name
-        // checked here.
-        designation: node.Designation || node.DesignationName || node.Designation_Name || node.RoleName || "",
         email: node.Email,
         phone: node.Phone || "",
         dept: node.DeptName || "",
@@ -452,27 +444,6 @@ const getAllNodeIds = (nodes) => {
     return ids;
 };
 
-// Finds the first node (depth-first) whose name or email contains `term`
-// (case-insensitive) and returns the full id path from a root down to it,
-// inclusive — e.g. [ceoId, managerId, employeeId]. Used by search to know
-// which ancestor ids need removing from `collapsed` so the match becomes
-// visible. Walks the real (data) tree only: synthetic department nodes are
-// inserted at render time (see buildDeptNodes) and expand automatically
-// once their real manager ancestor is expanded, so they don't need to be
-// part of this path. Returns null when nothing matches.
-const findNodePath = (nodes, term, path = []) => {
-    for (const node of nodes) {
-        const nextPath = [...path, node.id];
-        const haystack = `${node.name || ""} ${node.email || ""}`.toLowerCase();
-        if (haystack.includes(term)) return nextPath;
-        if (node.children?.length) {
-            const found = findNodePath(node.children, term, nextPath);
-            if (found) return found;
-        }
-    }
-    return null;
-};
-
 // Flattens the (already-formatted) org tree into one row per person, each
 // carrying its manager's name and its depth in the hierarchy — used by the
 // Excel export so the sheet reads as a normal employee list rather than a
@@ -484,7 +455,6 @@ const flattenOrgData = (nodes, managerName = "", level = 1, rows = []) => {
         rows.push({
             Name: node.name || "",
             Role: node.role || "",
-            Designation: node.designation || "",
             Department: node.dept || "",
             Email: node.email || "",
             Phone: node.phone || "",
@@ -540,14 +510,6 @@ const OrganizationChart = () => {
     // export button and swaps its label while a PDF capture is in flight.
     const chartContentRef = useRef(null);
     const [exporting, setExporting] = useState(false);
-
-    // Search: `searchTerm` is the text box value; `highlightedId` is the
-    // matched node's id (drives NodeCard's search-highlight class) and also
-    // the trigger for the scroll-into-view effect below; `searchNotFound`
-    // shows a brief inline message when nothing matches.
-    const [searchTerm, setSearchTerm] = useState("");
-    const [highlightedId, setHighlightedId] = useState(null);
-    const [searchNotFound, setSearchNotFound] = useState(false);
 
     useEffect(() => {
         const sessionMenuData = sessionStorage.getItem("menuData");
@@ -647,40 +609,6 @@ const OrganizationChart = () => {
                             STATIC_ROLE_COLORS.default;
     };
 
-    // Small always-visible key translating each role's color into a label —
-    // requested after a reference Excel legend image ("LEGEND" title bar +
-    // one color-swatch row per role). Deliberately built from the *same*
-    // color pipeline every card already uses (getBaseColor + roleColors +
-    // STATIC_ROLE_COLORS) rather than a second hardcoded palette, so if a
-    // service-provided BgColor ever changes a role's on-screen color, this
-    // legend updates with it automatically instead of drifting out of sync.
-    // Each swatch is styled exactly like a card's own face — light fill,
-    // darker role-shade border — the same border color also used for that
-    // role's corner .role-dot, so this one legend explains both at once.
-    const LEGEND_ROLES = [
-        { role: "ceo", superiorId: 0, label: "CEO / Managing Director" },
-        { role: "manager", superiorId: 1, label: "Manager" },
-        { role: "hr", superiorId: 1, label: "HR" },
-        { role: "employee", superiorId: 1, label: "Employee" },
-        { role: "security", superiorId: 1, label: "Security" },
-    ];
-
-    const RoleLegend = () => (
-        <div className="role-legend">
-            <div className="role-legend-title">LEGEND</div>
-            {LEGEND_ROLES.map((entry) => {
-                const fill = getBaseColor(entry);
-                const border = shadeColor(fill, -0.35);
-                return (
-                    <div className="role-legend-row" key={entry.role}>
-                        <span className="role-legend-swatch" style={{ background: fill, borderColor: border }} />
-                        <span className="role-legend-label">{entry.label}</span>
-                    </div>
-                );
-            })}
-        </div>
-    );
-
     const NodeCard = ({ node }) => {
         const role = node?.role?.toLowerCase?.() ?? "";
         const isCEO = Number(node?.superiorId) === 0;
@@ -746,44 +674,16 @@ const OrganizationChart = () => {
                             "employee-card"
             }`;
 
-        const isHighlighted = highlightedId === node.id;
-
         return (
             <Popover trigger="hover" placement="bottom">
                 <div
-                    className={`${cardClass} ${isHighlighted ? "search-highlight" : ""}`}
-                    style={cardStyle}
-                    data-node-id={node.id}
-                    onClick={(e) => {
-                        // Clicking the card body now expands/collapses it —
-                        // same action as the count badge — since a click
-                        // there was previously the only way to open the
-                        // details modal, which made expanding a node
-                        // require the small count badge specifically.
-                        // Opening the modal instead lives on the avatar
-                        // image (see its own onClick below).
+                    className={cardClass} style={cardStyle} onClick={(e) => {
                         e.stopPropagation();
                         if (dragState.current.moved) return;
-                        toggleNode(node.id);
+                        setSelectedNode(node);
                     }}
                 >
-                    {/* Small role-colored marker, top-left corner — the
-                        same role→color mapping as the card's own border
-                        (cardBorderColor), just as a compact dot so the role
-                        is scannable even at a glance/zoomed-out, not only
-                        from the card's own fill or its text. */}
-                    <div className="role-dot" style={{ background: cardBorderColor }} title={node.role} />
-                    <div
-                        className="avatar-wrapper"
-                        onClick={(e) => {
-                            // The one place that still opens the details
-                            // modal — stopPropagation keeps this from also
-                            // triggering the card's own expand/collapse.
-                            e.stopPropagation();
-                            if (dragState.current.moved) return;
-                            setSelectedNode(node);
-                        }}
-                    >
+                    <div className="avatar-wrapper">
                         <div
                             style={{
                                 ...(isCEO ? styles.ceoAvatar : styles.managerAvatar),
@@ -794,7 +694,6 @@ const OrganizationChart = () => {
                                 justifyContent: "center",
                                 boxShadow: "0 12px 28px rgba(15, 23, 42, 0.12), inset 0 1px 2px rgba(255,255,255,0.5)",
                                 backdropFilter: "blur(10px)",
-                                cursor: "pointer",
                             }}
                         >
 
@@ -836,11 +735,10 @@ const OrganizationChart = () => {
                                 }`}
                             title={`${childCount} direct ${childCount === 1 ? "child" : "children"} — click to ${isCollapsed ? "expand" : "collapse"}`}
                             onClick={(e) => {
-                                // Same action as clicking the card body now
-                                // (both expand/collapse) — stopPropagation
-                                // just avoids double-toggling (once here,
-                                // once again as the click bubbles up to the
-                                // card's own handler).
+                                // Expanding/collapsing lives on the badge now,
+                                // separate from the card body which opens the
+                                // details modal — stopPropagation keeps this
+                                // click from also opening that modal.
                                 e.stopPropagation();
                                 if (dragState.current.moved) return;
                                 toggleNode(node.id);
@@ -1078,7 +976,6 @@ const OrganizationChart = () => {
         const darkColor = shadeColor(baseColor, -0.55);
 
         const fields = [
-            { icon: "fa-briefcase", label: "Designation", value: renderNode.designation },
             { icon: "fa-building", label: "Department", value: renderNode.dept },
             { icon: "fa-id-badge", label: "Employee No", value: renderNode.empNo },
             { icon: "fa-envelope", label: "Email", value: renderNode.email },
@@ -1162,56 +1059,6 @@ const OrganizationChart = () => {
             : setCollapsed([]);
     };
 
-    // Finds a person by name/email, expands whatever ancestors are
-    // currently collapsed so the match becomes visible, then hands off to
-    // the scroll-into-view effect below (triggered by highlightedId
-    // changing) to actually bring it on screen and flash the highlight.
-    const handleSearch = () => {
-        const term = searchTerm.trim().toLowerCase();
-        if (!term) return;
-
-        const path = findNodePath(data, term);
-        if (!path) {
-            setSearchNotFound(true);
-            setHighlightedId(null);
-            return;
-        }
-
-        setSearchNotFound(false);
-        const matchId = path[path.length - 1];
-        const ancestorIds = path.slice(0, -1);
-        setCollapsed(prev => prev.filter(id => !ancestorIds.includes(id)));
-        // Re-triggers the scroll/highlight effect even for the same match
-        // searched twice in a row.
-        setHighlightedId(null);
-        requestAnimationFrame(() => setHighlightedId(matchId));
-    };
-
-    // Runs whenever a search sets highlightedId: waits a couple of frames
-    // for the newly-expanded ancestors to actually mount their DOM (the
-    // collapsed-state update above and this effect can land in the same
-    // tick otherwise), scrolls the matched card into view, and clears the
-    // highlight itself after a few seconds so it reads as a flash rather
-    // than a permanent marker.
-    useEffect(() => {
-        if (!highlightedId) return;
-
-        let raf1, raf2;
-        raf1 = requestAnimationFrame(() => {
-            raf2 = requestAnimationFrame(() => {
-                const el = dragRef.current?.querySelector(`[data-node-id="${highlightedId}"]`);
-                el?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
-            });
-        });
-
-        const clearTimer = setTimeout(() => setHighlightedId(null), 4000);
-        return () => {
-            cancelAnimationFrame(raf1);
-            if (raf2) cancelAnimationFrame(raf2);
-            clearTimeout(clearTimer);
-        };
-    }, [highlightedId]);
-
     // Waits for every <img> under `el` to finish loading (or fail) before
     // resolving — html2canvas snapshots whatever has painted so far, so
     // without this, employee photos that haven't finished loading come out
@@ -1280,7 +1127,6 @@ const OrganizationChart = () => {
         worksheet["!cols"] = [
             { wch: 22 }, // Name
             { wch: 16 }, // Role
-            { wch: 20 }, // Designation
             { wch: 16 }, // Department
             { wch: 28 }, // Email
             { wch: 14 }, // Phone
@@ -1512,29 +1358,11 @@ const OrganizationChart = () => {
         );
     }
 
-    const showManageUsers = [2, 10].includes(sessionUserData?.Id);
+    const showManageUsers = sessionActionIds?.includes(36);
 
     return (
         <div style={styles.wrapper} >
-            <div className="d-flex justify-content-between align-items-center gap-2 my-3 mx-5">
-                <div className="org-search">
-                    <i className="fa-solid fa-magnifying-glass org-search-icon"></i>
-                    <input
-                        type="text"
-                        className="org-search-input"
-                        placeholder="Search name or email..."
-                        value={searchTerm}
-                        onChange={(e) => {
-                            setSearchTerm(e.target.value);
-                            setSearchNotFound(false);
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSearch();
-                        }}
-                    />
-                    {searchNotFound && <span className="org-search-hint">No match found</span>}
-                </div>
-                <div className="d-flex align-items-center gap-2">
+            <div className="d-flex justify-content-end align-items-center gap-2 my-3 me-5">
                 {showManageUsers && (
                     <Link
                         className="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2 premium-btn"
@@ -1562,7 +1390,6 @@ const OrganizationChart = () => {
                 >
                     <i className="bi bi-arrow-left"></i> Back
                 </button>
-                </div>
             </div>
 
             <div className="org-chart-scope h-100 d-flex flex-column">
@@ -1573,8 +1400,6 @@ const OrganizationChart = () => {
                     <button className="zoom-btn" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>-</button>
                     <button className="zoom-btn" onClick={toggleExpandCollapse}>⛶</button>
                 </div>
-
-                <RoleLegend />
 
                 <div
                     ref={dragRef}
@@ -1633,63 +1458,6 @@ const OrganizationChart = () => {
 
             <style>
                 {`
-                    .org-search {
-                        position: relative;
-                        display: inline-flex;
-                        align-items: center;
-                    }
-
-                    .org-search-icon {
-                        position: absolute;
-                        left: 16px;
-                        color: #94a3b8;
-                        font-size: 13px;
-                        pointer-events: none;
-                    }
-
-                    .org-search-input {
-                        width: 260px;
-                        padding: 9px 14px 9px 38px;
-                        border-radius: 999px;
-                        border: 1px solid #cbd5e1;
-                        background: #ffffff;
-                        font-size: 13px;
-                        color: #0f172a;
-                        outline: none;
-                        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
-                        transition: border-color 0.15s ease, box-shadow 0.15s ease;
-                    }
-
-                    .org-search-input:focus {
-                        border-color: #0ea5e9;
-                        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
-                    }
-
-                    .org-search-hint {
-                        position: absolute;
-                        left: 16px;
-                        top: 100%;
-                        margin-top: 4px;
-                        font-size: 11px;
-                        color: #dc2626;
-                        white-space: nowrap;
-                    }
-
-                    /* ── search result flash: a bright ring that pulses a
-                       couple of times then fades, so the matched card is
-                       unmistakable even in a large, already-colorful chart,
-                       without permanently altering its normal styling. ── */
-                    .search-highlight {
-                        animation: searchHighlightPulse 1s ease-out 2;
-                        z-index: 20;
-                    }
-
-                    @keyframes searchHighlightPulse {
-                        0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.9); }
-                        70% { box-shadow: 0 0 0 14px rgba(234, 179, 8, 0); }
-                        100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
-                    }
-
                     .premium-btn {
                         font-weight: 500;
                         letter-spacing: 0.01em;
@@ -1704,21 +1472,7 @@ const OrganizationChart = () => {
                     }
                     .org-chart-scope {
                         position: relative;
-                        /* flex:1 1 auto + min-height:0 (not height:100%) —
-                           this only claims the space left over in
-                           styles.wrapper after the header row above it, and
-                           min-height:0 overrides a flex item's default
-                           min-height:auto so it's actually allowed to shrink
-                           to that space instead of growing to fit its
-                           content. "height: 100%" here used to resolve
-                           against the wrapper's full 100vh regardless of the
-                           header's own height, which made the wrapper's real
-                           content taller than 100vh and pushed the page
-                           itself into scrolling — see the long comment on
-                           styles.wrapper for how that surfaced as "the
-                           header disables itself after searching". */
-                        flex: 1 1 auto;
-                        min-height: 0;
+                        height: 100%;
                         overflow: hidden;
                         background: linear-gradient(
                             135deg,
@@ -1745,7 +1499,6 @@ const OrganizationChart = () => {
                         position: relative;
                         z-index: 1;
                         flex: 1;
-                        min-height: 0;
                         width: 100%;
                         overflow: auto;
                         padding: 40px;
@@ -2066,18 +1819,6 @@ const OrganizationChart = () => {
                         transform: translateX(-50%) scale(1.08);
                     }
 
-                    .role-dot {
-                        position: absolute;
-                        top: 10px;
-                        left: 10px;
-                        width: 12px;
-                        height: 12px;
-                        border-radius: 50%;
-                        border: 2px solid rgba(255, 255, 255, 0.9);
-                        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
-                        z-index: 5;
-                    }
-
                     .controls {
                         position: fixed;
 
@@ -2089,57 +1830,6 @@ const OrganizationChart = () => {
                         gap: 12px;
 
                         z-index: 1000;
-                    }
-
-                    /* Color key for the roles/cards — see RoleLegend. Mirrors
-                       .controls (fixed, same z-index) but sits bottom-right
-                       so the two never collide. */
-                    .role-legend {
-                        position: fixed;
-                        bottom: 30px;
-                        right: 30px;
-                        z-index: 1000;
-
-                        width: 210px;
-                        border-radius: 10px;
-                        overflow: hidden;
-                        background: #ffffff;
-                        border: 1px solid #cbd5e1;
-                        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.15);
-                    }
-
-                    .role-legend-title {
-                        background: #1e293b;
-                        color: #ffffff;
-                        font-size: 12px;
-                        font-weight: 700;
-                        letter-spacing: 0.6px;
-                        text-align: center;
-                        padding: 7px 10px;
-                    }
-
-                    .role-legend-row {
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        padding: 6px 10px;
-                        border-top: 1px solid #e2e8f0;
-                    }
-
-                    .role-legend-swatch {
-                        width: 20px;
-                        height: 14px;
-                        flex-shrink: 0;
-                        border-radius: 3px;
-                        border: 2px solid transparent;
-                    }
-
-                    .role-legend-label {
-                        font-size: 12px;
-                        color: #1e293b;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
                     }
 
                     .zoom-btn {
@@ -2361,27 +2051,7 @@ const styles = {
         height: "100vh",
         overflow: "hidden",
         padding: "0",
-        // display:flex + flexDirection:column is what actually makes the
-        // header row's height "count" against the 100vh budget below. Without
-        // this, .org-chart-scope's own `height: 100%` resolves against this
-        // wrapper's full 100vh (its containing block), on top of the header
-        // row that already takes up space above it — so total content here
-        // is (header height + 100vh), 40-70px taller than the wrapper itself.
-        // This div's own `overflow: hidden` does NOT contain that overflow,
-        // because the excess isn't clipped, it leaks into the actual page:
-        // with no explicit height on <html>/<body>, the document itself
-        // becomes taller than the viewport and starts scrolling. Nothing
-        // normally triggers that page scroll — until the search feature's
-        // scrollIntoView on a deep match does, at which point the browser
-        // scrolls the *whole page* to satisfy it, carrying this header up
-        // and off the top of the screen (reported as "the header gets
-        // disabled after searching" — it isn't disabled, it's just been
-        // scrolled out of view). Making this a column flex container lets
-        // .org-chart-scope's `flex: 1 1 auto; min-height: 0` (see its CSS)
-        // claim only the space actually left after the header, so the page
-        // itself never needs to scroll and everything stays reachable.
-        display: "flex",
-        flexDirection: "column",
+
         textAlign: "center",
         background: "linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f0f4f8 100%)",
     },

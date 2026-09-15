@@ -566,7 +566,7 @@ export default function ViewAlert({ alertObj }) {
                         <div className="col-6">
                             <div className="p-2 border rounded bg-light">
                                 <h6 className="text-success mb-1"><i className="fa-solid fa-users me-2"></i>POC for Clouser</h6>
-                                <p className="mb-0">{alertObj?.POCName || "N/A"}</p>
+                                <p className="mb-0">{alertObj?.POCName || "N/A"} - {alertObj?.POCEmpNo}</p>
                             </div>
                         </div>
 

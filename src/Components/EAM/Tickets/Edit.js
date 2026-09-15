@@ -316,7 +316,7 @@ export default function EditTicket({ editTicketId, onClose }) {
 
                                     <div className="d-flex align-items-center">
                                         <button className="btn premium-submit-btn btn-sm me-2" type="submit" disabled={addSubmitLoading}>
-                                            <i className="bi bi-bookmark-check me-1"></i>
+                                            <i className="bi bi-bookmark-check me-1 text-white"></i>
                                             {addSubmitLoading ? "Submitting..." : "Submit"}
                                         </button>
 

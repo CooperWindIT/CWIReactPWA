@@ -12,6 +12,7 @@ const BASE_DOCS_API_GET = "https://services.cooperwind.online/uploads/CWIDocs/";
 const BASE_IMG_UPLOAD = "https://services.cooperwind.online/Fileupload/image";
 const BASE_IMAGE_API_GET = "https://services.cooperwind.online/uploads/CWIImages/";
 const BASE_IMG_DOC_DELETE = "https://services.cooperwind.online/Fileupload/delete";
+const QR_SERV_BASE_URL = "https://portal-andiso.cooperwind.online/";
 
 
 // QA
@@ -28,22 +29,7 @@ const BASE_IMG_DOC_DELETE = "https://services.cooperwind.online/Fileupload/delet
 // const BASE_IMG_UPLOAD = "https://services.cooperwind.online/Fileupload/QAimage";
 // const BASE_IMAGE_API_GET = "https://services.cooperwind.online/uploads/QACWIImages/";
 // const BASE_IMG_DOC_DELETE = "https://services.cooperwind.online/Fileupload/QAdelete";
-
-
-// Local
-// const VMS_URL = "https://dry-plums-carry.loca.lt/auth/"; 
-// const VMS_URL_CONTRACTOR = "https://dry-plums-carry.loca.lt/contractor/";
-// const VMS_URL_REPORT = "https://dry-plums-carry.loca.lt/Report/";
-// const VMS_VISITORS = "https://dry-plums-carry.loca.lt/visitor/"; 
-// const BASE_API = "https://dry-plums-carry.loca.lt/";
-// const BASE_IMAGE_UPLOAD_API = "https://services.cooperwind.online/";
-// // Doc
-// const BASE_DOC_UPLOAD = "https://services.cooperwind.online/Fileupload/QAdocument";
-// const BASE_DOCS_API_GET = "https://services.cooperwind.online/uploads/QACWIDocs/";
-// // Img
-// const BASE_IMG_UPLOAD = "https://services.cooperwind.online/Fileupload/QAimage";
-// const BASE_IMAGE_API_GET = "https://services.cooperwind.online/uploads/QACWIImages/";
-// const BASE_IMG_DOC_DELETE = "https://services.cooperwind.online/Fileupload/QAdelete";
+// const QR_SERV_BASE_URL = "https://portal-andiso.cooperwind.online/";
 
 
 const CMMS_AADHAR_CHECKIN = "https://services.cooperwind.online/";
@@ -51,5 +37,5 @@ const MACHINE_INFO_HTML_API = "https://machineinfo.cooperwind.live/";
 
 
 export { VMS_URL, VMS_URL_CONTRACTOR, VMS_URL_REPORT, VMS_VISITORS, CMMS_AADHAR_CHECKIN, BASE_API, BASE_DOCS_API_GET, 
-    BASE_IMAGE_UPLOAD_API, BASE_IMG_UPLOAD, MACHINE_INFO_HTML_API, BASE_DOC_UPLOAD, BASE_IMAGE_API_GET, BASE_IMG_DOC_DELETE};
+    BASE_IMAGE_UPLOAD_API, BASE_IMG_UPLOAD, MACHINE_INFO_HTML_API, BASE_DOC_UPLOAD, BASE_IMAGE_API_GET, BASE_IMG_DOC_DELETE, QR_SERV_BASE_URL};
 

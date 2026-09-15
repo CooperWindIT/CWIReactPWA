@@ -12,7 +12,8 @@ const SHAPE_TOOLS = [
   { id: 'parallelogram', label: 'Parallelogram', short: '6' },
   { id: 'hexagon', label: 'Hexagon', short: '7' },
   { id: 'cylinder', label: 'Cylinder', short: '8' },
-  { id: 'text', label: 'Text', short: '9' },
+  { id: 'line', label: 'Line', short: '9' },
+  { id: 'text', label: 'Text', short: '0' },
 ];
 
 const LockIcon = () => (
@@ -81,6 +82,9 @@ function ShapeIcon({ shapeId }) {
         <path d="M5 6v9c0 1.7 3.1 3 7 3s7-1.3 7-3V6" fill="none" stroke="currentColor" strokeWidth="1.8" />
       </>
     );
+  }
+  if (shapeId === 'line') {
+    return <line x1="4" y1="19" x2="20" y2="5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />;
   }
   return <text x="7" y="17" fontSize="16" fill="currentColor" fontWeight="700">A</text>;
 }
@@ -326,4 +330,3 @@ export default function Toolbar({
     </div>
   );
 }
-

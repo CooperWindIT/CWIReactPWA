@@ -26,6 +26,7 @@ export default function MyKPIs() {
     const [reviewStatus, setReviewStatus] = useState("Pending");
     const [totalWeightedScore, setTotalWeightedScore] = useState(0);
     const [reviewData, setReviewData] = useState([]);
+    const [reviewCycleMessage, setReviewCycleMessage] = useState("");
     const [expandedCards, setExpandedCards] = useState(new Set());
     const [feedbackData, setFeedbackData] = useState([]);
     const [feedbackModal, setFeedbackModal] = useState(false);
@@ -236,18 +237,18 @@ export default function MyKPIs() {
         }
     };
 
-        const fetchIsSelfBtnEnable = async () => {
-            try {
-                const response = await getIsSelfBtnEnable({
-                    orgId: sessionUserData?.OrgId,
-                });
-    
-                const data = response?.data?.[0];
-                setSelfEnable(data);
-            } catch (error) {
-                console.error(error);
-            }
-        };
+    const fetchIsSelfBtnEnable = async () => {
+        try {
+            const response = await getIsSelfBtnEnable({
+                orgId: sessionUserData?.OrgId,
+            });
+
+            const data = response?.data?.[0];
+            setSelfEnable(data);
+        } catch (error) {
+            console.error(error);
+        }
+    };
 
     const fetchFeedBacks = async () => {
         try {
@@ -357,32 +358,101 @@ export default function MyKPIs() {
 
     };
 
+    // const fetchCyclesScoreByUserId = async () => {
+    //     try {
+    //         setLoading(true);
+
+    //         const response = await getCyclesScoreByUserId({
+    //             orgId: sessionUserData?.OrgId,
+    //             cycleId: selectedQuarter?.Id,
+    //             employeeId: sessionUserData?.Id,
+    //             periodId: selectedPeriod,
+    //         });
+
+    //         const data = response?.data || [];
+
+    //         setReviewData(data || [0]);
+    //         setReviewStatus(data[0]?.Status || "Pending");
+
+    //         // Calculate Total Weighted Score
+    //         const total = data.reduce(
+    //             (sum, item) => sum + Number(item.WeightedScore || 0),
+    //             0
+    //         );
+
+    //         setTotalWeightedScore(Number(total.toFixed(2)));
+
+    //     } catch (error) {
+    //         console.error(error);
+    //     } finally {
+    //         setLoading(false);
+    //     }
+    // };
+
     const fetchCyclesScoreByUserId = async () => {
         try {
             setLoading(true);
-
+    
+            // Clear previous message
+            setReviewCycleMessage("");
+    
             const response = await getCyclesScoreByUserId({
                 orgId: sessionUserData?.OrgId,
                 cycleId: selectedQuarter?.Id,
                 employeeId: sessionUserData?.Id,
                 periodId: selectedPeriod,
             });
-
-            const data = response?.data || [];
-
-            setReviewData(data || [0]);
-            setReviewStatus(data[0]?.Status || "Pending");
-
+    
+            console.log("Cycles Score Response:", response);
+    
+            // Handle 409 response
+            if (
+                response?.code === 409 ||
+                response?.data?.[0]?.ResponseCode === 409
+            ) {
+                setReviewData([]);
+                setReviewStatus("Pending");
+                setTotalWeightedScore(0);
+    
+                setReviewCycleMessage(
+                    response?.data?.[0]?.Message ||
+                    response?.message ||
+                    "Employee is not participating in this Review Cycle."
+                );
+    
+                return;
+            }
+    
+            // Normal response
+            const data = Array.isArray(response?.data)
+                ? response.data
+                : [];
+    
+            setReviewData(data);
+            setReviewStatus(data?.[0]?.Status || "Pending");
+    
             // Calculate Total Weighted Score
             const total = data.reduce(
-                (sum, item) => sum + Number(item.WeightedScore || 0),
+                (sum, item) =>
+                    sum + Number(item?.WeightedScore || 0),
                 0
             );
-
-            setTotalWeightedScore(Number(total.toFixed(2)));
-
+    
+            setTotalWeightedScore(
+                Number(total.toFixed(2))
+            );
+    
         } catch (error) {
             console.error(error);
+    
+            setReviewData([]);
+            setReviewStatus("Pending");
+            setTotalWeightedScore(0);
+    
+            setReviewCycleMessage(
+                "Unable to fetch KPI review details."
+            );
+    
         } finally {
             setLoading(false);
         }
@@ -495,17 +565,19 @@ export default function MyKPIs() {
     };
 
     const selfDisabledMessage =
-    reviewStatus === "REVIEWED"
-        ? "Self assessment has already been reviewed."
-        : reviewStatus === "SUBMITTED"
-            ? "Self assessment has already been submitted."
-            : selfEnable?.IsSelfBtnEnable !== 1
-                ? selfEnable?.Message || "Self score submission is locked."
-                : "";
-                const isSelfDisabled =
-    reviewStatus === "REVIEWED" ||
-    reviewStatus === "SUBMITTED" ||
-    selfEnable?.IsSelfBtnEnable !== 1;
+        reviewStatus === "REVIEWED"
+            ? "Self assessment has already been reviewed."
+            : reviewStatus === "SUBMITTED"
+                ? "Self assessment has already been submitted."
+                : selfEnable?.IsSelfBtnEnable !== 1
+                    ? selfEnable?.Message || "Self score submission is locked."
+                    : "";
+    const isSelfDisabled =
+        reviewStatus === "REVIEWED" ||
+        reviewStatus === "SUBMITTED" ||
+        selectedQuarter?.Status === "CLOSED" ||
+        selfEnable?.IsSelfBtnEnable !== 1;
+
     const managerEnabled = reviewStatus === "SUBMITTED";
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
     const colors = ["#2563eb", "#16a34a", "#f59e0b", "#dc2626"];
@@ -904,41 +976,73 @@ export default function MyKPIs() {
                                 </div>
                             )}
 
-                            {reviewCycleData.length > 0 && selectedQuarter && (
-                                <div className='col-12'>
-                                    <div className="card border-0 shadow-sm rounded-4">
-                                        <div className="card-header border-0 py-3 px-4">
-                                            <div className="d-flex align-items-center justify-content-between w-100">
-                                                <div>
-                                                    <h5 className="fw-bold mb-0">
-                                                        <i className="bi bi-bullseye text-primary me-2"></i>
-                                                        KPI Details
-                                                    </h5>
-                                                    <small className="text-muted">
-                                                        Review and manage KPI targets & weightage
-                                                    </small>
-                                                </div>
-                                            </div>
-                                        </div>
+{selectedQuarter && (
+    <div className='col-12'>
+        <div className="card border-0 shadow-sm rounded-4">
 
-                                        {loading ? (
-                                            <div className="p-4">
-                                                <Skeleton active paragraph={{ rows: 8 }} title />
-                                            </div>
-                                        ) : (
-                                            <div className='card-body'>
-                                                <div
-                                                    className="table-responsive review-table-container custom-scrollbar mb-4"
-                                                    style={{ maxHeight: "500px", overflowY: "auto" }}
-                                                >
-                                                    {reviewData?.map((item, index) => {
+            <div className="card-header border-0 py-3 px-4">
+                <div className="d-flex align-items-center justify-content-between w-100">
+                    <div>
+                        <h5 className="fw-bold mb-0">
+                            <i className="bi bi-bullseye text-primary me-2"></i>
+                            KPI Details
+                        </h5>
+
+                        <small className="text-muted">
+                            Review and manage KPI targets & weightage
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="p-4">
+                    <Skeleton
+                        active
+                        paragraph={{ rows: 8 }}
+                        title
+                    />
+                </div>
+
+            ) : reviewCycleMessage ? (
+
+                <div className="card-body">
+                    <div className="text-center py-5">
+
+                        <i
+                            className="bi bi-person-x-fill text-warning"
+                            style={{ fontSize: "45px" }}
+                        />
+
+                        <h5 className="fw-bold mt-3 mb-2">
+                            You are Not Participating
+                        </h5>
+
+                        <p className="text-muted mb-0">
+                            {reviewCycleMessage}
+                        </p>
+
+                    </div>
+                </div>
+
+            ) : (
+                <div className='card-body'>
+
+                    <div
+                        className="table-responsive review-table-container custom-scrollbar mb-4"
+                        style={{
+                            maxHeight: "500px",
+                            overflowY: "auto"
+                        }}
+                    >
+
+                        {reviewData?.map((item, index) => {
                                                         const cardId = item.Id ?? index;
                                                         const isExpanded = expandedCards.has(cardId);
+
                                                         return (
                                                             <div className="card shadow-sm border-0 rounded-4 mb-4 mx-2" key={cardId}>
                                                                 <div className="card-body p-3">
-
-                                                                    {/* ===== Header (always visible, click to expand/collapse) ===== */}
                                                                     <div
                                                                         className="d-flex justify-content-between align-items-center"
                                                                         style={{ cursor: "pointer" }}
@@ -961,18 +1065,6 @@ export default function MyKPIs() {
                                                                             <div className="ms-3">
                                                                                 <div className="d-flex align-items-center">
                                                                                     <h5 className="fw-bold mb-0">{item.KPIName}</h5>
-
-                                                                                    {item.Objectives && (
-                                                                                        <Tooltip
-                                                                                            title={
-                                                                                                <div
-                                                                                                    dangerouslySetInnerHTML={{ __html: item.Objectives }}
-                                                                                                />
-                                                                                            }
-                                                                                        >
-                                                                                            <i className="bi bi-question-circle-fill text-primary ms-2 fs-6"></i>
-                                                                                        </Tooltip>
-                                                                                    )}
                                                                                 </div>
                                                                                 <span className="badge bg-light-primary text-primary mt-1 me-2">
                                                                                     <i className="bi bi-rulers me-1 text-primary"></i>
@@ -997,7 +1089,6 @@ export default function MyKPIs() {
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* ===== Remaining content (only shown when this card is expanded) ===== */}
                                                                     {isExpanded && (
                                                                         <>
                                                                             <hr />
@@ -1047,20 +1138,77 @@ export default function MyKPIs() {
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
-                                                                                <div className="flex-fill" style={{ minWidth: "180px" }}>
-                                                                                    <div className="metric-box">
-                                                                                        <div className="metric-icon bg-light-dark">
-                                                                                            <i className="bi bi-rulers text-dark"></i>
+                                                                            </div>
+                                                                            <div className="row g-3 mt-1">
+
+                                                                                {/* Objectives */}
+                                                                                <div className="col-12 col-md-6">
+
+                                                                                    <div className="border rounded-3 p-3 h-100 bg-light">
+
+                                                                                        <div className="d-flex align-items-center gap-2 mb-2">
+
+                                                                                            <div
+                                                                                                className="d-flex align-items-center justify-content-center rounded-circle bg-primary-subtle"
+                                                                                                style={{
+                                                                                                    width: "32px",
+                                                                                                    height: "32px",
+                                                                                                }}
+                                                                                            >
+                                                                                                <i className="bi bi-bullseye text-primary"></i>
+                                                                                            </div>
+
+                                                                                            <span className="fw-semibold text-dark">
+                                                                                                Objectives
+                                                                                            </span>
+
                                                                                         </div>
-                                                                                        <div className="metric-content">
-                                                                                            <span>Measurables</span>
-                                                                                            <h6>{item.Measurables ?? "-"}</h6>
-                                                                                        </div>
+
+                                                                                        <div
+                                                                                            className="text-muted small"
+                                                                                            dangerouslySetInnerHTML={{
+                                                                                                __html: item.Objectives || "-"
+                                                                                            }}
+                                                                                        />
+
                                                                                     </div>
+
                                                                                 </div>
+
+
+                                                                                {/* Measurables */}
+                                                                                <div className="col-12 col-md-6">
+
+                                                                                    <div className="border rounded-3 p-3 h-100 bg-light">
+
+                                                                                        <div className="d-flex align-items-center gap-2 mb-2">
+
+                                                                                            <div
+                                                                                                className="d-flex align-items-center justify-content-center rounded-circle bg-success-subtle"
+                                                                                                style={{
+                                                                                                    width: "32px",
+                                                                                                    height: "32px",
+                                                                                                }}
+                                                                                            >
+                                                                                                <i className="bi bi-bar-chart-line-fill text-success"></i>
+                                                                                            </div>
+
+                                                                                            <span className="fw-semibold text-dark">
+                                                                                                Measurables
+                                                                                            </span>
+
+                                                                                        </div>
+
+                                                                                        <div className="text-muted small">
+                                                                                            {item.Measurables ?? "-"}
+                                                                                        </div>
+
+                                                                                    </div>
+
+                                                                                </div>
+
                                                                             </div>
                                                                             <div className="row g-4">
-                                                                                {/* Self Review */}
                                                                                 <div className="col-lg-6">
                                                                                     <div className="card border shadow-sm h-100">
                                                                                         <div className="card-body">
@@ -1076,26 +1224,26 @@ export default function MyKPIs() {
                                                                                                 </label>
 
                                                                                                 <Tooltip
-    title={isSelfDisabled ? selfDisabledMessage : ""}
->
-    <span className="d-block">
-        <Input
-            size="large"
-            type="number"
-            style={{ height: 40 }}
-            value={item.Score1 ?? ""}
-            disabled={isSelfDisabled}
-            onChange={(e) =>
-                handleInputChange(
-                    index,
-                    "Score1",
-                    e.target.value
-                )
-            }
-            onWheel={(e) => e.target.blur()}
-        />
-    </span>
-</Tooltip>
+                                                                                                    title={isSelfDisabled ? selfDisabledMessage : ""}
+                                                                                                >
+                                                                                                    <span className="d-block">
+                                                                                                        <Input
+                                                                                                            size="large"
+                                                                                                            type="number"
+                                                                                                            style={{ height: 40 }}
+                                                                                                            value={item.Score1 ?? ""}
+                                                                                                            disabled={isSelfDisabled}
+                                                                                                            onChange={(e) =>
+                                                                                                                handleInputChange(
+                                                                                                                    index,
+                                                                                                                    "Score1",
+                                                                                                                    e.target.value
+                                                                                                                )
+                                                                                                            }
+                                                                                                            onWheel={(e) => e.target.blur()}
+                                                                                                        />
+                                                                                                    </span>
+                                                                                                </Tooltip>
                                                                                             </div>
 
                                                                                             <div>
@@ -1105,29 +1253,28 @@ export default function MyKPIs() {
                                                                                                 </label>
 
                                                                                                 <Tooltip
-    title={isSelfDisabled ? selfDisabledMessage : ""}
->
-    <span className="d-block">
-        <Input.TextArea
-            rows={4}
-            value={item.Remarks1 ?? ""}
-            disabled={isSelfDisabled}
-            onChange={(e) =>
-                handleInputChange(
-                    index,
-                    "Remarks1",
-                    e.target.value
-                )
-            }
-        />
-    </span>
-</Tooltip>
+                                                                                                    title={isSelfDisabled ? selfDisabledMessage : ""}
+                                                                                                >
+                                                                                                    <span className="d-block">
+                                                                                                        <Input.TextArea
+                                                                                                            rows={4}
+                                                                                                            value={item.Remarks1 ?? ""}
+                                                                                                            disabled={isSelfDisabled}
+                                                                                                            onChange={(e) =>
+                                                                                                                handleInputChange(
+                                                                                                                    index,
+                                                                                                                    "Remarks1",
+                                                                                                                    e.target.value
+                                                                                                                )
+                                                                                                            }
+                                                                                                        />
+                                                                                                    </span>
+                                                                                                </Tooltip>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
 
-                                                                                {/* Manager Review */}
                                                                                 <div className="col-lg-6">
                                                                                     <div className="card border shadow-sm h-100">
                                                                                         <div className="card-body">
@@ -1178,7 +1325,6 @@ export default function MyKPIs() {
                                                                                         setSelectedFeedback(item);
                                                                                         setFeedbackModal(true);
                                                                                     }}
-                                                                                // disabled={reviewStatus === 'Pending'}
                                                                                 >
                                                                                     Any Time Feedback
                                                                                 </Button>
@@ -1263,9 +1409,9 @@ export default function MyKPIs() {
                                                                 <button
                                                                     className="btn btn-primary px-4 fw-bold"
                                                                     disabled={
-                                                                        reviewStatus === "REVIEWED" ||
-                                                                        reviewStatus === "SUBMITTED" ||
-                                                                        reviewStatus === "UNDER_REVIEW" ||
+                                                                        reviewStatus === "FEEDBACK_REVIEWED" ||
+                                                                        reviewStatus === "HR_REVIEWED" ||
+                                                                        reviewStatus === "CLOSED" ||
                                                                         loading
                                                                     }
                                                                     onClick={handleSaveReview}
@@ -1317,14 +1463,12 @@ export default function MyKPIs() {
                         </span>
                     </div>
 
-                    {/* KPI */}
                     <div className="feedback-kpi-card mb-4">
                         <div className="fw-bold fs-5">
                             {selectedFeedback?.KPIName}
                         </div>
                     </div>
 
-                    {/* Previous Feedback */}
                     <div className="mb-4">
                         <div className="d-flex align-items-center justify-content-between mb-3">
                             <h6 className="fw-bold mb-0">
@@ -1382,42 +1526,6 @@ export default function MyKPIs() {
                             )}
                         </div>
                     </div>
-                    {/* Add Feedback */}
-
-                    {/* <div>
-                                    <label className="form-label fw-semibold">
-                                        <i className="bi bi-pencil-square text-primary me-2"></i>
-                                        Add New Feedback
-                                    </label>
-                                    <Input.TextArea
-                                        rows={5}
-                                        placeholder="Provide constructive feedback..."
-                                        value={feedback}
-                                        onChange={(e) => setFeedback(e.target.value)}
-                                        maxLength={500} e
-                                        showCount
-                                    />
-                                </div> */}
-
-                    {/* <div className="d-flex justify-content-end gap-2 mt-7">
-                                    <Button onClick={() => {setFeedbackModal(false); setFeedback("");}}>
-                                        Cancel
-                                    </Button>
-            
-                                    <Button
-                                        type="primary"
-                                        loading={feedbackLoading}
-                                        disabled={!feedback?.trim() || feedbackLoading}
-                                        icon={
-                                            !feedbackLoading
-                                                ? <i className="bi bi-send-fill text-white"></i>
-                                                : null
-                                        }
-                                        onClick={handleSaveFeedback}
-                                    >
-                                        {feedbackLoading ? "Saving..." : "Save Feedback"}
-                                    </Button>
-                                </div> */}
                 </div>
             </Modal>
 

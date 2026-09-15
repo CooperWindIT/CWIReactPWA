@@ -1261,12 +1261,23 @@ export default function Dashboard() {
                                                                         aria-controls="offcanvasRightView"
                                                                         onClick={() => canView && handleView(item)}
                                                                     >{item.AutoIncNo}</a></td>
-                                                                    <td>
-                                                                        <a className="text-gray-800 text-hover-primary mb-1">{item.ManagerName}</a>
-                                                                    </td>
-                                                                    <td>
-                                                                        <a className="text-gray-800 text-hover-primary mb-1">{item.EmployeeName}</a>
-                                                                    </td>
+                                                                   <td>
+    <a className="text-gray-800 text-hover-primary mb-1 d-block">
+        {item.ManagerName}
+    </a>
+    <span className="text-muted fs-7">
+        Emp No: {item.ManagerEmpNo || "-"}
+    </span>
+</td>
+
+<td>
+    <a className="text-gray-800 text-hover-primary mb-1 d-block">
+        {item.EmployeeName}
+    </a>
+    <span className="text-muted fs-7">
+        Emp No: {item.EmployeeEmpNo || "-"}
+    </span>
+</td>
                                                                     <td>
                                                                         {item.VisitorTypeName}
                                                                     </td>

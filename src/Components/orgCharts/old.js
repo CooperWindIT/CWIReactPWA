@@ -647,40 +647,6 @@ const OrganizationChart = () => {
                             STATIC_ROLE_COLORS.default;
     };
 
-    // Small always-visible key translating each role's color into a label —
-    // requested after a reference Excel legend image ("LEGEND" title bar +
-    // one color-swatch row per role). Deliberately built from the *same*
-    // color pipeline every card already uses (getBaseColor + roleColors +
-    // STATIC_ROLE_COLORS) rather than a second hardcoded palette, so if a
-    // service-provided BgColor ever changes a role's on-screen color, this
-    // legend updates with it automatically instead of drifting out of sync.
-    // Each swatch is styled exactly like a card's own face — light fill,
-    // darker role-shade border — the same border color also used for that
-    // role's corner .role-dot, so this one legend explains both at once.
-    const LEGEND_ROLES = [
-        { role: "ceo", superiorId: 0, label: "CEO / Managing Director" },
-        { role: "manager", superiorId: 1, label: "Manager" },
-        { role: "hr", superiorId: 1, label: "HR" },
-        { role: "employee", superiorId: 1, label: "Employee" },
-        { role: "security", superiorId: 1, label: "Security" },
-    ];
-
-    const RoleLegend = () => (
-        <div className="role-legend">
-            <div className="role-legend-title">LEGEND</div>
-            {LEGEND_ROLES.map((entry) => {
-                const fill = getBaseColor(entry);
-                const border = shadeColor(fill, -0.35);
-                return (
-                    <div className="role-legend-row" key={entry.role}>
-                        <span className="role-legend-swatch" style={{ background: fill, borderColor: border }} />
-                        <span className="role-legend-label">{entry.label}</span>
-                    </div>
-                );
-            })}
-        </div>
-    );
-
     const NodeCard = ({ node }) => {
         const role = node?.role?.toLowerCase?.() ?? "";
         const isCEO = Number(node?.superiorId) === 0;
@@ -1512,7 +1478,7 @@ const OrganizationChart = () => {
         );
     }
 
-    const showManageUsers = [2, 10].includes(sessionUserData?.Id);
+    const showManageUsers = sessionActionIds?.includes(36);
 
     return (
         <div style={styles.wrapper} >
@@ -1573,8 +1539,6 @@ const OrganizationChart = () => {
                     <button className="zoom-btn" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>-</button>
                     <button className="zoom-btn" onClick={toggleExpandCollapse}>⛶</button>
                 </div>
-
-                <RoleLegend />
 
                 <div
                     ref={dragRef}
@@ -2089,57 +2053,6 @@ const OrganizationChart = () => {
                         gap: 12px;
 
                         z-index: 1000;
-                    }
-
-                    /* Color key for the roles/cards — see RoleLegend. Mirrors
-                       .controls (fixed, same z-index) but sits bottom-right
-                       so the two never collide. */
-                    .role-legend {
-                        position: fixed;
-                        bottom: 30px;
-                        right: 30px;
-                        z-index: 1000;
-
-                        width: 210px;
-                        border-radius: 10px;
-                        overflow: hidden;
-                        background: #ffffff;
-                        border: 1px solid #cbd5e1;
-                        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.15);
-                    }
-
-                    .role-legend-title {
-                        background: #1e293b;
-                        color: #ffffff;
-                        font-size: 12px;
-                        font-weight: 700;
-                        letter-spacing: 0.6px;
-                        text-align: center;
-                        padding: 7px 10px;
-                    }
-
-                    .role-legend-row {
-                        display: flex;
-                        align-items: center;
-                        gap: 10px;
-                        padding: 6px 10px;
-                        border-top: 1px solid #e2e8f0;
-                    }
-
-                    .role-legend-swatch {
-                        width: 20px;
-                        height: 14px;
-                        flex-shrink: 0;
-                        border-radius: 3px;
-                        border: 2px solid transparent;
-                    }
-
-                    .role-legend-label {
-                        font-size: 12px;
-                        color: #1e293b;
-                        white-space: nowrap;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
                     }
 
                     .zoom-btn {

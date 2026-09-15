@@ -44,6 +44,7 @@ export default function ReportData() {
     const [selectedMCStatus, setSelectedMCStatus] = useState('ALL');
     const [selectedTICStatus, setSelectedTICStatus] = useState('ALL');
     const [selectedVersnStatus, setSelectedVersnStatus] = useState('ALL');
+    const [selectedkpiPriorityStatus, setSelectedkpiPriorityStatus] = useState('0');
     const [reportHead, setReportHead] = useState("");
     const [unitsData, setUnitsData] = useState([]);
     const [selectedUnitId, setSelectedUnitId] = useState('0');
@@ -620,7 +621,7 @@ export default function ReportData() {
 
     useEffect(() => {
         setPageCache({}); // clear cache
-    }, [selectedFromDt, selectedEndDt, selectedShiftId, selectedDepId, selectedContId, selectedContCLId, selectedMCStatus, selectedTICStatus, selectedMCNId, selectedMonth, selectedYear, selectedUnitId, selectedTypeId, selectedVersnStatus, selectedCreatedUserId, selectedCycleId]);
+    }, [selectedFromDt, selectedEndDt, selectedShiftId, selectedDepId, selectedContId, selectedContCLId, selectedMCStatus, selectedTICStatus, selectedMCNId, selectedMonth, selectedYear, selectedUnitId, selectedTypeId, selectedVersnStatus, selectedkpiPriorityStatus, selectedCreatedUserId, selectedCycleId]);
 
     const fetchReport = async (page = 1) => {
         if (pageCache[page]) {
@@ -666,6 +667,7 @@ export default function ReportData() {
                 ContentTypeId: 0,
                 CreatedBy: selectedCreatedUserId || 0,
                 VersionStatus: selectedVersnStatus || "ALL",
+                IsPriority: selectedkpiPriorityStatus || 0,
                 CycleId: selectedCycleId || 0,
             },
             PageNumber: page,
@@ -853,6 +855,12 @@ export default function ReportData() {
         { value: "PUBLISHED", label: "PUBLISHED" },
     ];
 
+    const kpiPriorityStatusOptions = [
+        { value: "0", label: "ALL" },
+        { value: "1", label: "Prioriy" },
+        { value: "0", label: "Normal" },
+    ];
+
     const scrollTableRef = useRef(null);
 
     const scroll = (direction, e) => {
@@ -947,7 +955,6 @@ export default function ReportData() {
                                     })}
                                 </div>
                                 <div className="d-flex align-items-center justify-content-between">
-
                                     <div className={`page-title d-flex flex-column justify-content-center flex-wrap me-3 ${(shouldHideSidebar || reportId === '3') ? 'd-none' : 'd-block'}`}>
                                         <h1 className="page-heading d-flex text-gray-900 fw-bold fs-3 flex-column justify-content-center my-0">
                                             {reportHead && reportHead?.ReportTitle}
@@ -991,7 +998,6 @@ export default function ReportData() {
                                             </span>
                                         </Tooltip>
                                     </div>
-
                                 </div>
                             </div>
                         )}
@@ -1356,6 +1362,13 @@ export default function ReportData() {
                                         <div className="col-6 col-md-2">
                                             <label className="form-label fw-bold fs-8 text-uppercase">Version Status <span className="text-danger">*</span></label>
                                             <Select showSearch placeholder="Ver Status" value={selectedVersnStatus} onChange={(value) => setSelectedVersnStatus(value)} options={versionStatusOptions} style={{ width: "100%", height: "3rem" }} />
+                                        </div>
+                                    )}
+
+                                    {reportFilters.includes("IsPriority") && (
+                                        <div className="col-6 col-md-2">
+                                            <label className="form-label fw-bold fs-8 text-uppercase">Priority <span className="text-danger">*</span></label>
+                                            <Select showSearch placeholder="Ver Status" value={selectedkpiPriorityStatus} onChange={(value) => setSelectedkpiPriorityStatus(value)} options={kpiPriorityStatusOptions} style={{ width: "100%", height: "3rem" }} />
                                         </div>
                                     )}
                                     {reportFilters.includes("CreatedBy") && (

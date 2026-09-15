@@ -8,6 +8,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
 import Swal from "sweetalert2";
 import { BASE_IMAGE_API_GET } from "../Config/Config";
+import ResolveTicket from "./ReolveTicket";
 // import CloseTicket from "./CloseTicket";
 
 
@@ -27,7 +28,7 @@ export default function AssetlessMyTickets() {
     const [editingComment, setEditingComment] = useState(null);
     const [usersData, setUsersData] = useState([]);
     const [cmtSubmitLoading, setCmtSubmitLoading] = useState(false);
-    // const [closeData, setCloseData] = useState([]);
+    const [resolveData, setResolveData] = useState([]);
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem("userData");
@@ -302,84 +303,10 @@ export default function AssetlessMyTickets() {
         }
     };
 
-    const handleApproveTicket = async (ticket) => {
 
-        const result = await Swal.fire({
-            title: "Approve Ticket?",
-            text: `Do you want to approve ${ticket.TicketCode}?`,
-            icon: "question",
-            showCancelButton: true,
-            confirmButtonText: "Yes, Approve",
-            cancelButtonText: "No",
-            confirmButtonColor: "#198754",
-        });
-
-        if (!result.isConfirmed) return;
-
-        try {
-
-            const payload = {
-                OrgId: sessionUserData.OrgId,
-                Priority: ticket.Priority,
-                TicketStatus: "APPROVED",
-                UserId: sessionUserData.Id,
-                JsonData: {
-                    TicketId: ticket.Id,
-                },
-            };
-
-            const response = await fetchWithAuth("ServiceNow/GeneralTickets", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify(payload),
-            });
-
-            if (!response.ok) {
-                throw new Error("Unable to approve ticket.");
-            }
-
-            const data = await response.json();
-
-            const resultData = data?.data?.result?.[0];
-
-            if (resultData?.ResponseCode === 2003) {
-
-                await Swal.fire({
-                    icon: "success",
-                    title: "Approved",
-                    text: resultData.ResponseMessage || "Ticket approved successfully.",
-                    timer: 1500,
-                    showConfirmButton: false,
-                });
-
-                fetchTicketsData(); // Reload your ticket list
-
-            } else {
-                Swal.fire({
-                    icon: "error",
-                    title: "Error",
-                    text: resultData?.ResponseMessage || "Approval failed.",
-                });
-            }
-
-        } catch (error) {
-
-            console.error(error);
-
-            Swal.fire({
-                icon: "error",
-                title: "Error",
-                text: error.message || "Something went wrong.",
-            });
-        }
+    const handleResolveTicket = (item) => {
+        setResolveData(item);
     };
-
-
-    // const handleCloseTicket = (item) => {
-    //     setCloseData(item);
-    // };
 
     const handleDownload = async (imageUrl, fileName) => {
         if (!imageUrl) return;
@@ -493,7 +420,7 @@ export default function AssetlessMyTickets() {
                                         <th className="">S.No</th>
                                         <th className="min-w-125px">Ticket Code</th>
                                         <th className="min-w-125px">Created On</th>
-                                        <th className="min-w-205px">Ticket Type</th>
+                                        <th className="min-w-205px">Sub-category</th>
                                         <th className="min-w-100px text-center">Priority</th>
                                         <th className="min-w-100px text-center">Status</th>
                                         <th className="min-w-100px">Aging</th>
@@ -510,9 +437,7 @@ export default function AssetlessMyTickets() {
                                         </tr>
                                     ) : filteredTickets && filteredTickets?.length > 0 ? (
                                         filteredTickets?.map((item, index) => {
-                                            const showApproveBtn =
-                                                sessionUserData?.RoleId === 5 &&
-                                                item.Status?.toUpperCase() === "NEW";
+                                            const showApproveBtn = item.Status?.toUpperCase() === "REQ-SUBMITTED";
 
                                             return (
                                                 <tr
@@ -526,7 +451,6 @@ export default function AssetlessMyTickets() {
                                                         {index + 1}
                                                     </td>
                                                     <td>
-
                                                         {item.TicketCode}
                                                     </td>
                                                     <td>{formatDate(item.CreatedOn) || 'N/A'}</td>
@@ -593,7 +517,6 @@ export default function AssetlessMyTickets() {
                                                             >
                                                                 <i className="fa-solid fa-user"></i>
                                                             </span>
-
                                                             <span>{item.ActionRequiredFrom || '---'}</span>
                                                         </div>
                                                     </td>
@@ -621,31 +544,19 @@ export default function AssetlessMyTickets() {
                                                                         View
                                                                     </p>
                                                                     <p
-                                                                        onClick={() => showApproveBtn && handleApproveTicket(item)}
+                                                                        data-bs-toggle="offcanvas"
+                                                                                data-bs-target="#offcanvasRightResolveTic"
                                                                         style={{
                                                                             cursor: showApproveBtn ? "pointer" : "not-allowed",
                                                                             opacity: showApproveBtn ? 1 : 0.5,
                                                                             pointerEvents: showApproveBtn ? "auto" : "none",
                                                                         }}
+                                                                        onClick={() => handleResolveTicket(item)}
                                                                         className="text-hover-success"
                                                                     >
                                                                         <i className="fa-solid fa-circle-check text-success me-2"></i>
-                                                                        Approve
+                                                                        Resolve
                                                                     </p>
-                                                                    {/* <p
-                                                                        style={{
-                                                                            cursor: showCloseBtn ? "pointer" : "not-allowed",
-                                                                            opacity: showCloseBtn ? 1 : 0.5,
-                                                                            pointerEvents: showCloseBtn ? "auto" : "none",
-                                                                        }}
-                                                                        className="text-hover-danger"
-                                                                        data-bs-toggle="offcanvas"
-                                                                        data-bs-target="#offcanvasRightCloseTic"
-                                                                        onClick={() => handleCloseTicket(item)}
-                                                                    >
-                                                                        <i className="fa-solid fa-circle-check text-danger me-2"></i>
-                                                                        Close
-                                                                    </p> */}
                                                                 </div>
                                                             }
                                                             trigger="hover"
@@ -727,11 +638,11 @@ export default function AssetlessMyTickets() {
                             {/* Compact field grid */}
                             <div className="row g-2 mb-1">
                                 <div className="col-4">
-                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Service Type</div>
+                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Category</div>
                                     <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.ServiceType || "-"}</div>
                                 </div>
                                 <div className="col-4">
-                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Ticket Type</div>
+                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Sub-category</div>
                                     <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.TicketType || "-"}</div>
                                 </div>
                                 <div className="col-4">
@@ -944,7 +855,7 @@ export default function AssetlessMyTickets() {
                 </style>
             </div>
 
-            {/* <CloseTicket ticObj={closeData} /> */}
+            <ResolveTicket ticObj={resolveData} />
         </Base1>
     )
 }

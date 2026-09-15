@@ -729,6 +729,7 @@ export default function EditReviewCycle({ editReviewCycleData }) {
                         placeholder="Enter comments..."
                         value={editData.Comments}
                         onChange={(e) => handleChange("Comments", e.target.value)}
+                        disabled
                     />
                 </div>
             </div>

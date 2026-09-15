@@ -1038,6 +1038,7 @@ export default function UplaodDocument({
                                     onChange={handleUploadDocInputChange}
                                     autoComplete="off"
                                     maxLength={100}
+                                    disabled={flowChartName?.length > 1}
                                     required
                                 />
                             </div>

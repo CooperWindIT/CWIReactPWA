@@ -23,7 +23,7 @@ const Base1 = ({ children }) => {
     const navigate = useNavigate();
     const currentPath = window.location.pathname;
     const location = useLocation();
-    const shouldHideSidebar = ["/vms/",  "/edm/", "/faq", "/kpi/", "/service-requests"].some(path => location.pathname.includes(path));
+    const shouldHideSidebar = ["/vms/", "/edm/", "/faq", "/kpi/", "/service-requests", "/users"].some(path => location.pathname.includes(path));
     const searchParams = new URLSearchParams(location.search);
     const reportId = searchParams.get("reportId");
 
@@ -55,12 +55,13 @@ const Base1 = ({ children }) => {
         <div className="text-dark">
             <div className="menu-item px-3">
                 <div className="menu-content d-flex align-items-center px-3">
-                    <div className="symbol symbol-50px me-5">
-                        {/* <img alt="Logo" src="assets/media/avatars/300-3.jpg" /> */}
+
+                    {/* Profile Image */}
+                    <div className="symbol symbol-50px me-4">
                         <div
                             style={{
-                                width: "40px",
-                                height: "40px",
+                                width: "44px",
+                                height: "44px",
                                 borderRadius: "50%",
                                 backgroundColor: "#eaf3ff",
                                 color: "#333",
@@ -86,15 +87,47 @@ const Base1 = ({ children }) => {
                                     }}
                                 />
                             ) : (
-                                <i className="fa-regular fa-user text-primary"></i>
+                                <i className="fa-regular fa-user text-primary fs-3"></i>
                             )}
                         </div>
                     </div>
-                    <div className="d-flex flex-column">
-                        <div className="fw-bold d-flex align-items-center fs-5">{sessionUserData.Name}
-                            <span className="badge badge-light-success fw-bold fs-8 px-2 py-1 ms-2">{setSessionUserData.RoleName}</span></div>
-                        <a href="#" className="fw-semibold text-muted text-hover-primary fs-7">{sessionUserData.Email}</a>
+
+                    {/* User Details */}
+                    <div className="d-flex flex-column flex-grow-1">
+
+                        {/* Name + Role */}
+                        <div className="d-flex align-items-center flex-wrap gap-2 mb-1">
+                            <span className="fw-bold fs-5">
+                                {sessionUserData?.Name || "-"}
+                            </span>
+
+                            <span className="badge badge-light-success fw-bold fs-8 px-2 py-1">
+                                {sessionUserData?.RoleName || "-"}
+                            </span>
+                        </div>
+
+                        {/* Employee Number */}
+                        <div className="d-flex align-items-center text-muted fs-7 mb-1">
+                            <i className="bi bi-person-badge me-2 text-primary"></i>
+
+                            <span className="me-1">Emp No:</span>
+
+                            <span className="fw-semibold text-dark">
+                                {sessionUserData?.EmpNo || "-"}
+                            </span>
+                        </div>
+
+                        {/* Email */}
+                        <div className="d-flex align-items-center text-muted fs-7">
+                            <i className="bi bi-envelope me-2 text-primary"></i>
+
+                            <span className="text-truncate">
+                                {sessionUserData?.Email || "-"}
+                            </span>
+                        </div>
+
                     </div>
+
                 </div>
             </div>
             <div className="separator my-2"></div>
@@ -113,15 +146,17 @@ const Base1 = ({ children }) => {
                     My KPI's
                 </Link>
             </div>
-            <div className="menu-item px-5">
-                <Link
-                    to="/organization-chart"
-                    className="menu-link px-5 text-dark text-hover-warning"
-                >
-                    <i className="bi bi-diagram-3-fill text-primary me-2"></i>
-                    Organization Chart
-                </Link>
-            </div>
+            {(sessionUserData?.Id === 1 || sessionUserData?.Id === 10) && (
+                <div className="menu-item px-5">
+                    <Link
+                        to="/organization-chart"
+                        className="menu-link px-5 text-dark text-hover-warning"
+                    >
+                        <i className="bi bi-diagram-3-fill text-primary me-2"></i>
+                        Organization Chart
+                    </Link>
+                </div>
+            )}
 
             <div className="menu-item px-5">
                 <a className="menu-link px-5 text-dark text-hover-warning" onClick={handleLogout}>
@@ -368,10 +403,10 @@ const Base1 = ({ children }) => {
                     <div className="app-container container-fluid d-flex align-items-stretch justify-content-between" id="kt_app_header_container">
                         <div className="d-flex align-items-center d-lg-none ms-n3 me-1 me-md-2" title="Show sidebar menu">
                             <div className="btn btn-icon btn-active-color-primary w-35px h-35px" id="kt_app_sidebar_mobile_toggle"
-                                // style={{
-                                //     pointerEvents: (shouldHideSidebar || reportId === '3') ? 'none' : 'auto',
-                                //     opacity: (shouldHideSidebar || reportId === '3') ? 0.3 : 1
-                                // }}
+                            // style={{
+                            //     pointerEvents: (shouldHideSidebar || reportId === '3') ? 'none' : 'auto',
+                            //     opacity: (shouldHideSidebar || reportId === '3') ? 0.3 : 1
+                            // }}
                             >
                                 <i className="ki-duotone ki-abstract-14 fs-2 fs-md-1 text-white"
                                     data-bs-toggle="offcanvas"
@@ -560,7 +595,7 @@ const Base1 = ({ children }) => {
                 </div>
             </div>
 
-            {/* Sidebar for mobiel offcanvas */}
+            {/* Sidebar for mobile offcanvas */}
             <div
                 className="offcanvas offcanvas-end custom-offcanvas"
                 tabIndex="-1"
@@ -614,6 +649,20 @@ const Base1 = ({ children }) => {
                                         {item.SubItems.map((subItem, subIndex) => (
                                             <li key={subIndex}>
                                                 <Link
+                                                    to={`/${subItem.MenuPath.replace(/^\/+/, "")}`}
+                                                    className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath.replace(/^\/+/, "")}` === currentSubPath
+                                                        ? "fw-bold text-primary"
+                                                        : "text-dark"
+                                                        }`}
+                                                    onClick={() => {
+                                                        // Close mobile menu if required
+                                                        setActiveDropdown(null);
+                                                    }}
+                                                >
+                                                    <i className="fa-solid fa-arrow-right me-2"></i>
+                                                    {subItem.MenuName}
+                                                </Link>
+                                                {/* <Link
                                                     to={`/${subItem.MenuPath}`}
                                                     className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath}` === currentSubPath
                                                         ? "fw-bold text-primary"
@@ -624,8 +673,8 @@ const Base1 = ({ children }) => {
                                                     }
                                                 >
                                                     <i className="fa-solid fa-arrow-right me-2"></i>
-                                                    {subItem.MenuName}
-                                                </Link>
+                                                    {subItem.MenuName} {subItem.MenuPath}
+                                                </Link> */}
                                             </li>
                                         ))}
                                     </ul>
@@ -767,9 +816,14 @@ const Base1 = ({ children }) => {
                             </div>
 
                             <ul className="list-group list-group-flush">
-                                <li className="list-group-item d-flex justify-content-between">
+                                {/* <li className="list-group-item d-flex justify-content-between">
                                     <span><i className="fa-solid fa-id-badge icon-animate text-primary me-2"></i> Org ID</span>
                                     <span className="fw-bold">{sessionUserData?.OrgId}</span>
+                                </li> */}
+
+                                <li className="list-group-item d-flex justify-content-between">
+                                    <span><i className="fa-solid fa-id-card icon-animate text-primary me-2"></i> Emp No</span>
+                                    <span className="fw-bold">{sessionUserData?.EmpNo}</span>
                                 </li>
 
                                 <li className="list-group-item d-flex justify-content-between">
@@ -788,7 +842,7 @@ const Base1 = ({ children }) => {
                                 </li>
 
                                 <li className="list-group-item d-flex justify-content-between">
-                                    <span><i className="fa-solid fa-calendar icon-animate text-primary me-2"></i> Created On</span>
+                                    <span><i className="fa-solid fa-calendar icon-animate text-primary me-2"></i> Registered On</span>
                                     <span className="fw-bold">
                                         {new Date(sessionUserData?.CreatedOn).toLocaleString("en-GB", {
                                             day: "2-digit",

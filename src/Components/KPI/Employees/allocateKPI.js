@@ -190,6 +190,7 @@ export default function AllocateKPI() {
                 orgId: sessionUserData?.OrgId,
                 deptId: 0,
                 kpiLevel: 1,
+                userId: sessionUserData?.Id,
             });
 
             setOrgKPIs(response?.data || []);
@@ -722,62 +723,215 @@ export default function AllocateKPI() {
 
                 <div id="kt_app_content" className="app-content flex-column-fluid" style={{ marginTop: "-30px" }}>
                     <div id="kt_app_content_container" className="app-container container-xxl">
+                        {/* =========================================================
+    KPI NAVIGATION
+========================================================= */}
                         <div
-                            className="d-flex align-items-center p-2 bg-white rounded-pill shadow-sm mb-4 w-100"
+                            className="kpi-navigation bg-white rounded-pill shadow-sm mb-3"
                             style={{ border: "1px solid #e9ecef" }}
                         >
-                            {showOrgTab && (
-                                <Link
-                                    to="/kpi/master"
-                                    className="btn rounded-pill px-4 py-2 fw-semibold ms-2 btn-light-primary shadow-sm">
-                                    <i className="fa-solid fa-building me-2"></i>
-                                    Organization KPI
-                                </Link>
-                            )}
+                            <div className="d-flex align-items-center flex-wrap gap-2">
 
-                            {showDeptTab && (
-                                <Link
-                                    to="/kpi/master"
-                                    className="btn rounded-pill px-4 py-2 fw-semibold ms-2 btn-light-primary shadow-sm">
-                                    <i className="fa-solid fa-users-gear me-2"></i>
-                                    Department KPI
-                                </Link>
-                            )}
+                                {showOrgTab && (
+                                    <Link
+                                        to="/kpi/master"
+                                        className="btn rounded-pill fw-semibold btn-light-primary kpi-nav-btn btn-sm"
+                                    >
+                                        <i className="fa-solid fa-building me-2"></i>
+                                        Organization KPI
+                                    </Link>
+                                )}
 
-                            <Link
-                                to="/kpi/allocate-kpi"
-                                className={`btn rounded-pill px-4 py-2 btn-primary fw-semibold ms-2`}
-                            >
-                                <i className="bi bi-bullseye me-2"></i>
-                                Allocate KPI
-                            </Link>
+                                {showDeptTab && (
+                                    <Link
+                                        to="/kpi/master"
+                                        className="btn rounded-pill fw-semibold btn-light-primary kpi-nav-btn btn-sm"
+                                    >
+                                        <i className="fa-solid fa-users-gear me-2"></i>
+                                        Department KPI
+                                    </Link>
+                                )}
+
+                                <Link
+                                    to="/kpi/allocate-kpi"
+                                    className="btn rounded-pill btn-primary fw-semibold kpi-nav-btn btn-sm"
+                                >
+                                    <i className="bi bi-bullseye me-2"></i>
+                                    Allocate KPI
+                                </Link>
+
+                            </div>
                         </div>
-                        <div className="card border-0 shadow-sm rounded-4 mb-5">
-                            <div className="card-header bg-white border-0 pt-4">
-                                <div className="d-flex align-items-center w-100">
-                                    <div className="flex-grow-1">
-                                        <h3 className="fw-bold mb-1 d-flex align-items-center">
-                                            <i className="bi bi-person-workspace text-primary me-2 fs-3"></i>
-                                            Employee KPI Allocation
-                                        </h3>
-                                        <small className="text-muted">
-                                            Select employees and assign KPIs individually
-                                        </small>
+
+
+                        {/* =========================================================
+    EMPLOYEE KPI ALLOCATION
+========================================================= */}
+                        <div className="card border-0 shadow-sm rounded-4 mb-5 employee-allocation-card">
+
+                            {/* =====================================================
+        DESKTOP HEADER
+    ===================================================== */}
+                            <div className="d-none d-md-block">
+
+                                <div className="card-header bg-white border-0 pt-4 px-4">
+
+                                    <div className="d-flex align-items-center w-100">
+
+                                        <div className="flex-grow-1">
+
+                                            <h3 className="fw-bold mb-1 d-flex align-items-center">
+                                                <i className="bi bi-person-workspace text-primary me-2 fs-3"></i>
+                                                Employee KPI Allocation
+                                            </h3>
+
+                                            <small className="text-muted">
+                                                Select employees and assign KPIs individually
+                                            </small>
+
+                                        </div>
+
+                                        <div className="ms-auto d-flex align-items-center gap-3">
+
+                                            <span className="premium-badge period-badge">
+                                                <i className="bi bi-calendar3 me-2 text-success"></i>
+                                                {sessionUserData?.PeriodName}
+                                            </span>
+
+                                            <span className="premium-badge employee-badge">
+                                                <i className="bi bi-people-fill me-2 text-white"></i>
+                                                {employeeCards.length} Employee
+                                                {employeeCards.length !== 1 ? "s" : ""}
+                                            </span>
+
+                                        </div>
+
                                     </div>
-                                    <div className="ms-auto d-flex align-items-center gap-3 flex-shrink-0">
-                                        <span className="premium-badge period-badge">
-                                            <i className="bi bi-calendar3 me-2 text-success"></i>
-                                            {sessionUserData?.PeriodName}
-                                        </span>
-                                        <span className="premium-badge employee-badge">
-                                            <i className="bi bi-people-fill me-2 text-white"></i>
-                                            {employeeCards.length} Employee{employeeCards.length !== 1 ? "s" : ""}
-                                        </span>
+
+                                </div>
+
+                            </div>
+
+
+                            {/* =====================================================
+        MOBILE HEADER
+    ===================================================== */}
+                            <div className="d-block d-md-none">
+
+                                <div className="card-body p-3">
+
+                                    {/* Title */}
+                                    <div className="mobile-allocation-title">
+
+                                        <div className="d-flex align-items-center">
+
+                                            <div className="mobile-title-icon">
+                                                <i className="bi bi-person-workspace"></i>
+                                            </div>
+
+                                            <div className="ms-2">
+
+                                                <h5 className="fw-bold mb-0">
+                                                    Employee KPI Allocation
+                                                </h5>
+
+                                                <small className="text-muted">
+                                                    Select employees and assign KPIs individually
+                                                </small>
+
+                                            </div>
+
+                                        </div>
+
                                     </div>
+
+
+                                    {/* Period + Employee */}
+                                    <div className="row g-2 mt-3">
+                                        <div className="col-6">
+                                            <div className="mobile-info-badge period">
+                                                <i className="bi bi-calendar3"></i>
+                                                <span>
+                                                    {sessionUserData?.PeriodName}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="col-6">
+                                            <div className="mobile-info-badge employees">
+                                                <i className="bi bi-people-fill"></i>
+                                                <span>
+                                                    {employeeCards.length} Employee
+                                                    {employeeCards.length !== 1
+                                                        ? "s"
+                                                        : ""}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Employee Selection */}
+                                    <div className="mt-4">
+                                        <label className="form-label fw-semibold mb-2">
+                                            Employee
+                                        </label>
+                                        <Select
+                                            showSearch
+                                            size="large"
+                                            style={{ width: "100%" }}
+                                            placeholder="Search Employee"
+                                            value={
+                                                selectedEmployee
+                                                    ? {
+                                                        value: selectedEmployee.Id,
+                                                        label: `${selectedEmployee.Name} (${selectedEmployee.Email})`,
+                                                    }
+                                                    : undefined
+                                            }
+                                            labelInValue
+                                            optionFilterProp="label"
+                                            filterOption={(input, option) =>
+                                                option?.label
+                                                    ?.toLowerCase()
+                                                    .includes(input.toLowerCase())
+                                            }
+                                            onChange={(option) => {
+
+                                                const employee =
+                                                    employeesData.find(
+                                                        (e) =>
+                                                            Number(e.Id) ===
+                                                            Number(option.value)
+                                                    );
+
+                                                setSelectedEmployee(employee);
+
+                                            }}
+                                            options={employeesData
+                                                ?.filter(
+                                                    (emp) =>
+                                                        Number(emp.Id) !==
+                                                        Number(sessionUserData?.Id)
+                                                )
+                                                .map((emp) => ({
+                                                    value: emp.Id,
+                                                    label: `${emp.Name} (${emp.Email})`,
+                                                }))}
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary w-100 mt-2 mobile-add-btn"
+                                        onClick={addEmployeeCard}
+                                    >
+                                        <i className="bi bi-plus-circle me-2"></i>
+                                        Add
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="card-body">
+                            <div className="card-body d-none d-md-block px-4">
                                 <div className="row align-items-end g-4">
                                     <div className="col-md-4">
                                         <label className="form-label fw-semibold">
@@ -804,14 +958,22 @@ export default function AllocateKPI() {
                                                     .includes(input.toLowerCase())
                                             }
                                             onChange={(option) => {
-                                                const employee = employeesData.find(
-                                                    (e) => Number(e.Id) === Number(option.value)
-                                                );
+
+                                                const employee =
+                                                    employeesData.find(
+                                                        (e) =>
+                                                            Number(e.Id) ===
+                                                            Number(option.value)
+                                                    );
+
                                                 setSelectedEmployee(employee);
+
                                             }}
                                             options={employeesData
                                                 ?.filter(
-                                                    (emp) => Number(emp.Id) !== Number(sessionUserData?.Id)
+                                                    (emp) =>
+                                                        Number(emp.Id) !==
+                                                        Number(sessionUserData?.Id)
                                                 )
                                                 .map((emp) => ({
                                                     value: emp.Id,
@@ -819,7 +981,6 @@ export default function AllocateKPI() {
                                                 }))}
                                         />
                                     </div>
-
                                     <div className="col-md-2">
                                         <button
                                             className="btn btn-primary w-100"
@@ -845,8 +1006,12 @@ export default function AllocateKPI() {
                                 >
                                     <div className="card employee-kpi-card">
                                         <div className="card-header employee-card-header border-0 mt-3">
-                                            <div className="d-flex align-items-center w-100">
+
+                                            {/* ================= DESKTOP ================= */}
+                                            <div className="d-none d-md-flex align-items-center w-100">
+
                                                 <div className="d-flex align-items-center flex-grow-1">
+
                                                     <div className="employee-avatar">
                                                         {employee.imageUrl ? (
                                                             <img
@@ -862,47 +1027,55 @@ export default function AllocateKPI() {
                                                         <div
                                                             className="employee-avatar-fallback"
                                                             style={{
-                                                                display: employee.imageUrl ? "none" : "flex"
+                                                                display: employee.imageUrl
+                                                                    ? "none"
+                                                                    : "flex"
                                                             }}
                                                         >
-                                                            {employee.employeeName?.charAt(0).toUpperCase()}
+                                                            {employee.employeeName
+                                                                ?.charAt(0)
+                                                                .toUpperCase()}
                                                         </div>
                                                     </div>
 
                                                     <div className="ms-3">
-                                                        <div className="d-flex align-items-center gap-3 ms-auto flex-shrink-0">
+
+                                                        <div className="d-flex align-items-center gap-3">
+
                                                             <h5 className="mb-0 fw-bold">
                                                                 {employee.employeeName}
                                                             </h5>
-                                                            <span className="badge bg-light-primary text-primary ms-2">
+
+                                                            <span className="badge bg-light-primary text-primary">
                                                                 {employee.roleName}
                                                             </span>
+
                                                         </div>
 
                                                         <div className="mt-1">
+
                                                             <small className="text-muted d-flex align-items-center">
+
                                                                 <i className="bi bi-envelope me-2 text-primary"></i>
+
                                                                 {employee.email || "No Email"}
+
                                                             </small>
+
                                                         </div>
+
                                                     </div>
+
                                                 </div>
 
+
+                                                {/* Desktop Actions */}
                                                 <div className="d-flex align-items-center gap-3">
-                                                    {/* <div className="kpi-summary-card">
-                                                        <small>Target</small>
-                                                        <h6
-                                                            className={
-                                                                employee.totalPercentage === 100
-                                                                    ? "text-success"
-                                                                    : "text-warning"
-                                                            }
-                                                        >
-                                                            {employee.totalPercentage}%
-                                                        </h6>
-                                                    </div> */}
+
                                                     <div className="kpi-summary-card">
+
                                                         <small>Weight</small>
+
                                                         <h6
                                                             className={
                                                                 employee.totalWeightage === 100
@@ -912,7 +1085,10 @@ export default function AllocateKPI() {
                                                         >
                                                             {employee.totalWeightage}%
                                                         </h6>
+
                                                     </div>
+
+
                                                     <Popconfirm
                                                         title="Remove Employee?"
                                                         description="All KPI allocations for this employee will be removed."
@@ -920,20 +1096,164 @@ export default function AllocateKPI() {
                                                         cancelText="Cancel"
                                                         okButtonProps={{ danger: true }}
                                                         onConfirm={() =>
-                                                            removeEmployeeCard(employee.employeeId)
+                                                            removeEmployeeCard(
+                                                                employee.employeeId
+                                                            )
                                                         }
                                                     >
                                                         <Tooltip title="Remove Employee">
+
                                                             <button
                                                                 type="button"
                                                                 className="remove-employee-btn"
                                                             >
                                                                 <i className="bi bi-trash3-fill"></i>
                                                             </button>
+
                                                         </Tooltip>
                                                     </Popconfirm>
+
                                                 </div>
+
                                             </div>
+
+
+                                            {/* ================= MOBILE ================= */}
+                                            <div className="d-block d-md-none">
+
+                                                {/* Top Row */}
+                                                <div className="d-flex align-items-center">
+
+                                                    {/* Avatar */}
+                                                    <div className="employee-avatar flex-shrink-0">
+
+                                                        {employee.imageUrl ? (
+                                                            <img
+                                                                src={`${BASE_IMAGE_API_GET}${employee.imageUrl}`}
+                                                                alt={employee.employeeName}
+                                                                onError={(e) => {
+                                                                    e.target.style.display = "none";
+                                                                    e.target.nextSibling.style.display = "flex";
+                                                                }}
+                                                            />
+                                                        ) : null}
+
+                                                        <div
+                                                            className="employee-avatar-fallback"
+                                                            style={{
+                                                                display: employee.imageUrl
+                                                                    ? "none"
+                                                                    : "flex"
+                                                            }}
+                                                        >
+                                                            {employee.employeeName
+                                                                ?.charAt(0)
+                                                                .toUpperCase()}
+                                                        </div>
+
+                                                    </div>
+
+
+                                                    {/* Employee Info */}
+                                                    <div className="ms-3 flex-grow-1 min-w-0">
+
+                                                        <div className="d-flex align-items-center flex-wrap gap-1">
+
+                                                            <h6 className="mb-0 fw-bold text-gray-800 employee-mobile-name">
+                                                                {employee.employeeName}
+                                                            </h6>
+
+                                                            <span className="badge bg-light-primary text-primary employee-mobile-role">
+                                                                {employee.roleName}
+                                                            </span>
+
+                                                        </div>
+
+                                                        <div className="mt-1">
+
+                                                            <small className="text-muted d-flex align-items-center employee-mobile-email">
+
+                                                                <i className="bi bi-envelope me-1 text-primary flex-shrink-0"></i>
+
+                                                                <span className="text-truncate">
+                                                                    {employee.email || "No Email"}
+                                                                </span>
+
+                                                            </small>
+
+                                                        </div>
+
+                                                    </div>
+
+
+                                                    {/* Delete */}
+                                                    <div className="flex-shrink-0 ms-2">
+
+                                                        <Popconfirm
+                                                            title="Remove Employee?"
+                                                            description="All KPI allocations for this employee will be removed."
+                                                            okText="Remove"
+                                                            cancelText="Cancel"
+                                                            okButtonProps={{ danger: true }}
+                                                            onConfirm={() =>
+                                                                removeEmployeeCard(
+                                                                    employee.employeeId
+                                                                )
+                                                            }
+                                                        >
+                                                            <Tooltip title="Remove Employee">
+
+                                                                <button
+                                                                    type="button"
+                                                                    className="remove-employee-btn"
+                                                                >
+                                                                    <i className="bi bi-trash3-fill"></i>
+                                                                </button>
+
+                                                            </Tooltip>
+                                                        </Popconfirm>
+
+                                                    </div>
+
+                                                </div>
+
+
+                                                {/* Weight */}
+                                                <div className="mobile-weight-wrapper">
+
+                                                    <div className="mobile-weight-card">
+
+                                                        <div className="d-flex align-items-center">
+
+                                                            <div className="mobile-weight-icon">
+                                                                <i className="bi bi-bar-chart-fill"></i>
+                                                            </div>
+
+                                                            <div>
+
+                                                                <small className="text-muted d-block">
+                                                                    Total Weight
+                                                                </small>
+
+                                                                <h6
+                                                                    className={`mb-0 fw-bold ${employee.totalWeightage === 100
+                                                                            ? "text-success"
+                                                                            : "text-warning"
+                                                                        }`}
+                                                                >
+                                                                    {employee.totalWeightage}%
+                                                                </h6>
+
+                                                            </div>
+
+                                                        </div>
+
+                                                    </div>
+
+                                                </div>
+
+                                            </div>
+
                                         </div>
 
                                         <div className="card-body">
@@ -993,9 +1313,15 @@ export default function AllocateKPI() {
                                                     }))}
                                                 />
                                             </div>
-                                            <div className="table-responsive">
+                                            <div className="table-responsive"
+                                                style={{
+                                                    maxHeight: "300px",
+                                                    overflowY: "auto",
+                                                    overflowX: "auto",
+                                                }}
+                                            >
                                                 <table className="table table-hover align-middle">
-                                                    <thead className="table-light fw-bold">
+                                                    <thead className="table-light fw-bold sticky-top">
                                                         <tr>
                                                             <th width="55" className='text-center'>#</th>
                                                             <th>KPI</th>
@@ -1211,6 +1537,213 @@ export default function AllocateKPI() {
 
             <style>
                 {`
+                /* ==========================================
+   MOBILE EMPLOYEE HEADER
+========================================== */
+
+.mobile-weight-wrapper {
+    margin-top: 12px;
+}
+
+.mobile-weight-card {
+    width: 100%;
+    min-height: 48px;
+
+    padding: 7px 12px;
+
+    background: #f8faff;
+    border: 1px solid #e8edf5;
+    border-radius: 10px;
+
+    display: flex;
+    align-items: center;
+}
+
+.mobile-weight-icon {
+    width: 32px;
+    height: 32px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 8px;
+
+    background: #eef4ff;
+    color: #287ff0;
+
+    margin-right: 10px;
+}
+
+.employee-mobile-name {
+    font-size: 14px;
+    line-height: 1.2;
+}
+
+.employee-mobile-role {
+    font-size: 9px;
+    padding: 3px 7px;
+}
+
+.employee-mobile-email {
+    font-size: 10px;
+    max-width: 180px;
+}
+
+
+/* ==========================================
+   MOBILE
+========================================== */
+
+@media (max-width: 767.98px) {
+
+    .employee-card-header {
+        padding: 12px !important;
+        margin-top: 10px !important;
+    }
+
+    .employee-card-header .employee-avatar {
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+    }
+
+    .employee-card-header .remove-employee-btn {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+    }
+
+}
+                /* ==========================================
+   KPI NAVIGATION
+========================================== */
+
+.kpi-navigation {
+    padding: 8px;
+}
+
+.kpi-nav-btn {
+    padding: 9px 16px;
+    white-space: nowrap;
+}
+
+
+/* ==========================================
+   MOBILE EMPLOYEE KPI ALLOCATION
+========================================== */
+
+.mobile-title-icon {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #eef5ff;
+    color: #1d7df2;
+
+    border-radius: 8px;
+
+    font-size: 17px;
+}
+
+.mobile-allocation-title h5 {
+    font-size: 16px;
+    line-height: 1.2;
+}
+
+.mobile-allocation-title small {
+    display: block;
+    font-size: 10px;
+    margin-top: 3px;
+}
+
+
+/* ==========================================
+   PERIOD / EMPLOYEE BADGES
+========================================== */
+
+.mobile-info-badge {
+    height: 42px;
+
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 7px;
+
+    border-radius: 12px;
+
+    font-size: 13px;
+    font-weight: 600;
+
+    white-space: nowrap;
+}
+
+.mobile-info-badge.period {
+    background: #effdf5;
+    border: 1px solid #b8f0d0;
+    color: #16a34a;
+}
+
+.mobile-info-badge.employees {
+    background: #3949e8;
+    color: #fff;
+
+    box-shadow: 0 5px 14px rgba(57, 73, 232, 0.20);
+}
+
+
+/* ==========================================
+   MOBILE ADD BUTTON
+========================================== */
+
+.mobile-add-btn {
+    height: 40px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+
+
+/* ==========================================
+   MOBILE
+========================================== */
+
+@media (max-width: 767.98px) {
+
+    .kpi-navigation {
+        border-radius: 25px !important;
+        padding: 10px 12px;
+    }
+
+    .kpi-navigation > div {
+        justify-content: center;
+    }
+
+    .kpi-nav-btn {
+        font-size: 11px;
+        padding: 8px 11px;
+        margin: 0 !important;
+    }
+
+    .kpi-nav-btn i {
+        margin-right: 5px !important;
+    }
+
+    .employee-allocation-card {
+        border-radius: 14px !important;
+    }
+
+    .employee-allocation-card .card-body {
+        padding: 14px !important;
+    }
+
+}
                     .premium-badge{
                         display:flex;
                         align-items:center;
