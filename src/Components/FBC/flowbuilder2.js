@@ -81,6 +81,9 @@ function createNode(shape, x, y) {
     rounded: { w: 160, h: 72 },
     diamond: { w: 200, h: 120 },
     circle: { w: 120, h: 120 },
+    // Same rounded treatment as a circle, but free to be wider than it is
+    // tall — the resize handler only forces a square aspect for 'circle'.
+    oval: { w: 180, h: 110 },
     parallelogram: { w: 180, h: 82 },
     hexagon: { w: 180, h: 88 },
     cylinder: { w: 160, h: 88 },
@@ -103,10 +106,14 @@ function createNode(shape, x, y) {
     y: Math.round(y - size.h / 2),
     w: size.w,
     h: size.h,
-    // A bare line shouldn't carry a stray "Text" caption by default the way
-    // a box/diamond/etc. does — leave it blank; the user can still
-    // double-click it to add a label if they want one.
-    label: shape === 'line' ? '' : 'Text',
+    // Every shape starts with a blank label now — no more placeholder
+    // "Text" caption pre-filled on a freshly placed rect/diamond/etc. (or
+    // on a free text node). The user double-clicks a shape, or double-clicks
+    // empty canvas for a floating text node, to type a label wherever and
+    // whenever they actually want one (see Node.jsx's handleDoubleClick and
+    // Canvas.jsx's handleCanvasDoubleClick — neither depends on the label
+    // starting non-empty).
+    label: '',
     strokeColor: DEFAULT_STROKE,
     fillColor: DEFAULT_FILL,
     fontFamily: DEFAULT_FONT_FAMILY,
@@ -143,7 +150,7 @@ function createChildNodeFromSource(sourceNode, position) {
     fillColor: sourceNode.fillColor || DEFAULT_FILL,
     fontFamily: sourceNode.fontFamily || DEFAULT_FONT_FAMILY,
     fontSize: sourceNode.fontSize || DEFAULT_FONT_SIZE,
-    label: sourceNode.shape === 'line' ? '' : 'Text',
+    label: '',
     collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
   };
 }
@@ -780,7 +787,13 @@ export default function FlowBuilderC() {
         setSelectedConnectionId(null);
         history.current = [snapshot(draftNodes, draftConnections)];
         historyIdx.current = 0;
-        setToast('Restored your unsaved changes from last time.');
+        // Made deliberately more explicit than a typical short toast (e.g.
+        // "Saved!") — this one is telling the user something they could
+        // easily miss and act on wrongly (keep editing on top of a
+        // recovered draft without realizing it wasn't their last saved
+        // state), so it spells out what happened and what to do next
+        // instead of a terse "Restored!".
+        setToast("We recovered unsaved changes from your last session. Review the diagram, then click Save to keep them.");
 
         // The draft may belong to an existing server diagram (draft.fileId),
         // not just a brand-new/unsaved one. Remember which fileId this
@@ -1005,9 +1018,115 @@ export default function FlowBuilderC() {
     });
   }, [appendNode, readMode]);
 
+  // Replaces a node's whole set of independently placed text blocks (see
+  // Node.jsx — a shape can hold several captions, each at its own spot).
+  //
+  // `label` is kept in sync as the joined text of every block, because plenty
+  // of the app still reads node.label rather than the blocks: label search
+  // (labelMatches above), the PDF export, and anything consuming a saved
+  // diagram. Keeping it current means none of that has to change.
+  const handleTextsChange = useCallback((id, texts) => {
+    setNodes((prev) => {
+      const next = prev.map((node) => (
+        node.id === id
+          ? {
+            ...node,
+            texts,
+            label: texts.map((t) => t.value).filter(Boolean).join(' '),
+          }
+          : node
+      ));
+      pushHistory(next, connections);
+      return next;
+    });
+  }, [connections, pushHistory]);
+
+  // Eraser: removes everything the user dragged the eraser across in one
+  // stroke (Canvas.jsx collects them and grays them out as a preview, then
+  // commits on mouse release). Deleting a node also takes its connections
+  // with it, same as the normal delete path — a connection dangling from a
+  // shape that no longer exists would never render anyway.
+  //
+  // One history entry per stroke, not per erased element, so a single undo
+  // brings the whole stroke back.
+  const handleEraseElements = useCallback((nodeIds, connectionIds) => {
+    if (readMode) return;
+    if (!nodeIds.length && !connectionIds.length) return;
+
+    const nodeIdSet = new Set(nodeIds);
+    const connectionIdSet = new Set(connectionIds);
+
+    setNodes((prevNodes) => {
+      const nextNodes = prevNodes.filter((node) => !nodeIdSet.has(node.id));
+
+      setConnections((prevConnections) => {
+        const nextConnections = prevConnections.filter((connection) => (
+          !connectionIdSet.has(connection.id) &&
+          !nodeIdSet.has(connection.from) &&
+          !nodeIdSet.has(connection.to)
+        ));
+
+        prevConnections.forEach((connection) => {
+          if (connectionIdSet.has(connection.id)) {
+            deletedConnectionsRef.current.add(`${connection.from}->${connection.to}`);
+          }
+        });
+
+        pushHistory(nextNodes, nextConnections);
+        return nextConnections;
+      });
+
+      return nextNodes;
+    });
+
+    setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
+  }, [pushHistory, readMode]);
+
+  // Grows a shape so the text inside it fits (Node.jsx measures what's
+  // needed). Only ever grows: a box the user deliberately dragged larger
+  // keeps that size, and text being deleted doesn't yank the shape smaller
+  // underneath them.
+  //
+  // Deliberately does NOT push a history entry — this is a layout consequence
+  // of typing, and the text edit that triggered it already recorded one.
+  // Returning `prev` untouched when nothing changed is what keeps the
+  // measure → resize → re-measure cycle from looping.
+  const handleAutoResizeNode = useCallback((id, size) => {
+    setNodes((prev) => {
+      let changed = false;
+
+      const next = prev.map((node) => {
+        if (node.id !== id) return node;
+
+        const nextH = Math.max(node.h, Math.round(size.h));
+        if (nextH === node.h) return node;
+
+        changed = true;
+        return { ...node, h: nextH };
+      });
+
+      return changed ? next : prev;
+    });
+  }, []);
+
+  // Setting a node's text wholesale (used by paste-into-selected-node): this
+  // collapses the node down to a single centered block, which is what an
+  // incoming pasted value should look like.
   const handleLabelChange = useCallback((id, label) => {
     setNodes((prev) => {
-      const next = prev.map((node) => (node.id === id ? { ...node, label } : node));
+      const next = prev.map((node) => (
+        node.id === id
+          ? {
+            ...node,
+            label,
+            texts: label
+              ? [{ id: `${id}-t0`, x: null, y: null, value: label }]
+              : [],
+          }
+          : node
+      ));
       pushHistory(next, connections);
       return next;
     });
@@ -1230,6 +1349,7 @@ export default function FlowBuilderC() {
         }
       }
 
+      if (event.key === 'e' || event.key === 'E') handleModeChange('erase');
       if (event.key === 'v' || event.key === 'V') handleModeChange('select');
       if (event.key === 'c' || event.key === 'C') handleModeChange('connect');
       if (event.key === 'h' || event.key === 'H') handleModeChange('pan');
@@ -1494,6 +1614,9 @@ export default function FlowBuilderC() {
           onSearchNext={handleSearchNext}
           onSearchPrev={handleSearchPrev}
 
+          autoArrowEnabled={autoArrowEnabled}
+          onToggleAutoArrow={() => setAutoArrowEnabled((prev) => !prev)}
+
           isVersionViewMode={isVersionViewMode}
           isVersionMode={isVersionMode}
           onSubmitVersion={handleSubmitVersion}
@@ -1507,6 +1630,12 @@ export default function FlowBuilderC() {
             {connectFrom
               ? 'Click another shape to create the connection.'
               : 'Click a shape to start the connection.'}
+          </div>
+        )}
+
+        {mode === 'erase' && !readMode && (
+          <div className="fc-connect-hint">
+            Hold the left mouse button and drag across anything you want to remove. Hold Alt to un-mark.
           </div>
         )}
 
@@ -1545,6 +1674,9 @@ export default function FlowBuilderC() {
             onQuickCreateFromNode={readMode ? () => { } : handleQuickCreateFromNode}
             onFocusBranch={focusBranch}
             onLabelChange={readMode ? () => { } : handleLabelChange}
+            onTextsChange={readMode ? () => { } : handleTextsChange}
+            onAutoResize={readMode ? () => { } : handleAutoResizeNode}
+            onErase={readMode ? () => { } : handleEraseElements}
             onConnectionControlEnd={readMode ? () => { } : commitCurrentSnapshot}
             onDeleteConnection={readMode ? () => { } : handleDeleteConnection}
             readMode={readMode}

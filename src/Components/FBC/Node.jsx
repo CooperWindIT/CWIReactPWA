@@ -1,9 +1,12 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useLayoutEffect } from 'react';
 import NodeShape from './NodeShape';
 import styles from './Node.module.css';
 import { PlusOutlined, MinusOutlined } from '@ant-design/icons';
 
 const SVG_SHAPES = ['diamond', 'parallelogram', 'hexagon', 'cylinder'];
+// Breathing room kept between the lowest line of text and the shape's bottom
+// border when the shape auto-grows to fit its text.
+const TEXT_FIT_PADDING = 10;
 const CP_POSITIONS = [
   { left: '50%', top: '0%', pos: 'top' },
   { left: '100%', top: '50%', pos: 'right' },
@@ -63,6 +66,47 @@ function LineShape({ node, strokeColor }) {
   );
 }
 
+// A shape holds a LIST of independently placed text blocks (node.texts), not
+// a single label — that's what lets someone drop one caption in a corner and
+// a second one elsewhere in the same shape instead of the first one following
+// the cursor around.
+//
+// Diagrams saved before this existed only have node.label (plus possibly a
+// labelX/labelY from the single-label placement step), so those are read here
+// as one equivalent block. An x/y of null means "centered", which is how a
+// plain legacy label always rendered.
+function getNodeTexts(node) {
+  if (Array.isArray(node.texts)) return node.texts;
+
+  if (node.label && `${node.label}`.trim()) {
+    return [{
+      id: `${node.id}-legacy`,
+      x: typeof node.labelX === 'number' ? node.labelX : null,
+      y: typeof node.labelY === 'number' ? node.labelY : null,
+      value: node.label,
+    }];
+  }
+
+  return [];
+}
+
+// Reads a contentEditable's content back as plain text, preserving the line
+// breaks the user made with Shift/Alt+Enter and decoding entities (&nbsp;
+// etc.) that the browser inserts while typing.
+function readEditableText(el) {
+  if (!el) return '';
+
+  const raw = el.innerHTML
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p)>/gi, '\n')
+    .replace(/<[^>]+>/g, '');
+
+  const decoder = document.createElement('textarea');
+  decoder.innerHTML = raw;
+
+  return decoder.value.trim();
+}
+
 export default function Node({
   node,
   sideControls,
@@ -81,13 +125,22 @@ export default function Node({
   onSelect,
   onToggle,
   onConnect,
-  onLabelChange,
+  onTextsChange,
+  onAutoResize,
+  markedForErase,
   readMode,
 }) {
-  const [editing, setEditing] = useState(false);
+  // Which text block is currently open for editing (null = none). Replaces
+  // the old single `editing` boolean now that a shape can hold several.
+  const [editingTextId, setEditingTextId] = useState(null);
   const [hoveredCp, setHoveredCp] = useState(null);
   const innerRef = useRef(null);
   const hoverTimeoutRef = useRef(null);
+  // Live DOM nodes for each text block, keyed by block id — measured by the
+  // auto-grow effect below to work out how tall the shape has to be.
+  const textElRefs = useRef({});
+
+  const texts = getNodeTexts(node);
 
   const clearHoverTimeout = useCallback(() => {
     if (hoverTimeoutRef.current) {
@@ -124,47 +177,78 @@ export default function Node({
   }, [mode, node.id, onConnect, onMouseDown, onSelect, readMode]);
 
 
-  const handleDoubleClick = useCallback(() => {
-    if (readMode || mode !== "select") return;
-
-    setEditing(true);
-
+  // Puts the caret at the end of the given editable element on the next tick
+  // (after React has actually rendered it as contentEditable).
+  const focusEditable = useCallback((textId) => {
     setTimeout(() => {
-      if (!innerRef.current) return;
-      innerRef.current.focus();
+      const el = innerRef.current;
+      if (!el || el.dataset.textid !== textId) return;
+
+      el.focus();
 
       const range = document.createRange();
-      range.selectNodeContents(innerRef.current);
-      // Collapse to the end instead of leaving everything selected.
-      // A full "select all" range meant the very first Shift+Enter /
-      // Alt+Enter deleted the existing label text via insertLineBreak's
-      // range.deleteContents(), so the first press looked like it did
-      // nothing and a second press was needed to see a visible break.
+      range.selectNodeContents(el);
+      // Collapse to the end instead of leaving everything selected. A full
+      // "select all" range meant the very first Shift+Enter / Alt+Enter
+      // deleted the existing text via insertLineBreak's range.deleteContents(),
+      // so the first press looked like it did nothing.
       range.collapse(false);
 
       const selection = window.getSelection();
       selection?.removeAllRanges();
       selection?.addRange(range);
     }, 0);
-  }, [mode, readMode]);
+  }, []);
 
-  const handleBlur = useCallback(() => {
-    const el = innerRef.current;
-    if (el) {
-      const raw = el.innerHTML
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/(div|p)>/gi, '\n')
-        .replace(/<[^>]+>/g, '');
+  const handleDoubleClick = useCallback((event) => {
+    if (readMode || mode !== "select") return;
 
-      // Decode HTML entities (&nbsp;, &amp;, etc.) safely.
-      const decoder = document.createElement('textarea');
-      decoder.innerHTML = raw;
-
-      onLabelChange(node.id, decoder.value.trim());
+    // Double-clicking ON an existing text block reopens THAT block for
+    // editing. Double-clicking anywhere else in the shape starts a brand new,
+    // independent block at that spot — which is the whole point: the text
+    // already in the shape stays exactly where it was put.
+    const hitText = event.target.closest?.('[data-textid]');
+    if (hitText?.dataset?.textid) {
+      setEditingTextId(hitText.dataset.textid);
+      focusEditable(hitText.dataset.textid);
+      return;
     }
-    setEditing(false);
-  }, [node.id, onLabelChange]);
 
+    // Where inside the shape's own box the user double-clicked, as a fraction
+    // of its rendered width/height. Using a fraction rather than raw pixels
+    // makes this land on the same local point regardless of the canvas's
+    // current zoom — getBoundingClientRect() already reflects that zoom, so
+    // dividing by it cancels the scale out, and multiplying back by the
+    // node's own (unscaled) w/h gives a point in the node's coordinate space.
+    const rect = event.currentTarget.getBoundingClientRect();
+    const fractionX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5;
+    const fractionY = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+
+    const newText = {
+      id: `${node.id}-t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      x: Math.round(fractionX * node.w),
+      y: Math.round(fractionY * node.h),
+      value: '',
+    };
+
+    onTextsChange(node.id, [...texts, newText]);
+    setEditingTextId(newText.id);
+    focusEditable(newText.id);
+  }, [mode, readMode, node.id, node.w, node.h, onTextsChange, texts, focusEditable]);
+
+  // Finishing an edit: save the typed value back onto that one block, and
+  // drop the block entirely if it was left empty so abandoned double-clicks
+  // don't litter the shape with invisible empty text nodes.
+  const handleTextBlur = useCallback((textId) => {
+    const value = readEditableText(innerRef.current);
+
+    const nextTexts = value
+      ? texts.map((t) => (t.id === textId ? { ...t, value } : t))
+      : texts.filter((t) => t.id !== textId);
+
+    onTextsChange(node.id, nextTexts);
+    setEditingTextId(null);
+  }, [node.id, onTextsChange, texts]);
 
   const insertLineBreak = useCallback(() => {
     const el = innerRef.current;
@@ -173,14 +257,21 @@ export default function Node({
     document.execCommand('insertLineBreak');
   }, []);
 
+  const handleTextKeyDown = useCallback((event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      innerRef.current?.blur();
+      return;
+    }
 
-  const handleKeyDown = useCallback((event) => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
 
     if (event.shiftKey || event.altKey) {
       insertLineBreak();
     } else {
+      // Plain Enter finishes this block. The next double-click elsewhere in
+      // the shape then starts a separate one.
       innerRef.current?.blur();
     }
   }, [insertLineBreak]);
@@ -203,19 +294,33 @@ export default function Node({
   // rendering, which stays gated on node.shape === 'diamond' elsewhere) for
   // a line's wrapper div reuses that same proven "invisible box" styling
   // instead of fighting shape_rect's CSS from here.
-  const shapeClass = node.shape === 'line'
-    ? (styles.shape_diamond || styles.shape_rect)
-    : (styles[`shape_${node.shape}`] || styles.shape_rect);
+  // An oval is a circle that isn't forced square — Canvas.jsx only locks the
+  // aspect ratio for 'circle', so the same fully-rounded styling stretched
+  // over a non-square box reads as an ellipse. There's no shape_oval class in
+  // the stylesheet, so it borrows shape_circle's (and sets the radius inline
+  // below as a backstop in case that class does more than round the corners).
   const isLineShape = node.shape === 'line';
+  const isOvalShape = node.shape === 'oval';
+  const shapeClass = isLineShape
+    ? (styles.shape_diamond || styles.shape_rect)
+    : isOvalShape
+      ? (styles.shape_circle || styles.shape_rect)
+      : (styles[`shape_${node.shape}`] || styles.shape_rect);
 
+  // Leaving select mode (or entering read mode) mid-edit: commit whatever was
+  // typed into the open block and close it, rather than stranding an editable
+  // element in a mode where it shouldn't be interactive.
   useEffect(() => {
     if (!readMode && mode === "select") return;
+    if (!editingTextId) return;
 
-    if (editing && innerRef.current) {
-      onLabelChange(node.id, innerRef.current.textContent?.trim() || "");
-    }
+    const value = readEditableText(innerRef.current);
+    const nextTexts = value
+      ? texts.map((t) => (t.id === editingTextId ? { ...t, value } : t))
+      : texts.filter((t) => t.id !== editingTextId);
 
-    setEditing(false);
+    onTextsChange(node.id, nextTexts);
+    setEditingTextId(null);
     innerRef.current?.blur();
 
     try {
@@ -226,44 +331,138 @@ export default function Node({
     try {
       document.activeElement?.blur?.();
     } catch (e) {}
-  }, [readMode, mode, editing, node.id, onLabelChange]);
+  }, [readMode, mode, editingTextId, node.id, onTextsChange, texts]);
   const isTextShape = node.shape === "text";
 
-const textReadOnlyStyle =
-  readMode && isTextShape
-    ? {
-        width: Math.max(node.w || 0, 130),
-        minHeight: 54,
-        padding: "10px 16px",
-        border: `2px solid ${strokeColor}`,
-        borderRadius: "16px",
-        background: theme === "dark" ? "rgba(30,30,30,0.95)" : "#ffffff",
-        boxShadow: "0 6px 16px rgba(0,0,0,0.10)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }
-    : {};
-    const textReadOnlyInnerStyle =
-    readMode && isTextShape
-      ? {
-          width: "100%",
-          textAlign: "center",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          whiteSpace: "nowrap",
-        }
-      : {};
+  // A text shape used to be re-styled into a bordered, drop-shadowed white
+  // card as soon as the diagram was locked — so plain text turned into a
+  // pill-shaped box the moment you switched to read mode, looking nothing
+  // like what you laid out while editing. Locking now only makes the diagram
+  // read-only; it doesn't restyle anything, so text reads as text in both
+  // modes.
 
-  // There's no dedicated `shape_line` class in Node.module.css, so the
-  // shapeClass lookup above falls back to `shape_rect` for a line node —
-  // which would paint the usual rectangle border/background behind our
-  // diagonal stroke. Override those inline instead of touching the CSS
-  // module: a line should show nothing but the stroke itself.
+  // IMPORTANT: .nodeInner — not the outer .node div — is what actually
+  // paints each shape's border/background (it spans the whole node and
+  // flex-centers the label inside it). That's why earlier attempts to blank
+  // a line's box by overriding the OUTER div did nothing, and why giving
+  // .nodeInner `position: absolute` collapsed a shape into a narrow strip:
+  // it kept its height:100% but shrank its width to fit the text. So both
+  // of the overrides below target .nodeInner, and neither one ever takes it
+  // out of normal flow.
   const lineOverrideStyle = isLineShape
     ? { background: 'transparent', border: 'none', boxShadow: 'none' }
     : {};
+
+  const ovalOverrideStyle = isOvalShape ? { borderRadius: '50%' } : {};
+
+  // Marked by an in-progress eraser stroke: grayed back and desaturated so
+  // it's obvious what the stroke has caught, while staying visible enough to
+  // swipe back over with Alt. Nothing is actually deleted until the mouse
+  // button is released (see Canvas.jsx).
+  const erasePreviewStyle = markedForErase
+    ? { opacity: 0.25, filter: 'grayscale(1)' }
+    : {};
+
+  // Positions one text block inside the shape. An x/y of null means the block
+  // is centered (how a legacy single label always looked); a number means it
+  // sits exactly where that spot was double-clicked.
+  //
+  // Each block is absolutely positioned WITHIN .nodeInner — .nodeInner itself
+  // is never taken out of flow, since it's the element that paints the
+  // shape's border/background and must keep filling the node at full size.
+  // Offsets are clamped to the node's CURRENT size so text stays inside its
+  // shape even after the shape is later resized smaller than it was when the
+  // spot was picked, and the vertical offset is pulled up about half a line
+  // so the clicked point lands mid-text, where a caret visually belongs.
+  const getTextBlockStyle = (textBlock) => {
+    const base = {
+      position: 'absolute',
+      fontFamily,
+      fontSize: `${fontSize}px`,
+      lineHeight: 1.25,
+      whiteSpace: 'pre-wrap',
+      // Long unbroken strings wrap instead of running out past the shape's
+      // right edge — the shape grows downward to fit (see the auto-grow
+      // effect below), so height is the only dimension that has to react.
+      overflowWrap: 'break-word',
+      wordBreak: 'break-word',
+      outline: 'none',
+      // Wide enough to type into comfortably, never wider than the shape.
+      minWidth: 8,
+      cursor: readMode ? 'inherit' : 'text',
+    };
+
+    if (typeof textBlock.x !== 'number' || typeof textBlock.y !== 'number') {
+      return {
+        ...base,
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        maxWidth: '100%',
+        textAlign: 'center',
+      };
+    }
+
+    const left = Math.max(0, Math.min(textBlock.x, Math.max(0, node.w - 12)));
+    const top = Math.max(0, Math.min(textBlock.y - fontSize * 0.6, Math.max(0, node.h - fontSize - 2)));
+
+    return {
+      ...base,
+      left,
+      top,
+      maxWidth: Math.max(12, node.w - left),
+      textAlign: 'left',
+    };
+  };
+
+  // Auto-grow: after each render, measure what the text blocks actually need
+  // and ask the parent to raise the shape's height if they no longer fit.
+  // Typing wraps text onto new lines, which would otherwise spill out past
+  // the bottom border.
+  //
+  // Measured against each block's UNCLAMPED top (its intended offset, not the
+  // one squeezed to fit the current height). Using the clamped value would
+  // move the target every time the box grew, taking several passes to settle;
+  // this way the needed height is a fixed target and converges immediately.
+  //
+  // offsetHeight is layout height, so the canvas's CSS zoom transform doesn't
+  // distort it — these stay in the node's own coordinate space.
+  const fitHeightToText = useCallback(() => {
+    if (isLineShape || !texts.length || typeof onAutoResize !== 'function') return;
+
+    let needed = 0;
+
+    texts.forEach((textBlock) => {
+      const el = textElRefs.current[textBlock.id];
+      if (!el) return;
+
+      const blockHeight = el.offsetHeight;
+
+      if (typeof textBlock.y === 'number') {
+        needed = Math.max(needed, Math.max(0, textBlock.y - fontSize * 0.6) + blockHeight);
+      } else {
+        // A centered block needs at least its own height to sit inside.
+        needed = Math.max(needed, blockHeight);
+      }
+    });
+
+    needed += TEXT_FIT_PADDING;
+
+    if (needed > node.h) {
+      onAutoResize(node.id, { h: Math.ceil(needed) });
+    }
+  }, [isLineShape, texts, onAutoResize, fontSize, node.h, node.id]);
+
+  useLayoutEffect(fitHeightToText);
+
+  // Typing inside a contentEditable mutates the DOM directly without any
+  // React state change, so the effect above wouldn't re-run until the edit was
+  // committed on blur — the text would visibly spill out of the shape the
+  // whole time you were writing it. Re-measuring on each input keeps the box
+  // growing line by line as you type.
+  const handleTextInput = useCallback(() => {
+    fitHeightToText();
+  }, [fitHeightToText]);
 
   return (
     <div
@@ -273,7 +472,6 @@ const textReadOnlyStyle =
       selected ? styles.selected : '',
       isConnectSource ? styles.connectSource : '',
       readMode ? styles.readOnly : '',
-      isTextShape && readMode ? styles.textShapeReadOnly : '',
       dimmed ? styles.dimmed : '',
       searchMatched ? styles.searchMatched : '',
       searchActive ? styles.searchActive : '',
@@ -286,7 +484,7 @@ const textReadOnlyStyle =
       '--node-stroke': strokeColor,
       '--node-fill': fillColor,
       ...lineOverrideStyle,
-      ...textReadOnlyStyle,
+      ...erasePreviewStyle,
     }}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
@@ -300,37 +498,50 @@ const textReadOnlyStyle =
         <LineShape node={node} strokeColor={strokeColor} />
       )}
 
-      {/* <div
-        ref={innerRef}
+      {/* .nodeInner is the shape's visual body: it paints the border and
+          background and must keep filling the node at full size, so it is
+          never repositioned and is no longer the editable element itself.
+          The text blocks below are absolutely positioned inside it, which is
+          what allows several independent captions per shape. */}
+      <div
         className={styles.nodeInner}
-        // contentEditable={editing}
-        contentEditable={editing && !readMode}
-        suppressContentEditableWarning
-        onBlur={handleBlur}
-        onKeyDown={handleKeyDown}
         style={{
           fontFamily,
           fontSize: `${fontSize}px`,
+          position: 'relative',
+          // A line has to blank its box HERE — overriding the outer .node div
+          // never touched the element actually drawing that rectangle.
+          ...lineOverrideStyle,
+          ...ovalOverrideStyle,
         }}
       >
-        {node.label}
-      </div> */}
-      <div
-  ref={innerRef}
-  className={styles.nodeInner}
-  contentEditable={editing && !readMode}
-  suppressContentEditableWarning
-  onBlur={handleBlur}
-  onKeyDown={handleKeyDown}
-  tabIndex={readMode ? -1 : 0}
-  style={{
-    fontFamily,
-    fontSize: `${fontSize}px`,
-    ...textReadOnlyInnerStyle,
-  }}
->
-  {node.label}
-</div>
+        {texts.map((textBlock) => {
+          const isEditingThis = editingTextId === textBlock.id;
+
+          return (
+            <div
+              key={textBlock.id}
+              ref={(el) => {
+                // Every block is tracked for measurement (auto-grow); the one
+                // being edited additionally drives focus/caret placement.
+                if (el) textElRefs.current[textBlock.id] = el;
+                else delete textElRefs.current[textBlock.id];
+                if (isEditingThis) innerRef.current = el;
+              }}
+              data-textid={textBlock.id}
+              className={styles.nodeText}
+              contentEditable={isEditingThis && !readMode}
+              suppressContentEditableWarning
+              onBlur={isEditingThis ? () => handleTextBlur(textBlock.id) : undefined}
+              onKeyDown={isEditingThis ? handleTextKeyDown : undefined}
+              onInput={isEditingThis ? handleTextInput : undefined}
+              style={getTextBlockStyle(textBlock)}
+            >
+              {textBlock.value}
+            </div>
+          );
+        })}
+      </div>
 
       {/* {!readMode && CP_POSITIONS.map((cp) => (
         <div

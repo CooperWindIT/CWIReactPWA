@@ -91,79 +91,82 @@ export default function ResolveTicket({ ticObj }) {
         return new Date(dueDate) < new Date();
     };
 
-    // Resolve Ticket
-    const handleResolveSubmit = async (e) => {
-        e.preventDefault();
+// Resolve Ticket
+const handleResolveSubmit = async (e) => {
+    e.preventDefault();
 
-        console.log(ticObj);
+    console.log(ticObj);
 
-        const payload = {
-            OrgId: sessionUserData.OrgId,
-            Priority: ticObj.Priority,
-            TicketStatus: "RESOLVED",
-            UserId: sessionUserData.Id,
+    const payload = {
+        OrgId: sessionUserData.OrgId,
+        Priority: ticObj.Priority,
+        TicketStatus: "RESOLVED",
+        UserId: sessionUserData.Id,
 
-            JsonData: {
-                TicketId: ticObj.Id,
-                ResolutionSummary: resolveForm.ResolutionSummary,
-                ResolvedDate: resolveForm.ResolutionDate,
-            },
-        };
-
-        try {
-            setResolveSubmitLoading(true);
-
-            const response = await fetchWithAuth(
-                "ServiceNow/GeneralTickets",
-                {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify(payload),
-                }
-            );
-
-            const data = await response.json();
-
-            const result = data?.data?.result?.[0];
-
-            if (
-                response.ok &&
-                data.success &&
-                result?.ResponseCode === 2002
-            ) {
-                Swal.fire({
-                    icon: "success",
-                    title: "Success",
-                    text:
-                        result.ResponseMessage ||
-                        "Ticket resolved successfully.",
-                    confirmButtonText: "OK",
-                }).then(() => {
-                    window.location.reload();
-                });
-            } else {
-                Swal.fire({
-                    icon: "error",
-                    title: "Error",
-                    text:
-                        result?.ResponseMessage ||
-                        "Unable to resolve ticket.",
-                });
-            }
-        } catch (err) {
-            console.error(err);
-
-            Swal.fire(
-                "Error",
-                "Something went wrong.",
-                "error"
-            );
-        } finally {
-            setResolveSubmitLoading(false);
-        }
+        JsonData: {
+            TicketId: ticObj.Id,
+            ResolutionSummary: resolveForm.ResolutionSummary,
+            ResolvedDate: resolveForm.ResolutionDate,
+        },
     };
+
+    try {
+        setResolveSubmitLoading(true);
+
+        const response = await fetchWithAuth(
+            "ServiceNow/GeneralTickets",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            }
+        );
+
+        const data = await response.json();
+
+        const result = data?.data?.result?.[0];
+
+        if (
+            response.ok &&
+            data.success &&
+            (result?.ResponseCode === 2002 ||
+             result?.ResponseCode === 2003)
+        ) {
+            Swal.fire({
+                icon: "success",
+                title: "Success",
+                text:
+                    result.ResponseMessage ||
+                    "Ticket resolved successfully.",
+                confirmButtonText: "OK",
+            }).then(() => {
+                window.location.reload();
+            });
+        } else {
+            Swal.fire({
+                icon: "error",
+                title: "Error",
+                text:
+                    result?.ResponseMessage ||
+                    "Unable to resolve ticket.",
+            });
+        }
+
+    } catch (err) {
+        console.error(err);
+
+        Swal.fire(
+            "Error",
+            "Something went wrong.",
+            "error"
+        );
+
+    } finally {
+        setResolveSubmitLoading(false);
+    }
+};
 
     // Format Date
     const formatDate = (dateString) => {

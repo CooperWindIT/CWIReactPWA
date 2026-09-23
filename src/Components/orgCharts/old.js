@@ -74,6 +74,11 @@ const STATIC_ROLE_COLORS = {
 const COMPANY_NAME = "CWI";
 const COMPANY_LOGO_URL = "";
 
+// localStorage key the chart remembers its last-used zoom level under, so
+// reopening the page starts from wherever the user left it rather than
+// always resetting to 100% (see the zoom state's lazy initializer below).
+const ZOOM_STORAGE_KEY = "orgChartZoomLevel";
+
 // Darkens (negative percent, e.g. -0.55) or lightens (positive percent) a
 // hex color by the given amount. Used to derive the ID-card's dark
 // header/photo-backdrop/name band from the same light per-role accent
@@ -233,6 +238,58 @@ const buildDeptNodes = (nodes, parentKey) => {
                 ],
             };
         });
+};
+
+// Mirrors buildDeptNodes' own id-construction (`deptnode-${parentKey}-
+// ${segment}`, one tier per "/"-delimited DeptName segment) without
+// actually building the department-node tree — used by search to know
+// which synthetic department id(s) sit between a manager and one of their
+// people, so those ids can be removed from `collapsed` to reveal a match
+// that's nested inside a department box. `managerId` is the real manager
+// node's id (the same parentKey buildDeptNodes was called with for that
+// manager); `deptString` is the target person's own (unmodified) `dept`
+// field. Returns ids outermost-first, e.g. for "Production / Welding &
+// NDT" under manager 42: ["deptnode-42-Production",
+// "deptnode-42-Production-Welding & NDT"].
+const getDeptNodeIdsForPath = (managerId, deptString) => {
+    const segments = getDeptSegments(deptString);
+    const ids = [];
+    let key = String(managerId);
+    segments.forEach(seg => {
+        key = `${key}-${seg}`;
+        ids.push(`deptnode-${key}`);
+    });
+    return ids;
+};
+
+// Predicts every synthetic department-node id buildDeptNodes would ever
+// produce across the whole (real) tree, so they can be seeded into the
+// initial `collapsed` state right alongside real node ids (see
+// fetchOrgData / toggleExpandCollapse). Department boxes should start
+// closed just like every other node — showing only the department tier
+// when a manager with multiple departments is first expanded, not that
+// tier AND everyone under it all at once — and only open one when a user
+// actually clicks it (or a search match forces it open, see
+// getDeptNodeIdsForPath above).
+const getAllDeptNodeIds = (nodes) => {
+    let ids = [];
+    nodes.forEach(node => {
+        const isManager = (node.role || "").toLowerCase() === "manager";
+        if (isManager && node.children?.length && hasMultipleDepts(node.children)) {
+            const collectIds = (deptNodes) => {
+                deptNodes.forEach(d => {
+                    ids.push(d.id);
+                    const nestedDeptNodes = (d.children || []).filter(c => c.isDeptNode);
+                    if (nestedDeptNodes.length) collectIds(nestedDeptNodes);
+                });
+            };
+            collectIds(buildDeptNodes(node.children, String(node.id)));
+        }
+        if (node.children?.length) {
+            ids = ids.concat(getAllDeptNodeIds(node.children));
+        }
+    });
+    return ids;
 };
 
 /* ───────────────────────────  EXCEL "VISUAL CHART" EXPORT  ───────────────────────────
@@ -452,25 +509,25 @@ const getAllNodeIds = (nodes) => {
     return ids;
 };
 
-// Finds the first node (depth-first) whose name or email contains `term`
-// (case-insensitive) and returns the full id path from a root down to it,
-// inclusive — e.g. [ceoId, managerId, employeeId]. Used by search to know
-// which ancestor ids need removing from `collapsed` so the match becomes
-// visible. Walks the real (data) tree only: synthetic department nodes are
-// inserted at render time (see buildDeptNodes) and expand automatically
-// once their real manager ancestor is expanded, so they don't need to be
-// part of this path. Returns null when nothing matches.
-const findNodePath = (nodes, term, path = []) => {
-    for (const node of nodes) {
-        const nextPath = [...path, node.id];
+// Finds every node (depth-first, same order the chart itself renders in)
+// whose name or email contains `term` (case-insensitive), not just the
+// first one — needed so search can show "2 / 5" and step through every
+// match rather than only ever jumping to the first. Each result carries
+// the matched node plus `ancestors`: the real (non-department) node
+// objects from a root down to that match's parent, in order. Walks the
+// real (data) tree only — synthetic department nodes are computed at
+// render time (see buildDeptNodes) and aren't part of this tree, so
+// revealing a match nested inside one takes an extra step; see
+// getDeptNodeIdsForPath, used together with `ancestors` for that.
+const findAllMatches = (nodes, term, ancestors = [], results = []) => {
+    nodes.forEach(node => {
         const haystack = `${node.name || ""} ${node.email || ""}`.toLowerCase();
-        if (haystack.includes(term)) return nextPath;
+        if (haystack.includes(term)) results.push({ node, ancestors });
         if (node.children?.length) {
-            const found = findNodePath(node.children, term, nextPath);
-            if (found) return found;
+            findAllMatches(node.children, term, [...ancestors, node], results);
         }
-    }
-    return null;
+    });
+    return results;
 };
 
 // Flattens the (already-formatted) org tree into one row per person, each
@@ -520,11 +577,41 @@ const OrganizationChart = () => {
     // per-role as they come in; roles missing from the response keep the
     // static default.
     const [roleColors, setRoleColors] = useState(STATIC_ROLE_COLORS);
-    const [zoom, setZoom] = useState(1);
+    // Remembers whatever zoom level was last used (across page loads/
+    // navigations, not just within one session) so the chart reopens at a
+    // comfortable size instead of always resetting to a fixed level — the
+    // user can still zoom in/out from there with the existing +/- buttons.
+    // Falls back to a zoomed-OUT default (0.5, the minimum the "-" button
+    // allows) rather than 100% if nothing was saved yet, or if localStorage
+    // is unavailable (private browsing, etc.) — reading it can't crash the
+    // chart either way.
+    const [zoom, setZoom] = useState(() => {
+        try {
+            const saved = parseFloat(localStorage.getItem(ZOOM_STORAGE_KEY));
+            return Number.isFinite(saved) && saved > 0 ? saved : 0.5;
+        } catch {
+            return 0.5;
+        }
+    });
     const [collapsed, setCollapsed] = useState([]);
     const [data, setData] = useState([]);
     const [sessionUserData, setSessionUserData] = useState(null);
     const [loading, setLoading] = useState(false);
+
+    // Keeps the saved zoom level in sync with whatever the user actually
+    // sets it to (the +/- buttons, or the temporary reset-to-1 the PDF
+    // export does and then restores from — see handleDownloadPdf). Wrapped
+    // the same way the initial read is, since localStorage can throw in
+    // some browser contexts.
+    useEffect(() => {
+        try {
+            localStorage.setItem(ZOOM_STORAGE_KEY, String(zoom));
+        } catch {
+            // Ignore — losing the remembered zoom just means next load
+            // falls back to the zoomed-out default, not worth surfacing to
+            // the user.
+        }
+    }, [zoom]);
 
     const navigate = useNavigate();
 
@@ -541,13 +628,27 @@ const OrganizationChart = () => {
     const chartContentRef = useRef(null);
     const [exporting, setExporting] = useState(false);
 
+    // Whether the role color key (RoleLegend) is expanded. Starts closed —
+    // only the small round floating button shows until the user clicks it
+    // — rather than the panel always being on screen with a "LEGEND" title.
+    const [legendOpen, setLegendOpen] = useState(false);
+
     // Search: `searchTerm` is the text box value; `highlightedId` is the
-    // matched node's id (drives NodeCard's search-highlight class) and also
-    // the trigger for the scroll-into-view effect below; `searchNotFound`
-    // shows a brief inline message when nothing matches.
+    // currently-jumped-to match's id (drives NodeCard's search-highlight
+    // class) and also the trigger for the scroll-into-view effect below;
+    // `searchNotFound` shows a brief inline message when nothing matches.
+    // `searchMatches` holds every match for the current term (not just the
+    // first) so the toolbar can show "2 / 5" and step through them with the
+    // up/down arrows; `currentMatchIndex` is which of those is active.
+    // `lastSearchedTerm` remembers what was actually searched (as opposed
+    // to what's currently typed) so pressing Enter again on an unchanged
+    // term advances to the next match instead of re-running the same search.
     const [searchTerm, setSearchTerm] = useState("");
     const [highlightedId, setHighlightedId] = useState(null);
     const [searchNotFound, setSearchNotFound] = useState(false);
+    const [searchMatches, setSearchMatches] = useState([]);
+    const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+    const lastSearchedTerm = useRef("");
 
     useEffect(() => {
         const sessionMenuData = sessionStorage.getItem("menuData");
@@ -609,9 +710,12 @@ const OrganizationChart = () => {
 
             setCeoId(ceo);
 
-            // Initially collapse EVERYTHING.
-            // User must click CEO first.
-            setCollapsed(getAllNodeIds(formattedTree));
+            // Initially collapse EVERYTHING — real nodes AND every synthetic
+            // department box (see getAllDeptNodeIds): a manager with
+            // multiple departments should reveal just the department tier
+            // first, not the department boxes and everyone under them all
+            // at once. User must click CEO first, then each box in turn.
+            setCollapsed([...getAllNodeIds(formattedTree), ...getAllDeptNodeIds(formattedTree)]);
         } catch (error) {
             console.error("Error fetching org data:", error);
         } finally {
@@ -646,6 +750,58 @@ const OrganizationChart = () => {
                         role === "security" ? pickLightColor(roleColors.security, STATIC_ROLE_COLORS.security) :
                             STATIC_ROLE_COLORS.default;
     };
+
+    // Key translating each role's color into a label — requested after a
+    // reference Excel legend image. Deliberately built from the *same*
+    // color pipeline every card already uses (getBaseColor + roleColors +
+    // STATIC_ROLE_COLORS) rather than a second hardcoded palette, so if a
+    // service-provided BgColor ever changes a role's on-screen color, this
+    // legend updates with it automatically instead of drifting out of sync.
+    // Each swatch is styled exactly like a card's own face — light fill,
+    // darker role-shade border — the same border color also used for that
+    // role's corner .role-dot, so this one legend explains both at once.
+    const LEGEND_ROLES = [
+        { role: "ceo", superiorId: 0, label: "CEO / Managing Director" },
+        { role: "manager", superiorId: 1, label: "Manager" },
+        { role: "hr", superiorId: 1, label: "HR" },
+        { role: "employee", superiorId: 1, label: "Employee" },
+        { role: "security", superiorId: 1, label: "Security" },
+    ];
+
+    // Originally an always-visible panel with a "LEGEND" title bar — the
+    // user found the permanent panel (and its title text) unnecessary
+    // screen clutter and asked for it tucked behind a small round button
+    // instead, on the right side of the screen, expanding only on click.
+    // The panel itself is otherwise unchanged (same rows, same swatch
+    // logic); only its visibility is now gated by `legendOpen`, and the
+    // title text is gone since the button itself (a palette icon) is what
+    // identifies it now.
+    const RoleLegend = () => (
+        <>
+            {legendOpen && (
+                <div className="role-legend">
+                    {LEGEND_ROLES.map((entry) => {
+                        const fill = getBaseColor(entry);
+                        const border = shadeColor(fill, -0.35);
+                        return (
+                            <div className="role-legend-row" key={entry.role}>
+                                <span className="role-legend-swatch" style={{ background: fill, borderColor: border }} />
+                                <span className="role-legend-label">{entry.label}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+            <button
+                type="button"
+                className="legend-fab"
+                onClick={() => setLegendOpen(open => !open)}
+                title={legendOpen ? "Hide color legend" : "Show color legend"}
+            >
+                <i className="fa-solid fa-palette"></i>
+            </button>
+        </>
+    );
 
     const NodeCard = ({ node }) => {
         const role = node?.role?.toLowerCase?.() ?? "";
@@ -1124,33 +1280,81 @@ const OrganizationChart = () => {
 
     const toggleExpandCollapse = () => {
         collapsed.length === 0
-            ? setCollapsed(getAllNodeIds(data))
+            ? setCollapsed([...getAllNodeIds(data), ...getAllDeptNodeIds(data)])
             : setCollapsed([]);
     };
 
-    // Finds a person by name/email, expands whatever ancestors are
-    // currently collapsed so the match becomes visible, then hands off to
-    // the scroll-into-view effect below (triggered by highlightedId
-    // changing) to actually bring it on screen and flash the highlight.
+    // Finds every person matching the current search box, remembers them
+    // as `searchMatches` (so the toolbar can show "1 / N" and step through
+    // them), and jumps to the first one. Re-running with the same term
+    // (e.g. pressing Enter again) is handled by the input's own onKeyDown —
+    // this function always does a fresh search from scratch.
     const handleSearch = () => {
         const term = searchTerm.trim().toLowerCase();
-        if (!term) return;
+        lastSearchedTerm.current = term;
 
-        const path = findNodePath(data, term);
-        if (!path) {
+        if (!term) {
+            setSearchMatches([]);
+            setSearchNotFound(false);
+            setHighlightedId(null);
+            return;
+        }
+
+        const matches = findAllMatches(data, term);
+        if (!matches.length) {
             setSearchNotFound(true);
+            setSearchMatches([]);
+            setCurrentMatchIndex(0);
             setHighlightedId(null);
             return;
         }
 
         setSearchNotFound(false);
-        const matchId = path[path.length - 1];
-        const ancestorIds = path.slice(0, -1);
-        setCollapsed(prev => prev.filter(id => !ancestorIds.includes(id)));
-        // Re-triggers the scroll/highlight effect even for the same match
-        // searched twice in a row.
+        setSearchMatches(matches);
+        goToMatch(matches, 0);
+    };
+
+    // Jumps to one match out of `matches` (by index): expands whatever real
+    // ancestors are currently collapsed, PLUS whichever synthetic
+    // department box ids sit on the path (a manager with multiple
+    // departments hides its people behind a department tier — see
+    // getAllDeptNodeIds/getDeptNodeIdsForPath — so revealing a match nested
+    // in one takes more than just expanding its real ancestors), then hands
+    // off to the scroll-into-view effect below (triggered by highlightedId
+    // changing) to actually bring it on screen and flash the highlight.
+    const goToMatch = (matches, index) => {
+        const match = matches[index];
+        if (!match) return;
+
+        setCurrentMatchIndex(index);
+        const { node, ancestors } = match;
+        const realIdsToReveal = ancestors.map(a => a.id);
+
+        const deptIdsToReveal = [];
+        const chain = [...ancestors, node];
+        for (let i = 0; i < chain.length - 1; i++) {
+            const parent = chain[i];
+            const child = chain[i + 1];
+            if (isManagerRole(parent) && hasMultipleDepts(parent.children || [])) {
+                deptIdsToReveal.push(...getDeptNodeIdsForPath(parent.id, child.dept));
+            }
+        }
+
+        setCollapsed(prev => prev.filter(id => !realIdsToReveal.includes(id) && !deptIdsToReveal.includes(id)));
+        // Re-triggers the scroll/highlight effect even when jumping to the
+        // same match again (e.g. only one result, Enter pressed twice).
         setHighlightedId(null);
-        requestAnimationFrame(() => setHighlightedId(matchId));
+        requestAnimationFrame(() => setHighlightedId(node.id));
+    };
+
+    const goToNextMatch = () => {
+        if (!searchMatches.length) return;
+        goToMatch(searchMatches, (currentMatchIndex + 1) % searchMatches.length);
+    };
+
+    const goToPrevMatch = () => {
+        if (!searchMatches.length) return;
+        goToMatch(searchMatches, (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length);
     };
 
     // Runs whenever a search sets highlightedId: waits a couple of frames
@@ -1158,7 +1362,9 @@ const OrganizationChart = () => {
     // collapsed-state update above and this effect can land in the same
     // tick otherwise), scrolls the matched card into view, and clears the
     // highlight itself after a few seconds so it reads as a flash rather
-    // than a permanent marker.
+    // than a permanent marker. Kept fairly long (6s) and paired with a
+    // continuous, dark, high-contrast pulse (see .search-highlight) since
+    // a quick pale flash was easy to miss in an already-colorful chart.
     useEffect(() => {
         if (!highlightedId) return;
 
@@ -1170,7 +1376,7 @@ const OrganizationChart = () => {
             });
         });
 
-        const clearTimer = setTimeout(() => setHighlightedId(null), 4000);
+        const clearTimer = setTimeout(() => setHighlightedId(null), 6000);
         return () => {
             cancelAnimationFrame(raf1);
             if (raf2) cancelAnimationFrame(raf2);
@@ -1478,27 +1684,90 @@ const OrganizationChart = () => {
         );
     }
 
-    const showManageUsers = sessionActionIds?.includes(36);
+    // "Manage Employees" is restricted to two specific user ids rather than
+    // the action-permission check (sessionActionIds.includes(36)) used
+    // before — that action id was gating it for everyone with the "Flow
+    // Chart" menu permission, which was broader than intended. Hardcoded
+    // here per explicit request rather than derived from any role/permission
+    // field, so it won't automatically pick up new users — update this
+    // array directly to add/remove who sees the link.
+    const showManageUsers = [2, 10].includes(sessionUserData?.Id);
 
     return (
         <div style={styles.wrapper} >
             <div className="d-flex justify-content-between align-items-center gap-2 my-3 mx-5">
                 <div className="org-search">
-                    <i className="fa-solid fa-magnifying-glass org-search-icon"></i>
-                    <input
-                        type="text"
-                        className="org-search-input"
-                        placeholder="Search name or email..."
-                        value={searchTerm}
-                        onChange={(e) => {
-                            setSearchTerm(e.target.value);
-                            setSearchNotFound(false);
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSearch();
-                        }}
-                    />
-                    {searchNotFound && <span className="org-search-hint">No match found</span>}
+                    <div className="org-search-box">
+                        <i className="fa-solid fa-magnifying-glass org-search-icon"></i>
+                        <input
+                            type="text"
+                            className="org-search-input"
+                            placeholder="Search name or email..."
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setSearchNotFound(false);
+                                // A new term invalidates the old match list —
+                                // the nav cluster (count + arrows) only comes
+                                // back once Enter re-runs the search below.
+                                setSearchMatches([]);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key !== "Enter") return;
+                                const term = searchTerm.trim().toLowerCase();
+                                // Enter on an unchanged, already-searched term
+                                // steps to the next match (so repeatedly
+                                // hitting Enter cycles through results, like
+                                // a browser's find-in-page); anything else
+                                // (a new term, or the first search) runs a
+                                // fresh search instead.
+                                if (term && term === lastSearchedTerm.current && searchMatches.length) {
+                                    goToNextMatch();
+                                } else {
+                                    handleSearch();
+                                }
+                            }}
+                        />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                className="org-search-clear"
+                                title="Clear search"
+                                onClick={() => {
+                                    setSearchTerm("");
+                                    setSearchNotFound(false);
+                                    setSearchMatches([]);
+                                    setCurrentMatchIndex(0);
+                                    setHighlightedId(null);
+                                    lastSearchedTerm.current = "";
+                                }}
+                            >
+                                <i className="fa-solid fa-xmark"></i>
+                            </button>
+                        )}
+                        {searchNotFound && <span className="org-search-hint">No match found</span>}
+                    </div>
+                    {searchMatches.length > 0 && (
+                        <div className="org-search-nav">
+                            <span className="org-search-count">{currentMatchIndex + 1} / {searchMatches.length}</span>
+                            <button
+                                type="button"
+                                className="org-search-nav-btn"
+                                onClick={goToPrevMatch}
+                                title="Previous match"
+                            >
+                                <i className="fa-solid fa-chevron-up"></i>
+                            </button>
+                            <button
+                                type="button"
+                                className="org-search-nav-btn"
+                                onClick={goToNextMatch}
+                                title="Next match (Enter)"
+                            >
+                                <i className="fa-solid fa-chevron-down"></i>
+                            </button>
+                        </div>
+                    )}
                 </div>
                 <div className="d-flex align-items-center gap-2">
                 {showManageUsers && (
@@ -1539,6 +1808,8 @@ const OrganizationChart = () => {
                     <button className="zoom-btn" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>-</button>
                     <button className="zoom-btn" onClick={toggleExpandCollapse}>⛶</button>
                 </div>
+
+                <RoleLegend />
 
                 <div
                     ref={dragRef}
@@ -1598,6 +1869,12 @@ const OrganizationChart = () => {
             <style>
                 {`
                     .org-search {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+
+                    .org-search-box {
                         position: relative;
                         display: inline-flex;
                         align-items: center;
@@ -1613,7 +1890,7 @@ const OrganizationChart = () => {
 
                     .org-search-input {
                         width: 260px;
-                        padding: 9px 14px 9px 38px;
+                        padding: 9px 32px 9px 38px;
                         border-radius: 999px;
                         border: 1px solid #cbd5e1;
                         background: #ffffff;
@@ -1629,6 +1906,34 @@ const OrganizationChart = () => {
                         box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
                     }
 
+                    /* Small "x" button that appears inside the search box,
+                       right side, only once there's text to clear (see the
+                       searchTerm && ... guard in the JSX) — clears the term,
+                       any in-progress match state, and the highlight in one
+                       click instead of requiring backspace-to-empty. */
+                    .org-search-clear {
+                        position: absolute;
+                        right: 12px;
+                        width: 18px;
+                        height: 18px;
+                        border: none;
+                        border-radius: 50%;
+                        background: #e2e8f0;
+                        color: #64748b;
+                        font-size: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        padding: 0;
+                        transition: background 0.15s ease, color 0.15s ease;
+                    }
+
+                    .org-search-clear:hover {
+                        background: #cbd5e1;
+                        color: #0f172a;
+                    }
+
                     .org-search-hint {
                         position: absolute;
                         left: 16px;
@@ -1639,19 +1944,69 @@ const OrganizationChart = () => {
                         white-space: nowrap;
                     }
 
-                    /* ── search result flash: a bright ring that pulses a
-                       couple of times then fades, so the matched card is
-                       unmistakable even in a large, already-colorful chart,
-                       without permanently altering its normal styling. ── */
+                    /* ── match count + prev/next, shown once a search has
+                       more than the trivial one-and-done case (see
+                       searchMatches) — lets a name that appears on several
+                       cards (e.g. two "Sales" people) be stepped through
+                       one at a time instead of only ever landing on the
+                       first. ── */
+                    .org-search-nav {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        padding: 4px 6px 4px 10px;
+                        border-radius: 999px;
+                        background: #ffffff;
+                        border: 1px solid #cbd5e1;
+                        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+                    }
+
+                    .org-search-count {
+                        font-size: 12px;
+                        font-weight: 600;
+                        color: #334155;
+                        white-space: nowrap;
+                        margin-right: 2px;
+                    }
+
+                    .org-search-nav-btn {
+                        width: 24px;
+                        height: 24px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: none;
+                        border-radius: 50%;
+                        background: transparent;
+                        color: #334155;
+                        font-size: 11px;
+                        cursor: pointer;
+                        transition: background-color 0.15s ease;
+                    }
+
+                    .org-search-nav-btn:hover {
+                        background: #e2e8f0;
+                    }
+
+                    /* ── search result flash: dark, high-contrast, and kept
+                       pulsing continuously for as long as this card stays
+                       highlighted (see the highlightedId effect's 6s timer)
+                       — an earlier pale amber flash that pulsed only twice
+                       was too easy to miss in an already-colorful chart. The
+                       solid outline stays visible even between pulses, so
+                       there's never a moment where the marker fully
+                       disappears while it's still "on". ── */
                     .search-highlight {
-                        animation: searchHighlightPulse 1s ease-out 2;
+                        animation: searchHighlightPulse 1.1s ease-in-out infinite;
+                        outline: 3px solid #0f172a;
+                        outline-offset: 3px;
                         z-index: 20;
                     }
 
                     @keyframes searchHighlightPulse {
-                        0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.9); }
-                        70% { box-shadow: 0 0 0 14px rgba(234, 179, 8, 0); }
-                        100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
+                        0% { box-shadow: 0 0 0 0 rgba(15, 23, 42, 0.65); }
+                        70% { box-shadow: 0 0 0 16px rgba(15, 23, 42, 0); }
+                        100% { box-shadow: 0 0 0 0 rgba(15, 23, 42, 0); }
                     }
 
                     .premium-btn {
@@ -1712,7 +2067,17 @@ const OrganizationChart = () => {
                         min-height: 0;
                         width: 100%;
                         overflow: auto;
-                        padding: 40px;
+                        /* Extra top padding (vs. the 40px every other side
+                           gets): the CEO/manager avatar photo pokes up
+                           ~67px above its own card (avatar-wrapper's -2px
+                           plus the avatar's own -65px — see .avatar-wrapper
+                           / styles.ceoAvatar), and this wrapper's scroll
+                           position starts at 0 with nowhere further up to
+                           scroll to — so a plain 40px top padding left the
+                           top of the CEO's photo clipped against the edge
+                           of the chart area. 90px comfortably clears that
+                           67px overflow plus a little breathing room. */
+                        padding: 90px 40px 40px;
                         cursor: grab;
                         user-select: none;
                     }
@@ -2053,6 +2418,90 @@ const OrganizationChart = () => {
                         gap: 12px;
 
                         z-index: 1000;
+                    }
+
+                    /* Color key for the roles/cards — see RoleLegend. Sits
+                       bottom-right, just above its own toggle button
+                       (.legend-fab, directly below it at the same bottom/
+                       right position .controls uses on the left), so
+                       opening it never collides with the zoom controls. */
+                    .role-legend {
+                        position: fixed;
+                        bottom: 92px;
+                        right: 30px;
+                        z-index: 1000;
+
+                        width: 210px;
+                        padding: 4px 0;
+                        border-radius: 10px;
+                        overflow: hidden;
+                        background: #ffffff;
+                        border: 1px solid #cbd5e1;
+                        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.15);
+                    }
+
+                    /* Round toggle button for the legend above — no label
+                       text on the panel itself any more (see RoleLegend),
+                       so this icon is what identifies it. Styled to match
+                       .zoom-btn (same size/shape/shadow language) but its
+                       own fixed position, on the right where the user
+                       asked for it rather than paired with zoom on the
+                       left. */
+                    .legend-fab {
+                        position: fixed;
+                        bottom: 30px;
+                        right: 30px;
+                        z-index: 1001;
+
+                        width: 52px;
+                        height: 52px;
+                        border: none;
+                        border-radius: 50%;
+
+                        background: #0b1f3a;
+                        color: #fff;
+                        font-size: 19px;
+
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+
+                        box-shadow: 0 12px 28px rgba(11, 31, 58, 0.3);
+                        transition: all 0.25s ease;
+                    }
+
+                    .legend-fab:hover {
+                        transform: translateY(-3px);
+                        background: #12305a;
+                    }
+
+                    .role-legend-row {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        padding: 6px 10px;
+                        border-top: 1px solid #e2e8f0;
+                    }
+
+                    .role-legend-row:first-child {
+                        border-top: none;
+                    }
+
+                    .role-legend-swatch {
+                        width: 20px;
+                        height: 14px;
+                        flex-shrink: 0;
+                        border-radius: 3px;
+                        border: 2px solid transparent;
+                    }
+
+                    .role-legend-label {
+                        font-size: 12px;
+                        color: #1e293b;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
                     }
 
                     .zoom-btn {

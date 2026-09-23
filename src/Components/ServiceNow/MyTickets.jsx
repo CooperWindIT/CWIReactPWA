@@ -414,8 +414,16 @@ export default function AssetlessMyTickets() {
                                     </div>
                                 </div>
                             </div>
+                            <div
+    style={{
+        maxHeight: "500px",
+        overflowY: "auto",
+        overflowX: "auto",
+    }}
+    className="custom-scrollbar"
+>
                             <table className="table align-middle table-hover gs-7 gy-5 mb-0 fs-6">
-                                <thead className="bg-light-primary">
+                                <thead className="bg-light-primary sticky-top">
                                     <tr className="text-start text-muted fw-bold fs-7 text-uppercase gs-0 border-bottom-2 border-primary">
                                         <th className="">S.No</th>
                                         <th className="min-w-125px">Ticket Code</th>
@@ -580,6 +588,7 @@ export default function AssetlessMyTickets() {
                                     )}
                                 </tbody>
                             </table>
+</div>
                         </div>
                     </div>
                 </div>

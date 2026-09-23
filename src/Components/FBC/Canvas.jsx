@@ -8,6 +8,69 @@ import { BASE_IMAGE_API_GET } from '../Config/Config';
 const BASE_WIDTH = 3200;
 const BASE_HEIGHT = 2400;
 
+// How close the eraser has to pass to something to catch it, in canvas units.
+const ERASER_RADIUS = 8;
+// A fast drag fires mousemove only every so often, leaving gaps between
+// sample points that could skip right over a small shape. Each move is
+// walked in steps of this size so the stroke behaves like a continuous
+// swipe rather than a handful of disconnected dots.
+const ERASER_STEP = 6;
+
+function pointHitsNode(point, node, radius) {
+  return (
+    point.x >= node.x - radius &&
+    point.x <= node.x + node.w + radius &&
+    point.y >= node.y - radius &&
+    point.y <= node.y + node.h + radius
+  );
+}
+
+function distanceToSegment(point, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) return Math.hypot(point.x - a.x, point.y - a.y);
+
+  let t = ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared;
+  t = Math.max(0, Math.min(1, t));
+
+  return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
+}
+
+// Connections are hit-tested against the path between the two node centers.
+// When the connection has been bent with a control point, that path is a
+// quadratic curve, so it's sampled into short segments rather than treated
+// as a straight line.
+function pointHitsConnection(point, connection, nodeMap, radius) {
+  const fromNode = nodeMap[connection.from];
+  const toNode = nodeMap[connection.to];
+  if (!fromNode || !toNode) return false;
+
+  const start = { x: fromNode.x + fromNode.w / 2, y: fromNode.y + fromNode.h / 2 };
+  const end = { x: toNode.x + toNode.w / 2, y: toNode.y + toNode.h / 2 };
+  const control = connection.controlPoint;
+
+  if (!control) return distanceToSegment(point, start, end) <= radius;
+
+  const SAMPLES = 12;
+  let previous = start;
+
+  for (let i = 1; i <= SAMPLES; i += 1) {
+    const t = i / SAMPLES;
+    const inverse = 1 - t;
+    const current = {
+      x: inverse * inverse * start.x + 2 * inverse * t * control.x + t * t * end.x,
+      y: inverse * inverse * start.y + 2 * inverse * t * control.y + t * t * end.y,
+    };
+
+    if (distanceToSegment(point, previous, current) <= radius) return true;
+    previous = current;
+  }
+
+  return false;
+}
+
 function getConnectionSide(fromNode, toNode) {
   const fromCenterX = fromNode.x + fromNode.w / 2;
   const fromCenterY = fromNode.y + fromNode.h / 2;
@@ -51,6 +114,9 @@ export default function Canvas({
   onSelectConnection,
   onConnect,
   onLabelChange,
+  onTextsChange,
+  onAutoResize,
+  onErase,
   onQuickCreateFromNode,
   onFocusBranch,
   onConnectionControlEnd,
@@ -80,11 +146,19 @@ export default function Canvas({
   // two endpoint handles for a selected line, instead of the usual four
   // corner resize handles every other shape gets).
   const resizingLineEndpoint = useRef(null);
+  // Eraser stroke in progress: the last sampled point, plus the sets of node
+  // and connection ids swiped over so far. Nothing is actually deleted until
+  // the button comes back up — until then they're only grayed out, so a
+  // mis-swipe can be taken back with Alt.
+  const erasing = useRef(null);
   const didDrag = useRef(false);
   const [selectionRect, setSelectionRect] = React.useState(null);
   // Live preview of the line being drawn, in absolute canvas coordinates —
   // rendered as a dashed line that tracks the cursor until mouseup.
   const [linePreview, setLinePreview] = React.useState(null);
+  // Ids currently marked by an in-progress eraser stroke, mirrored into state
+  // so the affected shapes and connections can render grayed out.
+  const [erasePreview, setErasePreview] = React.useState({ nodeIds: [], connectionIds: [] });
 
   const lastPointerPos = useRef({ x: BASE_WIDTH / 2, y: BASE_HEIGHT / 2 });
 
@@ -182,6 +256,57 @@ export default function Canvas({
     return () => wrap.removeEventListener('mousemove', trackPointer);
   }, [toCanvasPoint]);
 
+  // Walks the eraser from one sampled point to the next, marking (or with
+  // `reverting`, un-marking) everything along the way. Stepping the segment
+  // rather than testing only the endpoints is what keeps a fast swipe from
+  // jumping clean over a small shape.
+  const applyEraserAlongSegment = useCallback((from, to, reverting) => {
+    const state = erasing.current;
+    if (!state) return;
+
+    const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
+    const distance = Math.hypot(to.x - from.x, to.y - from.y);
+    const steps = Math.max(1, Math.ceil(distance / ERASER_STEP));
+    let changed = false;
+
+    for (let i = 0; i <= steps; i += 1) {
+      const t = steps === 0 ? 1 : i / steps;
+      const point = {
+        x: from.x + (to.x - from.x) * t,
+        y: from.y + (to.y - from.y) * t,
+      };
+
+      nodes.forEach((node) => {
+        if (!pointHitsNode(point, node, ERASER_RADIUS)) return;
+
+        if (reverting) {
+          if (state.nodeIds.delete(node.id)) changed = true;
+        } else if (!state.nodeIds.has(node.id)) {
+          state.nodeIds.add(node.id);
+          changed = true;
+        }
+      });
+
+      connections.forEach((connection) => {
+        if (!pointHitsConnection(point, connection, nodeMap, ERASER_RADIUS)) return;
+
+        if (reverting) {
+          if (state.connectionIds.delete(connection.id)) changed = true;
+        } else if (!state.connectionIds.has(connection.id)) {
+          state.connectionIds.add(connection.id);
+          changed = true;
+        }
+      });
+    }
+
+    if (changed) {
+      setErasePreview({
+        nodeIds: Array.from(state.nodeIds),
+        connectionIds: Array.from(state.connectionIds),
+      });
+    }
+  }, [nodes, connections]);
+
   useEffect(() => {
     const onMouseMove = (event) => {
       if (dragging.current) {
@@ -259,6 +384,16 @@ export default function Canvas({
           x2: point.x,
           y2: point.y,
         });
+        return;
+      }
+
+      if (erasing.current) {
+        const point = toCanvasPoint(event.clientX, event.clientY);
+        // Alt turns the stroke into an "un-eraser": swiping back over
+        // something already marked takes it off the list.
+        const reverting = event.altKey;
+        applyEraserAlongSegment(erasing.current.lastPoint, point, reverting);
+        erasing.current.lastPoint = point;
         return;
       }
 
@@ -362,6 +497,19 @@ export default function Canvas({
         setActiveShape(null);
       }
 
+      // Releasing the button is what actually commits an eraser stroke —
+      // everything marked during the swipe goes in one deletion (and so one
+      // undo step).
+      if (erasing.current) {
+        const { nodeIds, connectionIds } = erasing.current;
+        erasing.current = null;
+        setErasePreview({ nodeIds: [], connectionIds: [] });
+
+        if (nodeIds.size || connectionIds.size) {
+          onErase(Array.from(nodeIds), Array.from(connectionIds));
+        }
+      }
+
       if (selecting.current) {
         const point = toCanvasPoint(event.clientX, event.clientY);
         const finalRect = getCanvasRectFromPoints(selecting.current.startPoint, point);
@@ -382,6 +530,7 @@ export default function Canvas({
       panning.current = null;
       selecting.current = null;
       drawingLine.current = null;
+      erasing.current = null;
       setSelectionRect(null);
       setLinePreview(null);
       if (shouldCommitDrag) onNodeDragEnd();
@@ -395,7 +544,7 @@ export default function Canvas({
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [getCanvasRectFromPoints, nodes, onConnectionControlEnd, onConnectionsChange, onCreateLine, onNodeDragEnd, onNodesChange, onSelectNodes, setActiveShape, toCanvasPoint]);
+  }, [getCanvasRectFromPoints, nodes, onConnectionControlEnd, onConnectionsChange, onCreateLine, onErase, onNodeDragEnd, onNodesChange, onSelectNodes, setActiveShape, applyEraserAlongSegment, toCanvasPoint]);
 
   useEffect(() => {
     if (!activeSearchNodeId || !wrapRef.current) return;
@@ -500,9 +649,12 @@ if (!isAlreadySelected) {
       // by the same -36 used for a ~72-144px-tall shape would drop it well
       // above the cursor instead of centered on it.
       y: point.y - (shape === 'line' ? 2 : 36),
-      w: shape === 'diamond' ? 200 : shape === 'circle' ? 120 : 160,
-      h: shape === 'circle' ? 120 : shape === 'diamond' ? 120 : shape === 'text' ? 42 : shape === 'line' ? 4 : 72,
-      label: shape === 'line' ? '' : 'Text',
+      w: shape === 'diamond' ? 200 : shape === 'circle' ? 120 : shape === 'oval' ? 180 : 160,
+      h: shape === 'circle' ? 120 : shape === 'diamond' ? 120 : shape === 'oval' ? 110 : shape === 'text' ? 42 : shape === 'line' ? 4 : 72,
+      // No placeholder "Text" caption on a freshly dropped shape — see
+      // createNode in flowbuilder2.js for the matching change on the
+      // click-to-place path.
+      label: '',
       strokeColor: '#1f1f1f',
       fillColor: 'transparent',
       collapsed: false,
@@ -513,6 +665,16 @@ if (!isAlreadySelected) {
   const handleCanvasMouseDown = useCallback((event) => {
     const clickedOnCanvasSurface =
       event.target === canvasRef.current || event.target.classList.contains(styles.grid);
+
+    // Eraser: begin a stroke wherever the button goes down — including
+    // directly on top of a shape, which is the normal way to start one.
+    if (mode === 'erase' && !readMode) {
+      const point = toCanvasPoint(event.clientX, event.clientY);
+      erasing.current = { lastPoint: point, nodeIds: new Set(), connectionIds: new Set() };
+      applyEraserAlongSegment(point, point, event.altKey);
+      event.preventDefault();
+      return;
+    }
 
     if (mode === 'pan') {
       if (!clickedOnCanvasSurface) return;
@@ -551,10 +713,13 @@ if (!isAlreadySelected) {
       setSelectionRect({ x: point.x, y: point.y, w: 0, h: 0 });
       onSelectNode(null);
     }
-  }, [activeShape, mode, onCreateNode, onSelectNode, readMode, setActiveShape, toCanvasPoint]);
+  }, [activeShape, mode, onCreateNode, onSelectNode, readMode, setActiveShape, toCanvasPoint, applyEraserAlongSegment]);
 
   const handleCanvasDoubleClick = useCallback((event) => {
-    if (readMode || mode === 'pan') return;
+    // Erase mode must not spawn a free text node on a double-click — two
+    // quick erase clicks in the same spot would otherwise leave new text
+    // behind instead of removing things.
+    if (readMode || mode === 'pan' || mode === 'erase') return;
 
     // If the double-click landed on (or inside) an existing node,
     // let that node handle its own edit behavior — don't spawn a new text node.
@@ -668,7 +833,7 @@ if (!isAlreadySelected) {
         id="canvas-wrap"
         onWheel={handleWheel}
         style={{
-          cursor: mode === "pan" ? "grab" : activeShape ? "crosshair" : "default",
+          cursor: mode === "pan" ? "grab" : mode === "erase" ? "cell" : activeShape ? "crosshair" : "default",
         }}
       >
         <div
@@ -786,9 +951,10 @@ if (!isAlreadySelected) {
                       theme={theme}
                       selected={selectedConnectionId === connection.id}
                       dimmed={
-                        focusedNodeIds.length > 0 &&
-                        (!focusedNodeIds.includes(connection.from) ||
-                          !focusedNodeIds.includes(connection.to))
+                        erasePreview.connectionIds.includes(connection.id) ||
+                        (focusedNodeIds.length > 0 &&
+                          (!focusedNodeIds.includes(connection.from) ||
+                            !focusedNodeIds.includes(connection.to)))
                       }
                       onSelectConnection={onSelectConnection}
                       onControlPointDragStart={handleConnectionControlDragStart}
@@ -836,6 +1002,9 @@ if (!isAlreadySelected) {
                         onQuickCreateFromNode={onQuickCreateFromNode}
                         onReadModeDoubleClick={onFocusBranch}
                         onLabelChange={onLabelChange}
+                        onTextsChange={onTextsChange}
+                        onAutoResize={onAutoResize}
+                        markedForErase={erasePreview.nodeIds.includes(node.id)}
                         readMode={readMode}
                         theme={theme}
                       />

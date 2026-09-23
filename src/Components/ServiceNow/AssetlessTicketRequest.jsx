@@ -556,7 +556,7 @@ export default function AssetlessTicketRequest() {
 
     const handleCloseTicket = async (item) => {
         setCloseData(item);
-    
+
         const result = await Swal.fire({
             title: "Close Ticket?",
             text: `Are you sure you want to close ticket ${item?.TicketCode}?`,
@@ -568,32 +568,32 @@ export default function AssetlessTicketRequest() {
             confirmButtonColor: "#dc3545",
             cancelButtonColor: "#6c757d",
         });
-    
+
         if (!result.isConfirmed) {
             return;
         }
-    
+
         // User clicked Yes → proceed with API
         await handleCloseSubmit(item);
     };
-    
-    
+
+
     const handleCloseSubmit = async (item) => {
-    
+
         const payload = {
             OrgId: sessionUserData.OrgId,
             Priority: item.Priority,
             TicketStatus: "CLOSED",
             UserId: sessionUserData.Id,
-    
+
             JsonData: {
                 TicketId: item.Id,
             },
         };
-    
+
         try {
             setCloseSubmitLoading(true);
-    
+
             const response = await fetchWithAuth(
                 "ServiceNow/GeneralTickets",
                 {
@@ -604,11 +604,11 @@ export default function AssetlessTicketRequest() {
                     body: JSON.stringify(payload),
                 }
             );
-    
+
             const data = await response.json();
-    
+
             const result = data?.data?.result?.[0];
-    
+
             if (
                 response.ok &&
                 data.success &&
@@ -624,7 +624,7 @@ export default function AssetlessTicketRequest() {
                 }).then(() => {
                     window.location.reload();
                 });
-    
+
             } else {
                 Swal.fire({
                     icon: "error",
@@ -634,16 +634,16 @@ export default function AssetlessTicketRequest() {
                         "Unable to close ticket.",
                 });
             }
-    
+
         } catch (err) {
             console.error(err);
-    
+
             Swal.fire(
                 "Error",
                 "Something went wrong.",
                 "error"
             );
-    
+
         } finally {
             setCloseSubmitLoading(false);
         }
@@ -654,6 +654,7 @@ export default function AssetlessTicketRequest() {
     const priorityColor = (p) => (p === 1 ? "danger" : p === 2 ? "warning" : "secondary");
 
     const showAddBtn = sessionActionIds?.includes(1);
+    const showQRBtn = sessionActionIds?.includes(9);
     const showViewBtn = sessionActionIds?.includes(2);
     const showCloseBtn = true;
 
@@ -690,7 +691,9 @@ export default function AssetlessTicketRequest() {
                     </div>
 
                     <div className="d-flex align-items-center gap-2 bg-white p-2 rounded-4 shadow-sm">
-                        <QRCodeCard />
+                        {showQRBtn && (
+                            <QRCodeCard />
+                        )}
                         <Link
                             to="/service-requests/my-tickets"
                             className="btn btn-light-primary btn-sm"
@@ -838,31 +841,31 @@ export default function AssetlessTicketRequest() {
                                 </div>
                                 {sessionUserData?.RoleId != 3 && (
                                     <>
-                                    <div className="col-12 col-md-2 mb-2 d-flex flex-column">
-                                        <label className="form-label fw-bold fs-8 text-gray-700">
-                                            Department
-                                        </label>
-                                        <Select
-                                            showSearch
-                                            allowClear
-                                            placeholder="Select Department"
-                                            className="w-100"
-                                            value={selectedDeptId || undefined}
-                                            style={{ height: "2.6rem" }}
-                                            onChange={(value) => setSelectedDeptId(value)}
-                                            filterOption={(input, option) => {
-                                                const text = `${option?.children}`.toLowerCase();
-                                                return text.includes(input.toLowerCase());
-                                            }}
-                                        >
-                                            <Option value="0">ALL</Option>
-                                            {Array.isArray(deptsData) && deptsData.map((ticTyp) => (
-                                                <Option key={ticTyp.ItemId} value={ticTyp.ItemId}>
-                                                    {ticTyp.ItemValue}
-                                                </Option>
-                                            ))}
-                                        </Select>
-                                    </div>
+                                        <div className="col-12 col-md-2 mb-2 d-flex flex-column">
+                                            <label className="form-label fw-bold fs-8 text-gray-700">
+                                                Department
+                                            </label>
+                                            <Select
+                                                showSearch
+                                                allowClear
+                                                placeholder="Select Department"
+                                                className="w-100"
+                                                value={selectedDeptId || undefined}
+                                                style={{ height: "2.6rem" }}
+                                                onChange={(value) => setSelectedDeptId(value)}
+                                                filterOption={(input, option) => {
+                                                    const text = `${option?.children}`.toLowerCase();
+                                                    return text.includes(input.toLowerCase());
+                                                }}
+                                            >
+                                                <Option value="0">ALL</Option>
+                                                {Array.isArray(deptsData) && deptsData.map((ticTyp) => (
+                                                    <Option key={ticTyp.ItemId} value={ticTyp.ItemId}>
+                                                        {ticTyp.ItemValue}
+                                                    </Option>
+                                                ))}
+                                            </Select>
+                                        </div>
                                         <div className="col-12 col-md-2 mb-2 d-flex flex-column">
                                             <label className="form-label fw-bold fs-8 text-gray-700">
                                                 Raised User
@@ -1114,14 +1117,14 @@ export default function AssetlessTicketRequest() {
                                                                                     pointerEvents: showCloseBtn ? "auto" : "none",
                                                                                 }}
                                                                                 className="text-hover-danger"
-                                                                                data-bs-toggle="offcanvas"
-                                                                                data-bs-target="#offcanvasRightCloseTic"
+                                                                                // data-bs-toggle="offcanvas"
+                                                                                // data-bs-target="#offcanvasRightCloseTic"
                                                                                 onClick={() => handleCloseTicket(item)}
                                                                             >
                                                                                 <i className="fa-solid fa-circle-check text-danger me-2"></i>
                                                                                 Close
                                                                             </p>
-                                                                         )}
+                                                                        )}
                                                                 </div>
                                                             }
                                                             trigger="hover"
@@ -1396,8 +1399,8 @@ export default function AssetlessTicketRequest() {
                                 <>
                                     <i
                                         className={`fa-solid ${editingComment
-                                                ? "fa-pen-to-square"
-                                                : "fa-paper-plane"
+                                            ? "fa-pen-to-square"
+                                            : "fa-paper-plane"
                                             } me-2`}
                                     ></i>
                                     {editingComment ? "Update Comment" : "Submit Comment"}

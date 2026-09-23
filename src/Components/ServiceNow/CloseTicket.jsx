@@ -69,7 +69,6 @@ export default function CloseTicket({ ticObj }) {
 
     const handleCloseSubmit = async (e) => {
         e.preventDefault();
-        console.log(ticObj);
 
         const payload = {
             OrgId: sessionUserData.OrgId,

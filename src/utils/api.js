@@ -44,31 +44,91 @@ export const refreshAccessToken = async () => {
     }
 };
 
+// export const fetchWithAuth = async (url, options = {}) => {
+//     let token = sessionStorage.getItem("accessToken");
+
+//     const res = await fetch(BASE_API + url, {
+//         ...options,
+//         headers: {
+//             ...options.headers,
+//             Authorization: `Bearer ${token}`,
+//         },
+//     });
+
+//     if (res.status === 401) {
+//         token = await refreshAccessToken();
+//         if (!token) return res;
+
+//         return fetch(BASE_API + url, {
+//             ...options,
+//             headers: {
+//                 ...options.headers,
+//                 Authorization: `Bearer ${token}`,
+//             },
+//         });
+//     }
+
+//     return res;
+// };
+
 export const fetchWithAuth = async (url, options = {}) => {
     let token = sessionStorage.getItem("accessToken");
 
-    const res = await fetch(BASE_API + url, {
-        ...options,
-        headers: {
-            ...options.headers,
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    // No access token available → logout immediately
+    if (!token) {
+        handleSessionExpired();
+        return null;
+    }
 
-    if (res.status === 401) {
-        token = await refreshAccessToken();
-        if (!token) return res;
-
+    const makeRequest = (accessToken) => {
         return fetch(BASE_API + url, {
             ...options,
             headers: {
                 ...options.headers,
-                Authorization: `Bearer ${token}`,
+                Authorization: `Bearer ${accessToken}`,
             },
         });
-    }
+    };
 
-    return res;
+    try {
+        let res = await makeRequest(token);
+
+        // Access token expired
+        if (res.status === 401) {
+            token = await refreshAccessToken();
+
+            // Refresh failed → logout
+            if (!token) {
+                handleSessionExpired();
+                return res;
+            }
+
+            // Retry request with new token
+            res = await makeRequest(token);
+
+            // New token also rejected → logout
+            if (res.status === 401) {
+                handleSessionExpired();
+            }
+        }
+
+        return res;
+
+    } catch (error) {
+        console.error("API request error:", error);
+        throw error;
+    }
+};
+
+const handleSessionExpired = () => {
+    sessionStorage.removeItem("accessToken");
+    sessionStorage.removeItem("refreshToken");
+    sessionStorage.removeItem("userData");
+
+    // If you have other authentication/session values,
+    // remove them here as well.
+
+    window.location.href = "/";
 };
 
 export const fetchWithAuthExternal = async (baseUrl, url, options = {}) => {

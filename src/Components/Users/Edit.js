@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Swal from 'sweetalert2';
-import { BASE_API } from "../Config/Config";
+import { BASE_API, BASE_IMAGE_API_GET } from "../Config/Config";
 import PropTypes from "prop-types";
 import { Select } from 'antd';
 import { fetchWithAuth } from "../../utils/api";
@@ -41,6 +41,7 @@ export default function EditUser({ editObj }) {
     Gender: "",
     ManagerId: "",
     IsSuperiorId: "",
+    Designation: "",
     UpdatedBy: sessionUserData.Id,
   });
 
@@ -180,42 +181,43 @@ export default function EditUser({ editObj }) {
   useEffect(() => {
     if (editObj) {
 
-        setFormData({
-            Id: editObj.Id,
-            RoleId: editObj.RoleId || "",
-            Name: editObj.Name || "",
-            Password: editObj.Password || "",
-            IsActive: 1,
-            CreatedBy: editObj.CreatedBy || "",
-            OrgId: editObj.OrgId || "",
-            DeptId: editObj.DeptId || "",
-            Mobile: editObj.Mobile || "",
-            Email: editObj.Email || "",
-            IsMobile: editObj.IsMobile ? 1 : 0,
-            Gender: editObj.Gender ? 1 : 0,
-            ManagerId: editObj.ManagerId || "",
-            IsSuperiorId: editObj.IsSuperiorId || "",
-            UpdatedBy: sessionUserData.Id,
-        });
+      setFormData({
+        Id: editObj.Id,
+        RoleId: editObj.RoleId || "",
+        Name: editObj.Name || "",
+        Password: editObj.Password || "",
+        IsActive: 1,
+        CreatedBy: editObj.CreatedBy || "",
+        OrgId: editObj.OrgId || "",
+        DeptId: editObj.DeptId || "",
+        Mobile: editObj.Mobile || "",
+        Email: editObj.Email || "",
+        IsMobile: editObj.IsMobile ? 1 : 0,
+        Gender: editObj.Gender ? 1 : 0,
+        ManagerId: editObj.ManagerId || "",
+        Designation: editObj.Designation || "",
+        IsSuperiorId: editObj.IsSuperiorId || "",
+        UpdatedBy: sessionUserData.Id,
+      });
 
-        // Convert module IDs to numbers
-        const moduleIds =
-            typeof editObj.AccessToModules === "string"
-                ? editObj.AccessToModules
-                    .split(",")
-                    .filter(Boolean)
-                    .map(Number)
-                : Array.isArray(editObj.AccessToModules)
-                    ? editObj.AccessToModules.map(Number)
-                    : [];
+      // Convert module IDs to numbers
+      const moduleIds =
+        typeof editObj.AccessToModules === "string"
+          ? editObj.AccessToModules
+            .split(",")
+            .filter(Boolean)
+            .map(Number)
+          : Array.isArray(editObj.AccessToModules)
+            ? editObj.AccessToModules.map(Number)
+            : [];
 
-        setSelectedModules(moduleIds);
+      setSelectedModules(moduleIds);
 
-        setExistingImageUrl(editObj.ImageUrl || null);
-        setImageFile(null);
-        setNewImagePreview(null);
+      setExistingImageUrl(editObj.ImageUrl || null);
+      setImageFile(null);
+      setNewImagePreview(null);
     }
-}, [editObj, sessionUserData.Id]);
+  }, [editObj, sessionUserData.Id]);
 
   // Handle form input changes
   const handleInputChange = (e) => {
@@ -224,39 +226,39 @@ export default function EditUser({ editObj }) {
     const { name, value, type, checked } = e.target;
 
     if (name === "Mobile") {
-        // Allow only digits, max 10 characters
-        if (!/^\d{0,10}$/.test(value)) {
-            Swal.fire({
-                title: "Invalid Input",
-                text: "Please enter only numbers (max 10 digits) without letters or special characters.",
-                icon: "error",
-            });
-            return;
-        }
+      // Allow only digits, max 10 characters
+      if (!/^\d{0,10}$/.test(value)) {
+        Swal.fire({
+          title: "Invalid Input",
+          text: "Please enter only numbers (max 10 digits) without letters or special characters.",
+          icon: "error",
+        });
+        return;
+      }
     }
 
     let formattedValue = value;
 
     // Name, City and Department formatting
     if (
-        name === "Name" ||
-        name === "City" ||
-        name === "Department"
+      name === "Name" ||
+      name === "City" ||
+      name === "Department"
     ) {
-        formattedValue = value
-            .replace(/\s+/g, " ")
-            .replace(/(^|[\s.])([a-z])/g, (match, separator, letter) => {
-                return separator + letter.toUpperCase();
-            });
+      formattedValue = value
+        .replace(/\s+/g, " ")
+        .replace(/(^|[\s.])([a-z])/g, (match, separator, letter) => {
+          return separator + letter.toUpperCase();
+        });
     }
 
     setFormData((prevState) => ({
-        ...prevState,
-        [name]: type === "checkbox"
-            ? checked
-            : formattedValue,
+      ...prevState,
+      [name]: type === "checkbox"
+        ? checked
+        : formattedValue,
     }));
-};
+  };
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -325,6 +327,7 @@ export default function EditUser({ editObj }) {
       payload.append("IsMobile", formData.IsMobile ? "1" : "0");
       payload.append("Gender", formData.Gender ?? "");
       payload.append("ManagerId", formData.ManagerId || "");
+      payload.append("Designation", formData.Designation || "");
       payload.append("IsSuperiorId", formData.IsSuperiorId || "");
       payload.append("AccessToModules", selectedModules.join(","));
       payload.append("UpdatedBy", formData.UpdatedBy || "");
@@ -349,7 +352,8 @@ export default function EditUser({ editObj }) {
           title: "Success",
           text: "User has been updated successfully.",
           icon: "success",
-        }).then(() => window.location.reload());
+        })
+        // .then(() => window.location.reload());
       } else {
         Swal.fire({
           title: "Error",
@@ -587,6 +591,18 @@ export default function EditUser({ editObj }) {
               {emailError && <div className="invalid-feedback">{emailError}</div>}
             </div>
             <div className="col-6 mb-2">
+              <label className="form-label">Designation<span className="text-danger">*</span></label>
+              <input
+                type="text"
+                name="Designation"
+                className={`form-control`}
+                placeholder="Enter designation"
+                value={formData.Designation}
+                onChange={handleInputChange}
+                required
+              />
+            </div>
+            <div className="col-6 mb-2">
               <label className="form-label">Gender<span className="text-danger">*</span></label>
               <select
                 className="form-select"
@@ -632,11 +648,20 @@ export default function EditUser({ editObj }) {
                 showSearch
                 allowClear
                 filterOption={(input, option) =>
-                  option?.children?.toLowerCase().includes(input.toLowerCase())
+                  String(option?.children ?? "")
+                    .toLowerCase()
+                    .includes(input.toLowerCase())
                 }
                 value={formData.IsSuperiorId || undefined}
-                onChange={(value) => handleInputChange({ target: { name: 'IsSuperiorId', value } })}
-                style={{ height: '3.3rem' }}
+                onChange={(value) =>
+                  handleInputChange({
+                    target: {
+                      name: "IsSuperiorId",
+                      value,
+                    },
+                  })
+                }
+                style={{ height: "3.3rem" }}
               >
                 {usersData?.map((item) => (
                   <Option key={item.ItemId} value={item.ItemId}>
@@ -648,25 +673,25 @@ export default function EditUser({ editObj }) {
             <div className="col-12 mb-2 d-flex flex-column">
               <label className="form-label">Modules<span className="text-danger">*</span></label>
               <Select
-    mode="multiple"
-    placeholder="Select Modules"
-    showSearch
-    allowClear
-    filterOption={(input, option) =>
-        option?.children
-            ?.toLowerCase()
-            .includes(input.toLowerCase())
-    }
-    value={selectedModules}
-    onChange={(values) => setSelectedModules(values)}
-    style={{ minHeight: "3.4rem" }}
->
-    {modulesData?.map((item) => (
-        <Option key={item.Id} value={item.Id}>
-            {item.ModuleName}
-        </Option>
-    ))}
-</Select>
+                mode="multiple"
+                placeholder="Select Modules"
+                showSearch
+                allowClear
+                filterOption={(input, option) =>
+                  option?.children
+                    ?.toLowerCase()
+                    .includes(input.toLowerCase())
+                }
+                value={selectedModules}
+                onChange={(values) => setSelectedModules(values)}
+                style={{ minHeight: "3.4rem" }}
+              >
+                {modulesData?.map((item) => (
+                  <Option key={item.Id} value={item.Id}>
+                    {item.ModuleName}
+                  </Option>
+                ))}
+              </Select>
             </div>
 
             <div className="col-12 mb-2">
@@ -686,7 +711,7 @@ export default function EditUser({ editObj }) {
                     {newImagePreview ? (
                       <img src={newImagePreview} alt="New preview" />
                     ) : existingImageUrl ? (
-                      <img src={existingImageUrl} alt="Current" />
+                      <img src={`${BASE_IMAGE_API_GET}${existingImageUrl}`} alt="Current" />
                     ) : (
                       <i className="fa-regular fa-image text-muted"></i>
                     )}

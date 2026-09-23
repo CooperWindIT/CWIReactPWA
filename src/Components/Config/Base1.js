@@ -8,6 +8,9 @@ import WeatherDetails from './../../utils/WeatherDetails';
 import FAQButton from './FAQBtn';
 import Swal from "sweetalert2";
 import { fetchWithAuth } from '../../utils/api';
+import EmployeeContactQR from './../Auth/EmployeeContactQR';
+import EmployeeIdCards from './../Auth/Employeeidcards'
+
 
 const Base1 = ({ children }) => {
 
@@ -816,11 +819,6 @@ const Base1 = ({ children }) => {
                             </div>
 
                             <ul className="list-group list-group-flush">
-                                {/* <li className="list-group-item d-flex justify-content-between">
-                                    <span><i className="fa-solid fa-id-badge icon-animate text-primary me-2"></i> Org ID</span>
-                                    <span className="fw-bold">{sessionUserData?.OrgId}</span>
-                                </li> */}
-
                                 <li className="list-group-item d-flex justify-content-between">
                                     <span><i className="fa-solid fa-id-card icon-animate text-primary me-2"></i> Emp No</span>
                                     <span className="fw-bold">{sessionUserData?.EmpNo}</span>
@@ -855,6 +853,7 @@ const Base1 = ({ children }) => {
                                 </li>
                             </ul>
                         </div>
+
                         {sessionUserData.PasswordUpdatedOn && (() => {
                             const { daysRemaining, isExpired, isUrgent } = getPasswordExpiryInfo(sessionUserData.PasswordUpdatedOn);
 
@@ -934,6 +933,11 @@ const Base1 = ({ children }) => {
                                 </div>
                             );
                         })()}
+
+<div className="p-4">
+<EmployeeContactQR embedded closeOffcanvasId="offcanvasRightViewProfile" />
+</div>
+<EmployeeIdCards />
                     </div>
                 </div>
             </div>
@@ -1109,7 +1113,9 @@ const Base1 = ({ children }) => {
                 .submenu-link.active-sub {
                 background-color: #d1ecff; /* Light sky blue */
                 color: #0d6efd !important; /* Bootstrap primary for text */
-                font-weight: 600
+                font-weight: 600;
+;
+
 ;
                 }
 

@@ -9,6 +9,7 @@ const SHAPE_TOOLS = [
   { id: 'rounded', label: 'Rounded', short: '3' },
   { id: 'diamond', label: 'Diamond', short: '4' },
   { id: 'circle', label: 'Circle', short: '5' },
+  { id: 'oval', label: 'Oval', short: '1' },
   { id: 'parallelogram', label: 'Parallelogram', short: '6' },
   { id: 'hexagon', label: 'Hexagon', short: '7' },
   { id: 'cylinder', label: 'Cylinder', short: '8' },
@@ -46,6 +47,23 @@ const ConnectIcon = () => (
   </svg>
 );
 
+const AutoArrowIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2.5" y="4" width="6" height="5" rx="1" />
+    <rect x="15.5" y="15" width="6" height="5" rx="1" />
+    <path d="M8.5 6.5h4a2 2 0 0 1 2 2v7" />
+    <path d="m12.2 13.2 2.3 2.3 2.3-2.3" />
+  </svg>
+);
+
+const EraserIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8.5 20H20" />
+    <path d="M14.5 4.5 4.6 14.4a2 2 0 0 0 0 2.8l2.6 2.6a2 2 0 0 0 2.8 0l9.9-9.9a2 2 0 0 0 0-2.8l-2.6-2.6a2 2 0 0 0-2.8 0z" />
+    <path d="M9.5 9.5 16 16" />
+  </svg>
+);
+
 const UndoIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 14H4V9" />
@@ -73,6 +91,7 @@ function ShapeIcon({ shapeId }) {
   if (shapeId === 'rounded') return <rect x="3" y="5" width="18" height="14" rx="5" fill="none" stroke="currentColor" strokeWidth="1.8" />;
   if (shapeId === 'diamond') return <polygon points="12,3 21,12 12,21 3,12" fill="none" stroke="currentColor" strokeWidth="1.8" />;
   if (shapeId === 'circle') return <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="1.8" />;
+  if (shapeId === 'oval') return <ellipse cx="12" cy="12" rx="9.5" ry="6" fill="none" stroke="currentColor" strokeWidth="1.8" />;
   if (shapeId === 'parallelogram') return <polygon points="6,5 21,5 18,19 3,19" fill="none" stroke="currentColor" strokeWidth="1.8" />;
   if (shapeId === 'hexagon') return <polygon points="7,4 17,4 22,12 17,20 7,20 2,12" fill="none" stroke="currentColor" strokeWidth="1.8" />;
   if (shapeId === 'cylinder') {
@@ -129,6 +148,9 @@ export default function Toolbar({
   activeSearchIndex,
   onSearchNext,
   onSearchPrev,
+
+  autoArrowEnabled,
+  onToggleAutoArrow,
 
   isVersionMode,
   onSubmitVersion,
@@ -222,6 +244,34 @@ export default function Toolbar({
             <ToolButton active={mode === 'connect'} label="Connect tool" onClick={() => onModeChange('connect')} disabled={readMode}>
               <ConnectIcon />
             </ToolButton>
+
+            <ToolButton
+              active={mode === 'erase'}
+              label="Eraser — hold and drag over items to delete them"
+              onClick={() => onModeChange('erase')}
+              disabled={readMode}
+            >
+              <EraserIcon />
+            </ToolButton>
+
+            <Tooltip
+              title={
+                autoArrowEnabled
+                  ? 'Auto arrow is ON — each new shape connects to the previous one. Click to turn off.'
+                  : 'Auto arrow is OFF — new shapes are placed unconnected. Click to turn on.'
+              }
+            >
+              <span style={{ display: 'inline-block' }}>
+                <ToolButton
+                  active={autoArrowEnabled}
+                  label="Auto arrow"
+                  onClick={onToggleAutoArrow}
+                  disabled={readMode}
+                >
+                  <AutoArrowIcon />
+                </ToolButton>
+              </span>
+            </Tooltip>
 
             <div className={styles.sep} />
 

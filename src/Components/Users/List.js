@@ -74,19 +74,19 @@ export default function UsersList() {
     }, [sessionUserData]);
 
     const filteredData = Array.isArray(usersData)
-    ? usersData.filter((item) => {
-        const userName = String(item?.Name ?? '').toLowerCase();
-        const email = String(item?.Email ?? '').toLowerCase();
-        const role = String(item?.RoleName ?? '').toLowerCase();
-        const query = String(searchQuery ?? '').toLowerCase();
+        ? usersData.filter((item) => {
+            const userName = String(item?.Name ?? '').toLowerCase();
+            const email = String(item?.Email ?? '').toLowerCase();
+            const role = String(item?.RoleName ?? '').toLowerCase();
+            const query = String(searchQuery ?? '').toLowerCase();
 
-        return (
-            userName.includes(query) ||
-            email.includes(query) ||
-            role.includes(query)
-        );
-    })
-    : [];
+            return (
+                userName.includes(query) ||
+                email.includes(query) ||
+                role.includes(query)
+            );
+        })
+        : [];
 
     const handleEdit = (item) => {
         setEditData(item);
@@ -189,6 +189,188 @@ export default function UsersList() {
     return (
         <Base1>
             <style>{`
+            
+    .cwi-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 18px 22px;
+        background: linear-gradient(180deg, #ffffff 0%, #fcfdff 100%);
+        border: 1px solid #e8eef5;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(22, 50, 80, 0.07);
+    }
+ 
+ 
+    /* ----- Title block ----- */
+ 
+    .cwi-toolbar-lead {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-width: 0;
+    }
+ 
+    .cwi-toolbar-badge {
+        width: 46px;
+        height: 46px;
+        flex: none;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+        font-size: 17px;
+        background: linear-gradient(135deg, #0271ae, #0a94d6);
+        box-shadow: 0 8px 18px rgba(2, 113, 174, 0.32);
+    }
+ 
+    .cwi-toolbar-text {
+        min-width: 0;
+    }
+ 
+    .cwi-toolbar-title {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1.2;
+        color: #12263f;
+        letter-spacing: -0.01em;
+    }
+ 
+ 
+    /* ----- Breadcrumb ----- */
+ 
+    .cwi-crumbs {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-top: 4px;
+        font-size: 12.5px;
+        font-weight: 500;
+    }
+ 
+    .cwi-crumb-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: #7a8795;
+        text-decoration: none;
+        padding: 2px 4px;
+        margin-left: -4px;
+        border-radius: 6px;
+        transition: color 0.15s ease, background-color 0.15s ease;
+    }
+ 
+    .cwi-crumb-link i {
+        font-size: 11px;
+        opacity: 0.85;
+    }
+ 
+    .cwi-crumb-link:hover,
+    .cwi-crumb-link:focus-visible {
+        color: #0271ae;
+        background: rgba(2, 113, 174, 0.07);
+    }
+ 
+    .cwi-crumb-sep {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: #c7d2de;
+        flex: none;
+    }
+ 
+    .cwi-crumb-current {
+        color: #12263f;
+        font-weight: 600;
+    }
+ 
+ 
+    /* ----- Add User ----- */
+ 
+    .cwi-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+ 
+    .cwi-btn-add {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        height: 46px;
+        padding: 0 22px;
+        border: none;
+        border-radius: 13px;
+        font-size: 13.5px;
+        font-weight: 600;
+        color: #ffffff;
+        cursor: pointer;
+        background: linear-gradient(135deg, #0271ae, #0a94d6);
+        box-shadow: 0 10px 22px rgba(2, 113, 174, 0.30);
+        transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+    }
+ 
+    .cwi-btn-add i {
+        font-size: 13px;
+    }
+ 
+    .cwi-btn-add:hover {
+        transform: translateY(-1px);
+        filter: brightness(1.06);
+        box-shadow: 0 14px 26px rgba(2, 113, 174, 0.34);
+    }
+ 
+    .cwi-btn-add:active {
+        transform: translateY(0);
+        box-shadow: 0 6px 14px rgba(2, 113, 174, 0.28);
+    }
+ 
+    .cwi-btn-add:focus-visible {
+        outline: 3px solid rgba(2, 113, 174, 0.35);
+        outline-offset: 2px;
+    }
+ 
+ 
+    /* ----- Phone: tighter chrome, button collapses to a circle ----- */
+ 
+    @media (max-width: 767.98px) {
+ 
+        .cwi-toolbar {
+            padding: 14px 16px;
+            border-radius: 14px;
+        }
+ 
+        .cwi-toolbar-badge {
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            font-size: 15px;
+        }
+ 
+        .cwi-toolbar-title {
+            font-size: 17px;
+        }
+ 
+        .cwi-btn-add {
+            width: 46px;
+            padding: 0;
+            border-radius: 50%;
+        }
+ 
+        .cwi-btn-add span {
+            display: none;
+        }
+ 
+        .cwi-btn-add i {
+            font-size: 15px;
+        }
+ 
+    }
                 .cwi-ul-toolbar-actions .cwi-ul-btn-create {
                     border-radius: 0.75rem;
                     font-weight: 600;
@@ -298,14 +480,16 @@ export default function UsersList() {
                 }
             `}</style>
 
-            <div id="kt_app_toolbar" className="app-toolbar py-3 py-lg-6">
+            {/* <div id="kt_app_toolbar" className="app-toolbar py-3 py-lg-6">
                 <div id="kt_app_toolbar_container" className="app-container container-xxl d-flex flex-stack">
                     <div className="page-title d-flex flex-column justify-content-center flex-wrap me-3">
                         <h1 className="page-heading d-flex text-gray-900 fw-bold fs-3 flex-column justify-content-center my-0">Users List</h1>
                         <ul className="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
+                            <a href="/organization-chart">
                             <li className="breadcrumb-item text-muted">
-                                <a href={navigationPath} className="text-muted text-hover-primary">Home</a>
+                                Org-Chart
                             </li>
+                            </a>
                             <li className="breadcrumb-item">
                                 <span className="bullet bg-gray-500 w-5px h-2px"></span>
                             </li>
@@ -332,7 +516,56 @@ export default function UsersList() {
                         </a>
                     </div>
                 </div>
+            </div> */}
+            
+<div id="kt_app_toolbar" className="app-toolbar py-3 py-lg-6">
+    <div id="kt_app_toolbar_container" className="app-container container-xxl">
+        <div className="cwi-toolbar">
+ 
+            <div className="cwi-toolbar-lead">
+                <span className="cwi-toolbar-badge">
+                    <i className="fa-solid fa-users"></i>
+                </span>
+ 
+                <div className="cwi-toolbar-text">
+                    <h1 className="cwi-toolbar-title">Users List</h1>
+ 
+                    {/* A <nav> of links rather than an <a> wrapped around an
+                        <li>: valid markup, and the router handles the click. */}
+                    <nav className="cwi-crumbs" aria-label="Breadcrumb">
+                        <Link to="/organization-chart" className="cwi-crumb-link">
+                            <i className="fa-solid fa-sitemap"></i>
+                            Org-Chart
+                        </Link>
+ 
+                        <span className="cwi-crumb-sep" aria-hidden="true"></span>
+ 
+                        <span className="cwi-crumb-current" aria-current="page">
+                            Users
+                        </span>
+                    </nav>
+                </div>
             </div>
+ 
+            {/* {(sessionUserData.RoleId === 3 || sessionUserData.RoleId === 1) && ( */}
+                <div className="cwi-toolbar-actions">
+                    <button
+                        type="button"
+                        className="cwi-btn-add"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#offcanvasRightAdd"
+                        aria-controls="offcanvasRightAdd"
+                        aria-label="Add User"
+                    >
+                        <i className="fa-solid fa-plus"></i>
+                        <span>Add User</span>
+                    </button>
+                </div>
+            {/* )} */}
+ 
+        </div>
+    </div>
+</div>
 
             <div id="kt_app_content" className="app-content flex-column-fluid mb-10" style={{ marginTop: "-35px" }}>
                 <div id="kt_app_content_container" className="app-container container-xxl">
@@ -366,6 +599,7 @@ export default function UsersList() {
                                             <th className="min-w-125px">Mobile</th>
                                             <th className="min-w-125px">Gender</th>
                                             <th className="min-w-100px">Role</th>
+                                            <th className="min-w-100px">Designation</th>
                                             <th className="min-w-100px">Superior</th>
                                             <th className="">Actions</th>
                                         </tr>
@@ -373,7 +607,7 @@ export default function UsersList() {
                                     <tbody className="fw-semibold text-gray-600">
                                         {dataLoading ? (
                                             <tr>
-                                                <td colSpan="7" className="text-center">
+                                                <td colSpan="12" className="text-center">
                                                     <div className="cwi-ul-loading-state">
                                                         <div className="spinner-border text-primary" role="status" style={{ width: "2.5rem", height: "2.5rem" }}></div>
                                                         <span className="fs-7">Loading users...</span>
@@ -385,54 +619,54 @@ export default function UsersList() {
                                                 <tr key={item.Id}>
                                                     <td>{(currentPage - 1) * recordsPerPage + index + 1}</td>
                                                     <td>
-    <div className="d-flex align-items-center">
-        <div
-            className="cwi-ul-avatar me-3"
-            style={{
-                backgroundColor: getAvatarColor(item.Name),
-                width: "42px",
-                height: "42px",
-                borderRadius: "50% 50% 50% 12px",
-                transform: "rotate(45deg)",
-                overflow: "hidden",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-            }}
-        >
-            {item.ImageURL ? (
-                <img
-                    src={`${BASE_IMAGE_API_GET}${item.ImageUrl}`}
-                    alt={item.Name || "Employee"}
-                    style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                        transform: "rotate(-45deg) scale(1.4)",
-                    }}
-                />
-            ) : (
-                <span
-                    style={{
-                        transform: "rotate(-45deg)",
-                        color: "#fff",
-                        fontWeight: "600",
-                    }}
-                >
-                    {getInitials(item.Name)}
-                </span>
-            )}
-        </div>
+                                                        <div className="d-flex align-items-center">
+                                                            <div
+                                                                className="cwi-ul-avatar me-3"
+                                                                style={{
+                                                                    backgroundColor: getAvatarColor(item.Name),
+                                                                    width: "42px",
+                                                                    height: "42px",
+                                                                    borderRadius: "50% 50% 50% 12px",
+                                                                    transform: "rotate(45deg)",
+                                                                    overflow: "hidden",
+                                                                    display: "flex",
+                                                                    alignItems: "center",
+                                                                    justifyContent: "center",
+                                                                }}
+                                                            >
+                                                                {item.ImageURL ? (
+                                                                    <img
+                                                                        src={`${BASE_IMAGE_API_GET}${item.ImageUrl}`}
+                                                                        alt={item.Name || "Employee"}
+                                                                        style={{
+                                                                            width: "100%",
+                                                                            height: "100%",
+                                                                            objectFit: "cover",
+                                                                            transform: "rotate(-45deg) scale(1.4)",
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <span
+                                                                        style={{
+                                                                            transform: "rotate(-45deg)",
+                                                                            color: "#fff",
+                                                                            fontWeight: "600",
+                                                                        }}
+                                                                    >
+                                                                        {getInitials(item.Name)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
 
-        <a
-            className="text-gray-800 text-hover-primary fw-semibold mb-1"
-            href="#"
-            onClick={(e) => e.preventDefault()}
-        >
-            {item.Name}
-        </a>
-    </div>
-</td>
+                                                            <a
+                                                                className="text-gray-800 text-hover-primary fw-semibold mb-1"
+                                                                href="#"
+                                                                onClick={(e) => e.preventDefault()}
+                                                            >
+                                                                {item.Name}
+                                                            </a>
+                                                        </div>
+                                                    </td>
                                                     <td>
                                                         <a href="#" className="text-gray-600 text-hover-primary mb-1">{item.Email}</a>
                                                     </td>
@@ -444,6 +678,9 @@ export default function UsersList() {
                                                     </td>
                                                     <td>
                                                         <span className="badge badge-light-primary cwi-ul-role-badge">{item.RoleName}</span>
+                                                    </td>
+                                                    <td>
+                                                        <span className="badge badge-light-info cwi-ul-role-badge">{item.Designation}</span>
                                                     </td>
                                                     <td>
                                                         <span className="badge badge-light-primary cwi-ul-role-badge">{item.SuperiorName || '       '}</span>

@@ -86,6 +86,7 @@ export default function NewSignIn() {
 
         setLoading(false);
         setErrorMessage(null);
+        setShowPassword(false);
 
         try {
             setLoading(true);
@@ -492,9 +493,6 @@ export default function NewSignIn() {
 
                         {loginType === "external" && 
                             <div>
-                                {/* <p className="login-hint mb-8">
-                                    <i class="bi bi-info-circle text-danger blink-icon"></i> Use your official email ID to log in (e.g., abc@cooperwind.in)
-                                </p> */}
                                 <div className="user-box">
                                     <input
                                         ref={emailRef}
@@ -552,7 +550,7 @@ export default function NewSignIn() {
                             <p className="alert alert-danger">{errorMessage}</p>
                         )}
 
-                        <button type="submit" className="btn gradient-button w-100 mb-2">{loading ? "Please wait..." : "Login"}</button>
+                        <button type="submit" className="btn btn-sm btn-primary w-100 mb-2" disabled={loading}>{loading ? "Please wait..." : "Login"}</button>
                         <div className="d-flex justify-content-between">
                             <a
                                 className="forgot-link text-decoration-none"

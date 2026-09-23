@@ -77,7 +77,12 @@ export default function RegisterTicket({ serviceTypesData }) {
         e.preventDefault();
 
         if (!formData.ServiceTypeId) {
-            Swal.fire("Validation", "Please select Ticket Type.", "warning");
+            Swal.fire("Validation", "Please select Category Type.", "warning");
+            return;
+        }
+
+        if (!formData.TicketTypeId) {
+            Swal.fire("Validation", "Please select sub-Category Type.", "warning");
             return;
         }
 

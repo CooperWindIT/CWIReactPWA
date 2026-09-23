@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Popover, Modal, Dropdown } from "antd";
+import { Popover, Modal } from "antd";
 import { useNavigate, Link } from "react-router-dom";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -73,6 +73,11 @@ const STATIC_ROLE_COLORS = {
 // asset and the header will render it instead of the fallback icon badge.
 const COMPANY_NAME = "CWI";
 const COMPANY_LOGO_URL = "";
+
+// localStorage key the chart remembers its last-used zoom level under, so
+// reopening the page starts from wherever the user left it rather than
+// always resetting to 100% (see the zoom state's lazy initializer below).
+const ZOOM_STORAGE_KEY = "orgChartZoomLevel";
 
 // Darkens (negative percent, e.g. -0.55) or lightens (positive percent) a
 // hex color by the given amount. Used to derive the ID-card's dark
@@ -235,6 +240,177 @@ const buildDeptNodes = (nodes, parentKey) => {
         });
 };
 
+// Mirrors buildDeptNodes' own id-construction (`deptnode-${parentKey}-
+// ${segment}`, one tier per "/"-delimited DeptName segment) without
+// actually building the department-node tree — used by search to know
+// which synthetic department id(s) sit between a manager and one of their
+// people, so those ids can be removed from `collapsed` to reveal a match
+// that's nested inside a department box. `managerId` is the real manager
+// node's id (the same parentKey buildDeptNodes was called with for that
+// manager); `deptString` is the target person's own (unmodified) `dept`
+// field. Returns ids outermost-first, e.g. for "Production / Welding &
+// NDT" under manager 42: ["deptnode-42-Production",
+// "deptnode-42-Production-Welding & NDT"].
+const getDeptNodeIdsForPath = (managerId, deptString) => {
+    const segments = getDeptSegments(deptString);
+    const ids = [];
+    let key = String(managerId);
+    segments.forEach(seg => {
+        key = `${key}-${seg}`;
+        ids.push(`deptnode-${key}`);
+    });
+    return ids;
+};
+
+// Predicts every synthetic department-node id buildDeptNodes would ever
+// produce across the whole (real) tree, so they can be seeded into the
+// initial `collapsed` state right alongside real node ids (see
+// fetchOrgData / toggleExpandCollapse). Department boxes should start
+// closed just like every other node — showing only the department tier
+// when a manager with multiple departments is first expanded, not that
+// tier AND everyone under it all at once — and only open one when a user
+// actually clicks it (or a search match forces it open, see
+// getDeptNodeIdsForPath above).
+const getAllDeptNodeIds = (nodes) => {
+    let ids = [];
+    nodes.forEach(node => {
+        const isManager = (node.role || "").toLowerCase() === "manager";
+        if (isManager && node.children?.length && hasMultipleDepts(node.children)) {
+            const collectIds = (deptNodes) => {
+                deptNodes.forEach(d => {
+                    ids.push(d.id);
+                    const nestedDeptNodes = (d.children || []).filter(c => c.isDeptNode);
+                    if (nestedDeptNodes.length) collectIds(nestedDeptNodes);
+                });
+            };
+            collectIds(buildDeptNodes(node.children, String(node.id)));
+        }
+        if (node.children?.length) {
+            ids = ids.concat(getAllDeptNodeIds(node.children));
+        }
+    });
+    return ids;
+};
+
+/* ───────────────────────────  EXPORT DEPARTMENT FILTER  ───────────────────────────
+   Lets a PDF/Excel export be scoped to one department instead of always
+   covering the whole org (see the export Modal + handleDownloadPdf /
+   handleDownloadExcel / handleDownloadExcelChart below). Both helpers work
+   on the raw formatted `data` tree — before buildDeptNodes ever runs — so
+   they only ever need to look at each real node's own `dept` field. */
+
+// Every distinct top-level department name found anywhere in the tree —
+// the same "head" segment buildDeptNodes/hasMultipleDepts groups by — used
+// to populate the export dropdown. A department that itself splits further
+// (e.g. "Production / Welding & NDT") only contributes its top-level name
+// ("Production") here; picking that name pulls in every one of its
+// sub-departments too (see filterTreeByDepartment just below), matching
+// how "Production" reads as one department when you dive into it on
+// screen rather than several unrelated ones.
+const getAllDepartmentNames = (nodes) => {
+    const names = new Set();
+    const walk = (list) => {
+        list.forEach(node => {
+            if (node.dept) {
+                names.add(getDeptSegments(node.dept)[0]);
+            }
+            if (node.children?.length) walk(node.children);
+        });
+    };
+    walk(nodes || []);
+    return Array.from(names).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+};
+
+// Prunes the real (formatted) tree down to just one department, matched on
+// each node's top-level DeptName segment — so exporting "Production" keeps
+// everyone whose department is exactly "Production" AND everyone under its
+// sub-department boxes (Design & NPD, Quality, Stores, Welding & NDT, ...
+// nested under the Production manager), the same way clicking into the
+// Production box on screen reveals all of that. Structural ancestors — the
+// CEO, and any manager whose own team spans multiple departments — are kept
+// too, but only with the branches that actually lead to a match; every
+// unrelated department or person is dropped entirely. Passing "" (All
+// Departments) is a no-op that returns the tree completely unchanged, so
+// the existing whole-org export behavior is exactly what "All Departments"
+// produces.
+//
+// The real data reuses the SAME flat department names independently at
+// multiple tiers of the hierarchy instead of concatenating them with "/"
+// (e.g. Kumaresan's own direct reports split into Sales / Stores / Quality
+// / Welding & NDT / Design & NPD / Production, and separately, one of
+// those reports — Pandian, personally labeled "Production" — has his OWN
+// direct reports independently split into Design & NPD / Production /
+// Quality / Stores / Welding & NDT again). So a node's own `dept` field is
+// only trustworthy as a genuine department *assignment* — one that pulls in
+// its entire original subtree unfiltered — in exactly the two cases where
+// buildDeptNodes/hasMultipleDepts would also treat it that way on screen:
+//   1. It's a LEAF (no reports of their own) — their dept is their real,
+//      individual department, nothing to recurse into anyway.
+//   2. It's one of several siblings whose immediate manager parent actually
+//      groups its direct reports by department (hasMultipleDepts is true
+//      for that parent's children) — i.e. it heads its own department-box
+//      tier, the same way Pandian heads "Production" under Kumaresan.
+// A node that's merely passed straight through — a manager whose own team
+// ISN'T multi-department at their own tier, e.g. Kumaresan or Venkat, whose
+// personal `dept` label doesn't reflect what their team actually does —
+// must have that personal label ignored for filtering; only recursion into
+// its children (with siblingsAreGrouped recomputed fresh at that tier)
+// decides whether it's kept as structural context.
+//
+// Two real bugs came from getting this wrong:
+//   - v1 trusted ANY self-match to keep the whole subtree unfiltered, so
+//     exporting "Production" pulled in Kumaresan's entire team (Sales,
+//     Stores, Quality, ...) because Kumaresan's own personal dept also
+//     happens to read "Production".
+//   - v2 overcorrected by never trusting a self-match unless the node was a
+//     leaf, so exporting "Production" then dropped Pandian's own nested
+//     department boxes (Design & NPD, Quality, Stores, Welding & NDT) even
+//     though those ARE genuinely part of/nested under Production on screen.
+// `siblingsAreGrouped` (case 2 above) is what fixes both at once.
+const filterTreeByDepartment = (nodes, filterDept, siblingsAreGrouped = false) => {
+    if (!filterDept) return nodes;
+    const target = filterDept.toLowerCase();
+    const result = [];
+
+    (nodes || []).forEach(node => {
+        const ownTopDept = node.dept ? getDeptSegments(node.dept)[0] : "";
+        const ownMatches = ownTopDept.toLowerCase() === target;
+        const hasChildren = !!node.children?.length;
+
+        if (ownMatches && (siblingsAreGrouped || !hasChildren)) {
+            // Genuine department assignment (case 1 or 2 above) — keep the
+            // whole original subtree unfiltered, exactly as it renders on
+            // screen under this department's box.
+            result.push(node);
+            return;
+        }
+
+        if (hasChildren) {
+            // This node's own label isn't trustworthy on its own (a
+            // pass-through manager, or a grouped sibling that didn't
+            // itself match) — recurse into children to see whether any of
+            // *them* lead to a match, recomputing whether *their* siblings
+            // are department-grouped at this next tier down.
+            const childrenGrouped = isManagerRoleName(node.role) && hasMultipleDepts(node.children);
+            const filteredChildren = filterTreeByDepartment(node.children, filterDept, childrenGrouped);
+            if (filteredChildren.length) {
+                result.push({ ...node, children: filteredChildren });
+            }
+        }
+        // Otherwise this node and everything under it is unrelated to the
+        // selected department — drop it entirely.
+    });
+
+    return result;
+};
+
+// Short, filesystem-safe suffix appended to an export's filename when it's
+// scoped to one department, so "OrganizationChart_Production_2026-09-15"
+// doesn't get confused with the whole-org download. Empty for "All
+// Departments" (falsy filterDept), leaving filenames exactly as before.
+const deptFileSuffix = (filterDept) =>
+    filterDept ? `_${filterDept.replace(/[^a-z0-9]+/gi, "_")}` : "";
+
 /* ───────────────────────────  EXCEL "VISUAL CHART" EXPORT  ───────────────────────────
    Everything below builds the boxes-and-connector-lines Excel export (see
    handleDownloadExcelChart), as opposed to the plain data-table export
@@ -395,6 +571,14 @@ const formatTree = (nodes) => {
         superiorId: node.IsSuperiorId,
         name: node.Name,
         role: node.RoleName,
+        // No confirmed field name for this yet (asked, got no answer) —
+        // checked defensively against the common API naming variants, and
+        // falls back to RoleName so the modal's Designation row is never
+        // blank even if the service turns out not to send a separate
+        // field after all. If designations still look wrong once this is
+        // wired to the real API, the fix is just changing the field name
+        // checked here.
+        designation: node.Designation || node.DesignationName || node.Designation_Name || node.RoleName || "",
         email: node.Email,
         phone: node.Phone || "",
         dept: node.DeptName || "",
@@ -444,6 +628,27 @@ const getAllNodeIds = (nodes) => {
     return ids;
 };
 
+// Finds every node (depth-first, same order the chart itself renders in)
+// whose name or email contains `term` (case-insensitive), not just the
+// first one — needed so search can show "2 / 5" and step through every
+// match rather than only ever jumping to the first. Each result carries
+// the matched node plus `ancestors`: the real (non-department) node
+// objects from a root down to that match's parent, in order. Walks the
+// real (data) tree only — synthetic department nodes are computed at
+// render time (see buildDeptNodes) and aren't part of this tree, so
+// revealing a match nested inside one takes an extra step; see
+// getDeptNodeIdsForPath, used together with `ancestors` for that.
+const findAllMatches = (nodes, term, ancestors = [], results = []) => {
+    nodes.forEach(node => {
+        const haystack = `${node.name || ""} ${node.email || ""}`.toLowerCase();
+        if (haystack.includes(term)) results.push({ node, ancestors });
+        if (node.children?.length) {
+            findAllMatches(node.children, term, [...ancestors, node], results);
+        }
+    });
+    return results;
+};
+
 // Flattens the (already-formatted) org tree into one row per person, each
 // carrying its manager's name and its depth in the hierarchy — used by the
 // Excel export so the sheet reads as a normal employee list rather than a
@@ -455,6 +660,7 @@ const flattenOrgData = (nodes, managerName = "", level = 1, rows = []) => {
         rows.push({
             Name: node.name || "",
             Role: node.role || "",
+            Designation: node.designation || "",
             Department: node.dept || "",
             Email: node.email || "",
             Phone: node.phone || "",
@@ -490,11 +696,49 @@ const OrganizationChart = () => {
     // per-role as they come in; roles missing from the response keep the
     // static default.
     const [roleColors, setRoleColors] = useState(STATIC_ROLE_COLORS);
-    const [zoom, setZoom] = useState(1);
+    // Remembers whatever zoom level was last used (across page loads/
+    // navigations, not just within one session) so the chart reopens at a
+    // comfortable size instead of always resetting to a fixed level — the
+    // user can still zoom in/out from there with the existing +/- buttons.
+    // Falls back to a zoomed-OUT default (0.5, the minimum the "-" button
+    // allows) rather than 100% if nothing was saved yet, or if localStorage
+    // is unavailable (private browsing, etc.) — reading it can't crash the
+    // chart either way.
+    const [zoom, setZoom] = useState(() => {
+        try {
+            const saved = parseFloat(localStorage.getItem(ZOOM_STORAGE_KEY));
+            return Number.isFinite(saved) && saved > 0 ? saved : 0.5;
+        } catch {
+            return 0.5;
+        }
+    });
+    // Export-scoping: which department (by its top-level DeptName segment)
+    // a PDF/Excel download should be limited to — "" means "All
+    // Departments" (the original, unfiltered whole-org export). Picked in
+    // the export Modal (see exportModalOpen) right before choosing a
+    // format; see filterTreeByDepartment above for how the scoping itself
+    // works.
+    const [exportModalOpen, setExportModalOpen] = useState(false);
+    const [exportDept, setExportDept] = useState("");
     const [collapsed, setCollapsed] = useState([]);
     const [data, setData] = useState([]);
     const [sessionUserData, setSessionUserData] = useState(null);
     const [loading, setLoading] = useState(false);
+
+    // Keeps the saved zoom level in sync with whatever the user actually
+    // sets it to (the +/- buttons, or the temporary reset-to-1 the PDF
+    // export does and then restores from — see handleDownloadPdf). Wrapped
+    // the same way the initial read is, since localStorage can throw in
+    // some browser contexts.
+    useEffect(() => {
+        try {
+            localStorage.setItem(ZOOM_STORAGE_KEY, String(zoom));
+        } catch {
+            // Ignore — losing the remembered zoom just means next load
+            // falls back to the zoomed-out default, not worth surfacing to
+            // the user.
+        }
+    }, [zoom]);
 
     const navigate = useNavigate();
 
@@ -510,6 +754,28 @@ const OrganizationChart = () => {
     // export button and swaps its label while a PDF capture is in flight.
     const chartContentRef = useRef(null);
     const [exporting, setExporting] = useState(false);
+
+    // Whether the role color key (RoleLegend) is expanded. Starts closed —
+    // only the small round floating button shows until the user clicks it
+    // — rather than the panel always being on screen with a "LEGEND" title.
+    const [legendOpen, setLegendOpen] = useState(false);
+
+    // Search: `searchTerm` is the text box value; `highlightedId` is the
+    // currently-jumped-to match's id (drives NodeCard's search-highlight
+    // class) and also the trigger for the scroll-into-view effect below;
+    // `searchNotFound` shows a brief inline message when nothing matches.
+    // `searchMatches` holds every match for the current term (not just the
+    // first) so the toolbar can show "2 / 5" and step through them with the
+    // up/down arrows; `currentMatchIndex` is which of those is active.
+    // `lastSearchedTerm` remembers what was actually searched (as opposed
+    // to what's currently typed) so pressing Enter again on an unchanged
+    // term advances to the next match instead of re-running the same search.
+    const [searchTerm, setSearchTerm] = useState("");
+    const [highlightedId, setHighlightedId] = useState(null);
+    const [searchNotFound, setSearchNotFound] = useState(false);
+    const [searchMatches, setSearchMatches] = useState([]);
+    const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+    const lastSearchedTerm = useRef("");
 
     useEffect(() => {
         const sessionMenuData = sessionStorage.getItem("menuData");
@@ -571,9 +837,12 @@ const OrganizationChart = () => {
 
             setCeoId(ceo);
 
-            // Initially collapse EVERYTHING.
-            // User must click CEO first.
-            setCollapsed(getAllNodeIds(formattedTree));
+            // Initially collapse EVERYTHING — real nodes AND every synthetic
+            // department box (see getAllDeptNodeIds): a manager with
+            // multiple departments should reveal just the department tier
+            // first, not the department boxes and everyone under them all
+            // at once. User must click CEO first, then each box in turn.
+            setCollapsed([...getAllNodeIds(formattedTree), ...getAllDeptNodeIds(formattedTree)]);
         } catch (error) {
             console.error("Error fetching org data:", error);
         } finally {
@@ -608,6 +877,58 @@ const OrganizationChart = () => {
                         role === "security" ? pickLightColor(roleColors.security, STATIC_ROLE_COLORS.security) :
                             STATIC_ROLE_COLORS.default;
     };
+
+    // Key translating each role's color into a label — requested after a
+    // reference Excel legend image. Deliberately built from the *same*
+    // color pipeline every card already uses (getBaseColor + roleColors +
+    // STATIC_ROLE_COLORS) rather than a second hardcoded palette, so if a
+    // service-provided BgColor ever changes a role's on-screen color, this
+    // legend updates with it automatically instead of drifting out of sync.
+    // Each swatch is styled exactly like a card's own face — light fill,
+    // darker role-shade border — the same border color the card itself
+    // uses, so this legend stays visually tied to the real cards.
+    const LEGEND_ROLES = [
+        { role: "ceo", superiorId: 0, label: "CEO / Managing Director" },
+        { role: "manager", superiorId: 1, label: "Manager" },
+        { role: "hr", superiorId: 1, label: "HR" },
+        { role: "employee", superiorId: 1, label: "Employee" },
+        { role: "security", superiorId: 1, label: "Security" },
+    ];
+
+    // Originally an always-visible panel with a "LEGEND" title bar — the
+    // user found the permanent panel (and its title text) unnecessary
+    // screen clutter and asked for it tucked behind a small round button
+    // instead, on the right side of the screen, expanding only on click.
+    // The panel itself is otherwise unchanged (same rows, same swatch
+    // logic); only its visibility is now gated by `legendOpen`, and the
+    // title text is gone since the button itself (a palette icon) is what
+    // identifies it now.
+    const RoleLegend = () => (
+        <>
+            {legendOpen && (
+                <div className="role-legend">
+                    {LEGEND_ROLES.map((entry) => {
+                        const fill = getBaseColor(entry);
+                        const border = shadeColor(fill, -0.35);
+                        return (
+                            <div className="role-legend-row" key={entry.role}>
+                                <span className="role-legend-swatch" style={{ background: fill, borderColor: border }} />
+                                <span className="role-legend-label">{entry.label}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+            <button
+                type="button"
+                className="legend-fab"
+                onClick={() => setLegendOpen(open => !open)}
+                title={legendOpen ? "Hide color legend" : "Show color legend"}
+            >
+                <i className="fa-solid fa-palette"></i>
+            </button>
+        </>
+    );
 
     const NodeCard = ({ node }) => {
         const role = node?.role?.toLowerCase?.() ?? "";
@@ -674,16 +995,38 @@ const OrganizationChart = () => {
                             "employee-card"
             }`;
 
+        const isHighlighted = highlightedId === node.id;
+
         return (
             <Popover trigger="hover" placement="bottom">
                 <div
-                    className={cardClass} style={cardStyle} onClick={(e) => {
+                    className={`${cardClass} ${isHighlighted ? "search-highlight" : ""}`}
+                    style={cardStyle}
+                    data-node-id={node.id}
+                    onClick={(e) => {
+                        // Clicking the card body now expands/collapses it —
+                        // same action as the count badge — since a click
+                        // there was previously the only way to open the
+                        // details modal, which made expanding a node
+                        // require the small count badge specifically.
+                        // Opening the modal instead lives on the avatar
+                        // image (see its own onClick below).
                         e.stopPropagation();
                         if (dragState.current.moved) return;
-                        setSelectedNode(node);
+                        toggleNode(node.id);
                     }}
                 >
-                    <div className="avatar-wrapper">
+                    <div
+                        className="avatar-wrapper"
+                        onClick={(e) => {
+                            // The one place that still opens the details
+                            // modal — stopPropagation keeps this from also
+                            // triggering the card's own expand/collapse.
+                            e.stopPropagation();
+                            if (dragState.current.moved) return;
+                            setSelectedNode(node);
+                        }}
+                    >
                         <div
                             style={{
                                 ...(isCEO ? styles.ceoAvatar : styles.managerAvatar),
@@ -694,6 +1037,7 @@ const OrganizationChart = () => {
                                 justifyContent: "center",
                                 boxShadow: "0 12px 28px rgba(15, 23, 42, 0.12), inset 0 1px 2px rgba(255,255,255,0.5)",
                                 backdropFilter: "blur(10px)",
+                                cursor: "pointer",
                             }}
                         >
 
@@ -735,10 +1079,11 @@ const OrganizationChart = () => {
                                 }`}
                             title={`${childCount} direct ${childCount === 1 ? "child" : "children"} — click to ${isCollapsed ? "expand" : "collapse"}`}
                             onClick={(e) => {
-                                // Expanding/collapsing lives on the badge now,
-                                // separate from the card body which opens the
-                                // details modal — stopPropagation keeps this
-                                // click from also opening that modal.
+                                // Same action as clicking the card body now
+                                // (both expand/collapse) — stopPropagation
+                                // just avoids double-toggling (once here,
+                                // once again as the click bubbles up to the
+                                // card's own handler).
                                 e.stopPropagation();
                                 if (dragState.current.moved) return;
                                 toggleNode(node.id);
@@ -976,6 +1321,7 @@ const OrganizationChart = () => {
         const darkColor = shadeColor(baseColor, -0.55);
 
         const fields = [
+            { icon: "fa-briefcase", label: "Designation", value: renderNode.designation },
             { icon: "fa-building", label: "Department", value: renderNode.dept },
             { icon: "fa-id-badge", label: "Employee No", value: renderNode.empNo },
             { icon: "fa-envelope", label: "Email", value: renderNode.email },
@@ -1055,9 +1401,109 @@ const OrganizationChart = () => {
 
     const toggleExpandCollapse = () => {
         collapsed.length === 0
-            ? setCollapsed(getAllNodeIds(data))
+            ? setCollapsed([...getAllNodeIds(data), ...getAllDeptNodeIds(data)])
             : setCollapsed([]);
     };
+
+    // Finds every person matching the current search box, remembers them
+    // as `searchMatches` (so the toolbar can show "1 / N" and step through
+    // them), and jumps to the first one. Re-running with the same term
+    // (e.g. pressing Enter again) is handled by the input's own onKeyDown —
+    // this function always does a fresh search from scratch.
+    const handleSearch = () => {
+        const term = searchTerm.trim().toLowerCase();
+        lastSearchedTerm.current = term;
+
+        if (!term) {
+            setSearchMatches([]);
+            setSearchNotFound(false);
+            setHighlightedId(null);
+            return;
+        }
+
+        const matches = findAllMatches(data, term);
+        if (!matches.length) {
+            setSearchNotFound(true);
+            setSearchMatches([]);
+            setCurrentMatchIndex(0);
+            setHighlightedId(null);
+            return;
+        }
+
+        setSearchNotFound(false);
+        setSearchMatches(matches);
+        goToMatch(matches, 0);
+    };
+
+    // Jumps to one match out of `matches` (by index): expands whatever real
+    // ancestors are currently collapsed, PLUS whichever synthetic
+    // department box ids sit on the path (a manager with multiple
+    // departments hides its people behind a department tier — see
+    // getAllDeptNodeIds/getDeptNodeIdsForPath — so revealing a match nested
+    // in one takes more than just expanding its real ancestors), then hands
+    // off to the scroll-into-view effect below (triggered by highlightedId
+    // changing) to actually bring it on screen and flash the highlight.
+    const goToMatch = (matches, index) => {
+        const match = matches[index];
+        if (!match) return;
+
+        setCurrentMatchIndex(index);
+        const { node, ancestors } = match;
+        const realIdsToReveal = ancestors.map(a => a.id);
+
+        const deptIdsToReveal = [];
+        const chain = [...ancestors, node];
+        for (let i = 0; i < chain.length - 1; i++) {
+            const parent = chain[i];
+            const child = chain[i + 1];
+            if (isManagerRole(parent) && hasMultipleDepts(parent.children || [])) {
+                deptIdsToReveal.push(...getDeptNodeIdsForPath(parent.id, child.dept));
+            }
+        }
+
+        setCollapsed(prev => prev.filter(id => !realIdsToReveal.includes(id) && !deptIdsToReveal.includes(id)));
+        // Re-triggers the scroll/highlight effect even when jumping to the
+        // same match again (e.g. only one result, Enter pressed twice).
+        setHighlightedId(null);
+        requestAnimationFrame(() => setHighlightedId(node.id));
+    };
+
+    const goToNextMatch = () => {
+        if (!searchMatches.length) return;
+        goToMatch(searchMatches, (currentMatchIndex + 1) % searchMatches.length);
+    };
+
+    const goToPrevMatch = () => {
+        if (!searchMatches.length) return;
+        goToMatch(searchMatches, (currentMatchIndex - 1 + searchMatches.length) % searchMatches.length);
+    };
+
+    // Runs whenever a search sets highlightedId: waits a couple of frames
+    // for the newly-expanded ancestors to actually mount their DOM (the
+    // collapsed-state update above and this effect can land in the same
+    // tick otherwise), scrolls the matched card into view, and clears the
+    // highlight itself after a few seconds so it reads as a flash rather
+    // than a permanent marker. Kept fairly long (6s) and paired with a
+    // continuous, dark, high-contrast pulse (see .search-highlight) since
+    // a quick pale flash was easy to miss in an already-colorful chart.
+    useEffect(() => {
+        if (!highlightedId) return;
+
+        let raf1, raf2;
+        raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                const el = dragRef.current?.querySelector(`[data-node-id="${highlightedId}"]`);
+                el?.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+            });
+        });
+
+        const clearTimer = setTimeout(() => setHighlightedId(null), 6000);
+        return () => {
+            cancelAnimationFrame(raf1);
+            if (raf2) cancelAnimationFrame(raf2);
+            clearTimeout(clearTimer);
+        };
+    }, [highlightedId]);
 
     // Waits for every <img> under `el` to finish loading (or fail) before
     // resolving — html2canvas snapshots whatever has painted so far, so
@@ -1082,12 +1528,18 @@ const OrganizationChart = () => {
         setExporting(true);
         const prevCollapsed = collapsed;
         const prevZoom = zoom;
+        const prevData = data;
 
         // Export the whole hierarchy at natural size, regardless of what's
         // currently expanded/collapsed or zoomed on screen — the download
         // is meant to be the full org chart, not just the current view.
+        // When a department was picked in the export Modal, swap `data` for
+        // the pruned, that-department-only tree (see filterTreeByDepartment)
+        // for the duration of the capture, then restore it below — the
+        // on-screen chart is unaffected either way.
         setCollapsed([]);
         setZoom(1);
+        if (exportDept) setData(filterTreeByDepartment(data, exportDept));
 
         try {
             // Give React two frames to re-render the expanded tree at the
@@ -1109,12 +1561,13 @@ const OrganizationChart = () => {
                 format: [canvas.width, canvas.height],
             });
             pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, canvas.width, canvas.height);
-            pdf.save(`OrganizationChart_${new Date().toISOString().slice(0, 10)}.pdf`);
+            pdf.save(`OrganizationChart${deptFileSuffix(exportDept)}_${new Date().toISOString().slice(0, 10)}.pdf`);
         } catch (error) {
             console.error("Error exporting organization chart to PDF:", error);
         } finally {
             setCollapsed(prevCollapsed);
             setZoom(prevZoom);
+            if (exportDept) setData(prevData);
             setExporting(false);
         }
     };
@@ -1122,11 +1575,15 @@ const OrganizationChart = () => {
     const handleDownloadExcel = () => {
         if (!data?.length) return;
 
-        const rows = flattenOrgData(data);
+        // "All Departments" (exportDept === "") leaves the tree untouched —
+        // this is exactly the original whole-org export.
+        const treeData = exportDept ? filterTreeByDepartment(data, exportDept) : data;
+        const rows = flattenOrgData(treeData);
         const worksheet = XLSX.utils.json_to_sheet(rows);
         worksheet["!cols"] = [
             { wch: 22 }, // Name
             { wch: 16 }, // Role
+            { wch: 20 }, // Designation
             { wch: 16 }, // Department
             { wch: 28 }, // Email
             { wch: 14 }, // Phone
@@ -1137,23 +1594,27 @@ const OrganizationChart = () => {
 
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Organization Chart");
-        XLSX.writeFile(workbook, `OrganizationChart_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        XLSX.writeFile(workbook, `OrganizationChart${deptFileSuffix(exportDept)}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     };
 
     // The second Excel option: an actual boxes-and-connector-lines chart in
     // a worksheet (colored per-role boxes, department tiers, lines drawn
     // via cell borders), rather than a flat one-row-per-person table. Built
     // from `data` directly (not whatever's currently expanded/collapsed on
-    // screen) so, like the PDF export, it always covers the whole org.
+    // screen) so, like the PDF export, it always covers the whole org —
+    // unless a department was picked in the export Modal, in which case it
+    // covers just that department's pruned subtree (see
+    // filterTreeByDepartment).
     const handleDownloadExcelChart = async () => {
         if (!data?.length || exporting) return;
         setExporting(true);
 
         try {
+            const treeData = exportDept ? filterTreeByDepartment(data, exportDept) : data;
             const boxes = [];
             const lines = [];
             let cursorCol = 0;
-            data.forEach((root, i) => {
+            treeData.forEach((root, i) => {
                 if (i > 0) cursorCol += XLSX_GAP_COLS;
                 const res = layoutExcelTree(buildExcelNode(root), cursorCol, 0, boxes, lines);
                 cursorCol += res.width;
@@ -1200,7 +1661,9 @@ const OrganizationChart = () => {
 
             sheet.mergeCells(1, 1, 1, maxCol + COL_OFFSET + 1);
             const titleCell = sheet.getCell(1, 1);
-            titleCell.value = `${COMPANY_NAME} — Organization Chart`;
+            titleCell.value = exportDept
+                ? `${COMPANY_NAME} — Organization Chart — ${exportDept}`
+                : `${COMPANY_NAME} — Organization Chart`;
             titleCell.font = { bold: true, size: 16, color: { argb: "FF0B1F3A" } };
             titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
@@ -1271,7 +1734,7 @@ const OrganizationChart = () => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `OrganizationChart_Visual_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            a.download = `OrganizationChart_Visual${deptFileSuffix(exportDept)}_${new Date().toISOString().slice(0, 10)}.xlsx`;
             a.click();
             URL.revokeObjectURL(url);
         } catch (error) {
@@ -1281,16 +1744,15 @@ const OrganizationChart = () => {
         }
     };
 
-    const exportMenuItems = [
-        { key: "pdf", label: "Download as PDF", icon: <i className="fa-solid fa-file-pdf"></i> },
-        { key: "excel", label: "Download as Excel", icon: <i className="fa-solid fa-file-excel"></i> },
-        { key: "excel-chart", label: "Download as Excel (Chart)", icon: <i className="fa-solid fa-sitemap"></i> },
-    ];
+    // Export now opens a small Modal (see exportModalOpen in the JSX below)
+    // instead of jumping straight to a format from a Dropdown menu — the
+    // Modal is where the department filter (exportDept) gets picked before
+    // any of the three download handlers actually run.
+    const departmentExportOptions = getAllDepartmentNames(data);
 
-    const handleExportMenuClick = ({ key }) => {
-        if (key === "pdf") handleDownloadPdf();
-        if (key === "excel") handleDownloadExcel();
-        if (key === "excel-chart") handleDownloadExcelChart();
+    const runExport = (handler) => {
+        setExportModalOpen(false);
+        handler();
     };
 
     if (loading) {
@@ -1358,11 +1820,92 @@ const OrganizationChart = () => {
         );
     }
 
-    const showManageUsers = sessionActionIds?.includes(36);
+    // "Manage Employees" is restricted to two specific user ids rather than
+    // the action-permission check (sessionActionIds.includes(36)) used
+    // before — that action id was gating it for everyone with the "Flow
+    // Chart" menu permission, which was broader than intended. Hardcoded
+    // here per explicit request rather than derived from any role/permission
+    // field, so it won't automatically pick up new users — update this
+    // array directly to add/remove who sees the link.
+    const showManageUsers = [2, 10].includes(sessionUserData?.Id);
 
     return (
         <div style={styles.wrapper} >
-            <div className="d-flex justify-content-end align-items-center gap-2 my-3 me-5">
+            <div className="d-flex justify-content-between align-items-center gap-2 my-3 mx-5">
+                <div className="org-search">
+                    <div className="org-search-box">
+                        <i className="fa-solid fa-magnifying-glass org-search-icon"></i>
+                        <input
+                            type="text"
+                            className="org-search-input"
+                            placeholder="Search name or email..."
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setSearchNotFound(false);
+                                // A new term invalidates the old match list —
+                                // the nav cluster (count + arrows) only comes
+                                // back once Enter re-runs the search below.
+                                setSearchMatches([]);
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key !== "Enter") return;
+                                const term = searchTerm.trim().toLowerCase();
+                                // Enter on an unchanged, already-searched term
+                                // steps to the next match (so repeatedly
+                                // hitting Enter cycles through results, like
+                                // a browser's find-in-page); anything else
+                                // (a new term, or the first search) runs a
+                                // fresh search instead.
+                                if (term && term === lastSearchedTerm.current && searchMatches.length) {
+                                    goToNextMatch();
+                                } else {
+                                    handleSearch();
+                                }
+                            }}
+                        />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                className="org-search-clear"
+                                title="Clear search"
+                                onClick={() => {
+                                    setSearchTerm("");
+                                    setSearchNotFound(false);
+                                    setSearchMatches([]);
+                                    setCurrentMatchIndex(0);
+                                    setHighlightedId(null);
+                                    lastSearchedTerm.current = "";
+                                }}
+                            >
+                                <i className="fa-solid fa-xmark"></i>
+                            </button>
+                        )}
+                        {searchNotFound && <span className="org-search-hint">No match found</span>}
+                    </div>
+                    {searchMatches.length > 0 && (
+                        <div className="org-search-nav">
+                            <span className="org-search-count">{currentMatchIndex + 1} / {searchMatches.length}</span>
+                            <button
+                                type="button"
+                                className="org-search-nav-btn"
+                                onClick={goToPrevMatch}
+                                title="Previous match"
+                            >
+                                <i className="fa-solid fa-chevron-up"></i>
+                            </button>
+                            <button
+                                type="button"
+                                className="org-search-nav-btn"
+                                onClick={goToNextMatch}
+                                title="Next match (Enter)"
+                            >
+                                <i className="fa-solid fa-chevron-down"></i>
+                            </button>
+                        </div>
+                    )}
+                </div>
+                <div className="d-flex align-items-center gap-2">
                 {showManageUsers && (
                     <Link
                         className="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2 premium-btn"
@@ -1371,18 +1914,14 @@ const OrganizationChart = () => {
                         <i className="bi bi-people"></i> Manage Employees
                     </Link>
                 )}
-                <Dropdown
-                    menu={{ items: exportMenuItems, onClick: handleExportMenuClick }}
-                    trigger={["click"]}
+                <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2 premium-btn"
                     disabled={exporting}
+                    onClick={() => setExportModalOpen(true)}
                 >
-                    <button
-                        type="button"
-                        className="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2 premium-btn"
-                    >
-                        <i className="bi bi-download"></i> {exporting ? "Exporting..." : "Export"}
+                    <i className="bi bi-download"></i> {exporting ? "Exporting..." : "Export"}
                     </button>
-                </Dropdown>
                 <button
                     type="button"
                     className="btn btn-dark btn-sm rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2 premium-btn"
@@ -1390,6 +1929,7 @@ const OrganizationChart = () => {
                 >
                     <i className="bi bi-arrow-left"></i> Back
                 </button>
+                </div>
             </div>
 
             <div className="org-chart-scope h-100 d-flex flex-column">
@@ -1400,6 +1940,8 @@ const OrganizationChart = () => {
                     <button className="zoom-btn" onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}>-</button>
                     <button className="zoom-btn" onClick={toggleExpandCollapse}>⛶</button>
                 </div>
+
+                <RoleLegend />
 
                 <div
                     ref={dragRef}
@@ -1456,8 +1998,212 @@ const OrganizationChart = () => {
 
             <DetailsModal />
 
+            {/* Lets a download be scoped to one department instead of
+                always covering the whole org — pick a department (or leave
+                "All Departments"), then pick a format. See exportDept /
+                filterTreeByDepartment for how the scoping itself works. */}
+            <Modal
+                open={exportModalOpen}
+                onCancel={() => setExportModalOpen(false)}
+                footer={null}
+                centered
+                width={340}
+                className="org-export-modal"
+                title="Export Organization Chart"
+            >
+                <div className="export-modal-body">
+                    <label className="export-dept-label" htmlFor="export-dept-select">
+                        Department
+                    </label>
+                    <select
+                        id="export-dept-select"
+                        className="export-dept-select"
+                        value={exportDept}
+                        onChange={(e) => setExportDept(e.target.value)}
+                    >
+                        <option value="">All Departments</option>
+                        {departmentExportOptions.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                        ))}
+                    </select>
+                    {exportDept && (
+                        <div className="export-dept-hint">
+                            Includes everyone in {exportDept}, and any of its sub-departments.
+                        </div>
+                    )}
+
+                    <div className="export-format-buttons">
+                        <button
+                            type="button"
+                            className="export-format-btn"
+                            disabled={exporting}
+                            onClick={() => runExport(handleDownloadPdf)}
+                        >
+                            <i className="fa-solid fa-file-pdf"></i> PDF
+                        </button>
+                        <button
+                            type="button"
+                            className="export-format-btn"
+                            disabled={exporting}
+                            onClick={() => runExport(handleDownloadExcel)}
+                        >
+                            <i className="fa-solid fa-file-excel"></i> Excel
+                        </button>
+                        <button
+                            type="button"
+                            className="export-format-btn"
+                            disabled={exporting}
+                            onClick={() => runExport(handleDownloadExcelChart)}
+                        >
+                            <i className="fa-solid fa-sitemap"></i> Excel (Chart)
+                        </button>
+                    </div>
+                </div>
+            </Modal>
+
             <style>
                 {`
+                    .org-search {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+
+                    .org-search-box {
+                        position: relative;
+                        display: inline-flex;
+                        align-items: center;
+                    }
+
+                    .org-search-icon {
+                        position: absolute;
+                        left: 16px;
+                        color: #94a3b8;
+                        font-size: 13px;
+                        pointer-events: none;
+                    }
+
+                    .org-search-input {
+                        width: 260px;
+                        padding: 9px 32px 9px 38px;
+                        border-radius: 999px;
+                        border: 1px solid #cbd5e1;
+                        background: #ffffff;
+                        font-size: 13px;
+                        color: #0f172a;
+                        outline: none;
+                        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+                        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+                    }
+
+                    .org-search-input:focus {
+                        border-color: #0ea5e9;
+                        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+                    }
+
+                    /* Small "x" button that appears inside the search box,
+                       right side, only once there's text to clear (see the
+                       searchTerm && ... guard in the JSX) — clears the term,
+                       any in-progress match state, and the highlight in one
+                       click instead of requiring backspace-to-empty. */
+                    .org-search-clear {
+                        position: absolute;
+                        right: 12px;
+                        width: 18px;
+                        height: 18px;
+                        border: none;
+                        border-radius: 50%;
+                        background: #e2e8f0;
+                        color: #64748b;
+                        font-size: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+                        padding: 0;
+                        transition: background 0.15s ease, color 0.15s ease;
+                    }
+
+                    .org-search-clear:hover {
+                        background: #cbd5e1;
+                        color: #0f172a;
+                    }
+
+                    .org-search-hint {
+                        position: absolute;
+                        left: 16px;
+                        top: 100%;
+                        margin-top: 4px;
+                        font-size: 11px;
+                        color: #dc2626;
+                        white-space: nowrap;
+                    }
+
+                    /* ── match count + prev/next, shown once a search has
+                       more than the trivial one-and-done case (see
+                       searchMatches) — lets a name that appears on several
+                       cards (e.g. two "Sales" people) be stepped through
+                       one at a time instead of only ever landing on the
+                       first. ── */
+                    .org-search-nav {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        padding: 4px 6px 4px 10px;
+                        border-radius: 999px;
+                        background: #ffffff;
+                        border: 1px solid #cbd5e1;
+                        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+                    }
+
+                    .org-search-count {
+                        font-size: 12px;
+                        font-weight: 600;
+                        color: #334155;
+                        white-space: nowrap;
+                        margin-right: 2px;
+                    }
+
+                    .org-search-nav-btn {
+                        width: 24px;
+                        height: 24px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        border: none;
+                        border-radius: 50%;
+                        background: transparent;
+                        color: #334155;
+                        font-size: 11px;
+                        cursor: pointer;
+                        transition: background-color 0.15s ease;
+                    }
+
+                    .org-search-nav-btn:hover {
+                        background: #e2e8f0;
+                    }
+
+                    /* ── search result flash: dark, high-contrast, and kept
+                       pulsing continuously for as long as this card stays
+                       highlighted (see the highlightedId effect's 6s timer)
+                       — an earlier pale amber flash that pulsed only twice
+                       was too easy to miss in an already-colorful chart. The
+                       solid outline stays visible even between pulses, so
+                       there's never a moment where the marker fully
+                       disappears while it's still "on". ── */
+                    .search-highlight {
+                        animation: searchHighlightPulse 1.1s ease-in-out infinite;
+                        outline: 3px solid #0f172a;
+                        outline-offset: 3px;
+                        z-index: 20;
+                    }
+
+                    @keyframes searchHighlightPulse {
+                        0% { box-shadow: 0 0 0 0 rgba(15, 23, 42, 0.65); }
+                        70% { box-shadow: 0 0 0 16px rgba(15, 23, 42, 0); }
+                        100% { box-shadow: 0 0 0 0 rgba(15, 23, 42, 0); }
+                    }
+
                     .premium-btn {
                         font-weight: 500;
                         letter-spacing: 0.01em;
@@ -1472,7 +2218,21 @@ const OrganizationChart = () => {
                     }
                     .org-chart-scope {
                         position: relative;
-                        height: 100%;
+                        /* flex:1 1 auto + min-height:0 (not height:100%) —
+                           this only claims the space left over in
+                           styles.wrapper after the header row above it, and
+                           min-height:0 overrides a flex item's default
+                           min-height:auto so it's actually allowed to shrink
+                           to that space instead of growing to fit its
+                           content. "height: 100%" here used to resolve
+                           against the wrapper's full 100vh regardless of the
+                           header's own height, which made the wrapper's real
+                           content taller than 100vh and pushed the page
+                           itself into scrolling — see the long comment on
+                           styles.wrapper for how that surfaced as "the
+                           header disables itself after searching". */
+                        flex: 1 1 auto;
+                        min-height: 0;
                         overflow: hidden;
                         background: linear-gradient(
                             135deg,
@@ -1499,9 +2259,20 @@ const OrganizationChart = () => {
                         position: relative;
                         z-index: 1;
                         flex: 1;
+                        min-height: 0;
                         width: 100%;
                         overflow: auto;
-                        padding: 40px;
+                        /* Extra top padding (vs. the 40px every other side
+                           gets): the CEO/manager avatar photo pokes up
+                           ~67px above its own card (avatar-wrapper's -2px
+                           plus the avatar's own -65px — see .avatar-wrapper
+                           / styles.ceoAvatar), and this wrapper's scroll
+                           position starts at 0 with nowhere further up to
+                           scroll to — so a plain 40px top padding left the
+                           top of the CEO's photo clipped against the edge
+                           of the chart area. 90px comfortably clears that
+                           67px overflow plus a little breathing room. */
+                        padding: 90px 40px 40px;
                         cursor: grab;
                         user-select: none;
                     }
@@ -1832,6 +2603,90 @@ const OrganizationChart = () => {
                         z-index: 1000;
                     }
 
+                    /* Color key for the roles/cards — see RoleLegend. Sits
+                       bottom-right, just above its own toggle button
+                       (.legend-fab, directly below it at the same bottom/
+                       right position .controls uses on the left), so
+                       opening it never collides with the zoom controls. */
+                    .role-legend {
+                        position: fixed;
+                        bottom: 92px;
+                        right: 30px;
+                        z-index: 1000;
+
+                        width: 210px;
+                        padding: 4px 0;
+                        border-radius: 10px;
+                        overflow: hidden;
+                        background: #ffffff;
+                        border: 1px solid #cbd5e1;
+                        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.15);
+                    }
+
+                    /* Round toggle button for the legend above — no label
+                       text on the panel itself any more (see RoleLegend),
+                       so this icon is what identifies it. Styled to match
+                       .zoom-btn (same size/shape/shadow language) but its
+                       own fixed position, on the right where the user
+                       asked for it rather than paired with zoom on the
+                       left. */
+                    .legend-fab {
+                        position: fixed;
+                        bottom: 30px;
+                        right: 30px;
+                        z-index: 1001;
+
+                        width: 52px;
+                        height: 52px;
+                        border: none;
+                        border-radius: 50%;
+
+                        background: #0b1f3a;
+                        color: #fff;
+                        font-size: 19px;
+
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        cursor: pointer;
+
+                        box-shadow: 0 12px 28px rgba(11, 31, 58, 0.3);
+                        transition: all 0.25s ease;
+                    }
+
+                    .legend-fab:hover {
+                        transform: translateY(-3px);
+                        background: #12305a;
+                    }
+
+                    .role-legend-row {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        padding: 6px 10px;
+                        border-top: 1px solid #e2e8f0;
+                    }
+
+                    .role-legend-row:first-child {
+                        border-top: none;
+                    }
+
+                    .role-legend-swatch {
+                        width: 20px;
+                        height: 14px;
+                        flex-shrink: 0;
+                        border-radius: 3px;
+                        border: 2px solid transparent;
+                    }
+
+                    .role-legend-label {
+                        font-size: 12px;
+                        color: #1e293b;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+
                     .zoom-btn {
                         width: 52px;
                         height: 52px;
@@ -1884,6 +2739,84 @@ const OrganizationChart = () => {
                     .org-detail-close {
                         font-size: 12px;
                         color: #1e293b;
+                    }
+
+                    /* ── export Modal: department picker + one button per
+                       format (PDF / Excel / Excel Chart), all scoped by
+                       exportDept — see filterTreeByDepartment. ── */
+                    .export-modal-body {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 6px;
+                        padding-top: 4px;
+                    }
+
+                    .export-dept-label {
+                        font-size: 12px;
+                        font-weight: 600;
+                        color: #475569;
+                    }
+
+                    .export-dept-select {
+                        width: 100%;
+                        padding: 9px 12px;
+                        border-radius: 10px;
+                        border: 1px solid #cbd5e1;
+                        background: #ffffff;
+                        font-size: 13px;
+                        color: #0f172a;
+                        outline: none;
+                    }
+
+                    .export-dept-select:focus {
+                        border-color: #0ea5e9;
+                        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+                    }
+
+                    .export-dept-hint {
+                        font-size: 11px;
+                        color: #64748b;
+                        line-height: 1.4;
+                        margin-top: -2px;
+                    }
+
+                    .export-format-buttons {
+                        display: flex;
+                        gap: 8px;
+                        margin-top: 14px;
+                    }
+
+                    .export-format-btn {
+                        flex: 1;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 6px;
+                        padding: 12px 8px;
+                        border-radius: 12px;
+                        border: 1px solid #e2e8f0;
+                        background: #f8fafc;
+                        color: #0b1f3a;
+                        font-size: 12px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+                    }
+
+                    .export-format-btn i {
+                        font-size: 18px;
+                    }
+
+                    .export-format-btn:hover:not(:disabled) {
+                        background: #eef4ff;
+                        border-color: #0ea5e9;
+                        transform: translateY(-1px);
+                    }
+
+                    .export-format-btn:disabled {
+                        opacity: 0.5;
+                        cursor: not-allowed;
                     }
 
                     .idcard {
@@ -2051,7 +2984,27 @@ const styles = {
         height: "100vh",
         overflow: "hidden",
         padding: "0",
-
+        // display:flex + flexDirection:column is what actually makes the
+        // header row's height "count" against the 100vh budget below. Without
+        // this, .org-chart-scope's own `height: 100%` resolves against this
+        // wrapper's full 100vh (its containing block), on top of the header
+        // row that already takes up space above it — so total content here
+        // is (header height + 100vh), 40-70px taller than the wrapper itself.
+        // This div's own `overflow: hidden` does NOT contain that overflow,
+        // because the excess isn't clipped, it leaks into the actual page:
+        // with no explicit height on <html>/<body>, the document itself
+        // becomes taller than the viewport and starts scrolling. Nothing
+        // normally triggers that page scroll — until the search feature's
+        // scrollIntoView on a deep match does, at which point the browser
+        // scrolls the *whole page* to satisfy it, carrying this header up
+        // and off the top of the screen (reported as "the header gets
+        // disabled after searching" — it isn't disabled, it's just been
+        // scrolled out of view). Making this a column flex container lets
+        // .org-chart-scope's `flex: 1 1 auto; min-height: 0` (see its CSS)
+        // claim only the space actually left after the header, so the page
+        // itself never needs to scroll and everything stays reachable.
+        display: "flex",
+        flexDirection: "column",
         textAlign: "center",
         background: "linear-gradient(135deg, #f8fafc 0%, #e0e7ff 50%, #f0f4f8 100%)",
     },

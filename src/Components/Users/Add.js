@@ -44,6 +44,7 @@ export default function AddUser() {
         NotifyEmail: "",
         ManagerId: "",
         IsSuperiorId: "",
+        Designation: "",
         Image: null
     });
 
@@ -266,6 +267,7 @@ export default function AddUser() {
             payload.append("NotifyEmail", formData.NotifyEmail || "");
             payload.append("ManagerId", formData.ManagerId || "");
             payload.append("IsSuperiorId", formData.IsSuperiorId || "");
+            payload.append("Designation", formData.Designation || "");
             payload.append("AccessToModules", selectedModules.join(","));
 
             if (formData.Image) {
@@ -545,6 +547,19 @@ export default function AddUser() {
                                 className={`form-control ${emailError ? 'is-invalid' : ''}`}
                                 placeholder="Enter email address"
                                 value={formData.Email}
+                                onChange={handleInputChange}
+                                required
+                            />
+                            {emailError && <div className="invalid-feedback">{emailError}</div>}
+                        </div>
+                        <div className="col-6 mb-2">
+                            <label className="form-label">Designation<span className="text-danger">*</span></label>
+                            <input
+                                type="text"
+                                name="Designation"
+                                className={`form-control ${emailError ? 'is-invalid' : ''}`}
+                                placeholder="Enter designation"
+                                value={formData.Designation}
                                 onChange={handleInputChange}
                                 required
                             />
