@@ -13,7 +13,8 @@ export default function KpiEditModal({
     title,
     activeTab,
     uomTypes,
-    managerKpis
+    managerKpis,
+    selectedMainDept
 }) {
 
     const [sessionUserData, setSessionUserData] = useState({});
@@ -26,7 +27,8 @@ export default function KpiEditModal({
         Measurables: "",
         UOM: null,
         ParentId: null,
-        DeptId: null
+        DeptId: null,
+        RefId: selectedMainDept,
     });
 
     useEffect(() => {
@@ -48,7 +50,8 @@ export default function KpiEditModal({
             Measurables: kpiData.Measurables || "",
             UOM: kpiData.UOMId || null,
             ParentId: kpiData.ParentId || null,
-            DeptId: kpiData.DeptId || sessionUserData?.DeptId
+            DeptId: kpiData.DeptId || sessionUserData?.DeptId,
+            RefId: kpiData.RefId || selectedMainDept,
         });
 
         // Mount ReactQuill after modal/form initialization

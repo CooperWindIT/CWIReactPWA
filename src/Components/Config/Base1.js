@@ -26,7 +26,7 @@ const Base1 = ({ children }) => {
     const navigate = useNavigate();
     const currentPath = window.location.pathname;
     const location = useLocation();
-    const shouldHideSidebar = ["/vms/", "/edm/", "/faq", "/kpi/", "/service-requests", "/users"].some(path => location.pathname.includes(path));
+    const shouldHideSidebar = ["/vms/", "/edm/", "/faq", "/kpi/", "/service-requests"].some(path => location.pathname.includes(path));
     const searchParams = new URLSearchParams(location.search);
     const reportId = searchParams.get("reportId");
 
@@ -422,13 +422,13 @@ const Base1 = ({ children }) => {
                             </div>
                         </div>
                         <div className="d-flex align-items-center flex-grow-1 flex-lg-grow-0 d-lg-none">
-                            <img alt="Logo" src={`${BASE_IMAGE_API_GET}${sessionUserData?.ImageUrl}`} className="h-30px" />
+                            <img alt="Logo" src={`${BASE_IMAGE_API_GET}${sessionUserData?.OrgURL}`} className="h-30px" />
                         </div>
                         <div className="d-flex align-items-stretch justify-content-between flex-lg-grow-1" id="kt_app_header_wrapper">
                             <div className="app-header-menu app-header-mobile-drawer align-items-stretch" data-kt-drawer="true" data-kt-drawer-name="app-header-menu" data-kt-drawer-activate="{default: true, lg: false}" data-kt-drawer-overlay="true" data-kt-drawer-width="250px" data-kt-drawer-direction="end" data-kt-drawer-toggle="#kt_app_header_menu_toggle" data-kt-swapper="true" data-kt-swapper-mode="{default: 'append', lg: 'prepend'}" data-kt-swapper-parent="{default: '#kt_app_body', lg: '#kt_app_header_wrapper'}">
                                 <div className="menu menu-rounded menu-column menu-lg-row my-5 my-lg-0 align-items-stretch fw-semibold px-2 px-lg-0" id="kt_app_header_menu" data-kt-menu="true">
-                                    <img alt="Logo" src={`${BASE_IMAGE_API_GET}${sessionUserData?.ImageUrl}`} className="h-55px app-sidebar-logo-default mt-2" style={{ marginLeft: '-20px' }} />
-                                    <img alt="Logo" src={`${BASE_IMAGE_API_GET}${sessionUserData?.ImageUrl}`} className="h-20px app-sidebar-logo-minimize" />
+                                    <img alt="Logo" src={`${BASE_IMAGE_API_GET}${sessionUserData?.OrgURL}`} className="h-55px app-sidebar-logo-default mt-2" style={{ marginLeft: '-20px' }} />
+                                    <img alt="Logo" src={`${BASE_IMAGE_API_GET}${sessionUserData?.OrgURL}`} className="h-20px app-sidebar-logo-minimize" />
                                 </div>
                             </div>
 
@@ -520,7 +520,7 @@ const Base1 = ({ children }) => {
                         shouldHideSidebar ||
                         ["3", "19", "21", "22"].includes(reportId)
                     ) && (
-                            <div id="kt_app_sidebar" className="app-sidebar flex-column" data-kt-drawer="true" style={{ width: '205px' }}>
+                            <div id="kt_app_sidebar" className="app-sidebar flex-column" data-kt-drawer="true" style={{ width: '210px' }}>
                                 <div className="app-sidebar-menu overflow-hidden flex-column-fluid bg-white shadow-sm">
                                     <div id="kt_app_sidebar_menu_wrapper" className="app-sidebar-wrapper">
                                         <div id="kt_app_sidebar_menu_scroll" style={{ minHeight: '90vh' }} className="scroll-y my-5 mx-3" data-kt-scroll="true" data-kt-scroll-activate="true"
@@ -934,10 +934,12 @@ const Base1 = ({ children }) => {
                             );
                         })()}
 
-<div className="p-4">
-<EmployeeContactQR embedded closeOffcanvasId="offcanvasRightViewProfile" />
-</div>
-<EmployeeIdCards />
+                        <div className="p-4">
+                            <EmployeeContactQR embedded closeOffcanvasId="offcanvasRightViewProfile" />
+                        </div>
+                        {[2, 10, 3].includes(Number(sessionUserData?.Id)) && (
+                            <EmployeeIdCards />
+                        )}
                     </div>
                 </div>
             </div>

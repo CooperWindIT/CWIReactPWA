@@ -1955,7 +1955,7 @@ const OrganizationChart = () => {
     // here per explicit request rather than derived from any role/permission
     // field, so it won't automatically pick up new users — update this
     // array directly to add/remove who sees the link.
-    const showManageUsers = [2, 10].includes(sessionUserData?.Id);
+    const showManageUsers = [2, 10, 3].includes(sessionUserData?.Id);
 
     return (
         <div style={styles.wrapper} >

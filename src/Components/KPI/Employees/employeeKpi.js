@@ -9,6 +9,17 @@ import { Dropdown, Menu, Select, Tooltip, message, Input, Skeleton, Modal, Check
 import { getKPIsByPeriod, getPerformancePeriods, getUsersByMngrId, getReviewCyclesByUser, SaveAssessments, getCyclesScoreByUserId, saveEmployeeKPIs, addNewComments, getFeedBacks, getDeptKPIs, getKPIs, getCanEditKPIAllocation } from '../services/kpiServices';
 import { calculateKPI } from './../../../utils/kpiCalculator';
 
+
+const TARGET_DESC_MAX = 250;
+
+// Once the employee has entered a self score, the target can't change under them
+const isSelfScored = (item) =>
+    item?.Score1 !== null &&
+    item?.Score1 !== undefined &&
+    String(item.Score1).trim() !== "";
+
+const SELF_SCORED_TIP = "Locked — the employee has already entered a self score.";
+
 export default function EmployeeKpi() {
 
     const navigate = useNavigate();
@@ -26,6 +37,9 @@ export default function EmployeeKpi() {
     const [selectedEmployeeName, setSelectedEmployeeName] = useState("");
     const [sessionModuleId, setSessionModuleId] = useState(null);
     const [totalWeightedScore, setTotalWeightedScore] = useState(0);
+    const [selectedEmpDept, setSelectedEmpDept] = useState(null);
+    const [selectedKPIDept, setSelectedKPIDept] = useState(null);
+    const [departments, setDepartments] = useState([]);
     const [editableKPIs, setEditableKPIs] = useState([]);
     const [reviewData, setReviewData] = useState([]);
     const [feedbackData, setFeedbackData] = useState([]);
@@ -44,6 +58,7 @@ export default function EmployeeKpi() {
     const [feedback, setFeedback] = useState("");
     const [orgKPIs, setOrgKPIs] = useState([]);
     const targetInputRef = useRef(null);
+    const showDept = sessionActionIds?.includes(25);
 
     const toggleCard = (id) => {
         setExpandedCards((prev) => {
@@ -59,7 +74,8 @@ export default function EmployeeKpi() {
     );
 
     const [selectedEmployee, setSelectedEmployee] = useState(
-        savedFilters.employeeId || ""
+        // savedFilters.employeeId || ""
+        null
     );
 
     const [selectedPeriod, setSelectedPeriod] = useState(
@@ -209,40 +225,92 @@ export default function EmployeeKpi() {
         }
     };
 
-    const fetchUsersByMngrId = async () => {
+    const fetchDDLData = async () => {
+        // showDept → departments of the selected employee/manager; else → logged-in user's departments
+        const empId = showDept ? selectedEmployee : sessionUserData?.Id;
+
+        if (!sessionUserData?.OrgId || !empId) return;
+
         try {
-            setLoading(true);
+            const response = await fetchWithAuth(
+                `ADMINRoutes/CWIGetDDLItems?OrgId=${sessionUserData.OrgId}&UserId=${empId}`,
+                { method: "GET", headers: { "Content-Type": "application/json" } }
+            );
 
-            const sessionKey = `employees_${sessionUserData?.OrgId}_${sessionUserData?.Id}`;
+            if (!response.ok) throw new Error(`Request failed with status ${response.status}`);
 
-            // Check session storage first
-            const storedEmployees = sessionStorage.getItem(sessionKey);
+            const data = await response.json();
+            const managerDepts = (data.ResultData || []).filter(
+                item => item.DDLName === "getdeptsByManager"
+            );
 
-            if (storedEmployees) {
-                setEmployeesData(JSON.parse(storedEmployees));
-                return;
+            setDepartments(managerDepts);
+
+            // Keep the popup's dept only if it belongs to this employee; auto-pick when there's just one
+            if (showDept) {
+                setSelectedKPIDept(prev =>
+                    managerDepts.some(d => d.ItemId === prev)
+                        ? prev
+                        : managerDepts.length === 1 ? managerDepts[0].ItemId : null
+                );
             }
-
-            // Fetch from API if not available
-            const response = await getUsersByMngrId({
-                orgId: sessionUserData?.OrgId,
-                managerId: sessionUserData?.Id
-            });
-
-            const employees = response?.data || [];
-
-            // Save to session storage
-            sessionStorage.setItem(sessionKey, JSON.stringify(employees));
-
-            // Update state
-            setEmployeesData(employees);
-
         } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
+            console.error("Failed to fetch DDL data:", error);
+            setDepartments([]);
         }
     };
+
+    useEffect(() => {
+        if (!sessionUserData?.OrgId) return;
+
+        if (showDept && !selectedEmployee) {
+            setDepartments([]);
+            setSelectedKPIDept(null);
+            return;
+        }
+
+        fetchDDLData();
+    }, [sessionUserData?.OrgId, sessionUserData?.Id, selectedEmployee, showDept]);
+
+    const fetchUsersByMngrId = async () => {
+        try {
+            const orgId = sessionUserData?.OrgId;
+            const managerId = showDept ? 0 : sessionUserData?.Id;
+            const deptId = selectedEmpDept || sessionUserData?.DeptId;
+
+            if (!orgId) return;
+
+            const response = await getUsersByMngrId({
+                orgId,
+                managerId,
+                deptId
+            });
+
+            const users = Array.isArray(response?.data)
+                ? response.data
+                : [];
+
+            setEmployeesData(users);
+
+        } catch (error) {
+            console.error("getUsersByMngrId failed:", error);
+            setEmployeesData([]);
+        }
+    };
+
+    useEffect(() => {
+        if (!sessionUserData?.OrgId) return;
+
+        // With showDept the manager list doesn't depend on the department —
+        // the department is chosen after the manager.
+        fetchUsersByMngrId();
+    }, [
+        sessionUserData?.OrgId,
+        sessionUserData?.Id,
+        sessionUserData?.DeptId,
+        showDept,
+        selectedEmpDept
+    ]);
 
     const fetchPerformancePeriods = async () => {
         try {
@@ -323,7 +391,7 @@ export default function EmployeeKpi() {
             const response = await getDeptKPIs({
                 orgId: sessionUserData?.OrgId,
                 periodId: sessionUserData?.PeriodId,
-                deptId: sessionUserData?.DeptId,
+                deptId: selectedEmpDept,
                 employeeId: sessionUserData?.Id,
             });
 
@@ -356,32 +424,6 @@ export default function EmployeeKpi() {
             fetchPerformancePeriods();
         }
     }, [sessionUserData?.OrgId]);
-
-    // const fetchCyclesScoreByUserId = async () => {
-    //     try {
-    //         setLoading(true);
-
-    //         const response = await getCyclesScoreByUserId({
-    //             orgId: sessionUserData?.OrgId,
-    //             cycleId: selectedQuarter?.Id,
-    //             employeeId: selectedEmployee,
-    //             periodId: selectedPeriod,
-    //         });
-
-    //         setReviewData(response?.data || []);
-    //         setReviewStatus(response?.data[0]?.Status || "Pending");
-    //         const { updatedData, total } = recalculateScores(response?.data || []);
-
-    //         setReviewData(updatedData);
-    //         setEditableKPIs(updatedData);
-    //         setTotalWeightedScore(total);
-
-    //     } catch (error) {
-    //         console.error(error);
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
 
     const fetchCyclesScoreByUserId = async () => {
         try {
@@ -465,7 +507,7 @@ export default function EmployeeKpi() {
         try {
             const response = await getKPIs({
                 orgId: sessionUserData?.OrgId,
-                deptId: 0,
+                deptId: selectedKPIDept,
                 kpiLevel: 1,
                 userId: sessionUserData?.Id,
             });
@@ -546,15 +588,37 @@ export default function EmployeeKpi() {
         );
     }, [selectedEmployee, selectedPeriod, sessionUserData?.OrgId]);
 
+    // useEffect(() => {
+    //     if (selectedPeriod && sessionUserData?.OrgId) {
+    //         fetchReviewCycles();
+    //         fetchKPIList();
+    //     } else {
+    //         setReviewCycleData([]);
+    //     }
+    // }, [selectedPeriod, sessionUserData?.OrgId]);
+
     useEffect(() => {
         if (selectedPeriod && sessionUserData?.OrgId) {
             fetchReviewCycles();
-            fetchDeptKPIs();
-            fetchKPIList();
         } else {
             setReviewCycleData([]);
         }
     }, [selectedPeriod, sessionUserData?.OrgId]);
+
+    useEffect(() => {
+        if (!showDept || !sessionUserData?.OrgId || !selectedKPIDept) {
+            setOrgKPIs([]);
+            return;
+        }
+        fetchKPIList();
+    }, [showDept, sessionUserData?.OrgId, selectedKPIDept]);
+
+    useEffect(() => {
+        if (selectedEmpDept) {
+            fetchDeptKPIs();
+            setSelectedEmployee(null);
+        }
+    }, [selectedEmpDept]);
 
     useEffect(() => {
         if (!selectedEmployee || employeesData.length === 0) return;
@@ -567,42 +631,17 @@ export default function EmployeeKpi() {
 
     }, [selectedEmployee, employeesData]);
 
-    // const handleAnnualScore = async () => {
-
-    //     const payload = {
-    //         OrgId: sessionUserData.OrgId,
-    //         UserId: sessionUserData.Id,
-    //         PeriodId: Number(selectedPeriod),
-    //         AnnualScore: 90.75,
-    //         ReviewCount: 4,
-    //         FinalRating: "Excellent",
-    //         CreatedBy: sessionUserData.Id,
-    //         UpdatedBy: sessionUserData.Id
-    //     };
-
-    //     try {
-    //         setLoading(true);
-    //         const response = await saveAnnualScore(payload);
-    //         if (response?.success) {
-    //             message.success("Annual score generated successfully.");
-    //         } else {
-    //             message.error(response?.message || "Failed to generate annual score.");
-    //         }
-
-    //     } catch (error) {
-    //         console.error(error);
-    //         message.error("Something went wrong.");
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
 
     const handleAddKPIs = (selectedIds) => {
         const sourceKPIs =
             employeesData?.[0]?.RoleId === 5
                 ? orgKPIs
                 : deptKPIs;
-
+    
+        const deptLabel =
+            departments.find((d) => d.ItemId === (showDept ? selectedKPIDept : selectedEmpDept))
+                ?.ItemValue || "";
+    
         const newKPIs = sourceKPIs
             .filter(
                 (kpi) =>
@@ -615,12 +654,14 @@ export default function EmployeeKpi() {
                 KPIName: kpi.KPIName,
                 Objectives: kpi.Objectives,
                 UOMName: kpi.UOMName,
+                DeptName: kpi.DeptName || deptLabel,
                 Target: "",
+                TargetDescription: "",
                 Weightage: "",
                 IsActive: 1,
                 IsNew: true,
             }));
-
+    
         setEmpKPIData((prev) => [...prev, ...newKPIs]);
     };
 
@@ -704,90 +745,9 @@ export default function EmployeeKpi() {
 
     };
 
-    // const handleSubmitReview = async () => {
-    //     // Validation
-    //     for (const item of reviewData) {
-    //         if (sessionUserData?.RoleId !== 3) {
-    //             if (
-    //                 item.Score2 === null ||
-    //                 item.Score2 === "" ||
-    //                 item.Score2 === undefined
-    //             ) {
-    //                 message.warning(`${item.KPIName}: Please enter Manager Score.`);
-    //                 return;
-    //             }
-    //             if (!item.Remarks2?.trim()) {
-    //                 message.warning(`${item.KPIName}: Please enter Manager Remarks.`);
-    //                 return;
-    //             }
-    //         } else {
-    //             if (
-    //                 item.Score1 === null ||
-    //                 item.Score1 === "" ||
-    //                 item.Score1 === undefined
-    //             ) {
-    //                 message.warning(`${item.KPIName}: Please enter Self Score.`);
-    //                 return;
-    //             }
-    //             if (!item.Remarks1?.trim()) {
-    //                 message.warning(`${item.KPIName}: Please enter Self Remarks.`);
-    //                 return;
-    //             }
-    //         }
-    //     }
-
-    //     const payload = {
-    //         OrgId: sessionUserData.OrgId,
-    //         UserId: sessionUserData.Id,
-    //         Action: "MANAGER",
-    //         JsonData: {
-    //             CycleScore: {
-    //                 EmployeeId: selectedEmployee,
-    //                 ReviewCycleId: selectedQuarter?.Id,
-    //                 CycleScore: totalWeightedScore,
-    //                 IsPriority: true
-    //             },
-    //             Assessments: reviewData.map(item => ({
-    //                 Id: item.Id,
-    //                 CalculatedScore: Number(item.CalculatedScore),
-    //                 WeightedScore: item.WeightedScore || "",
-    //                 Status: "SUBMITTED",
-    //                 Score2: Number(item.Score2),
-    //                 Remarks2: item.Remarks2 || "",
-    //                 Weightage: item.Weightage,
-    //             }))
-    //         }
-    //     };
-
-    //     try {
-    //         setLoading(true);
-    //         const response = await SaveAssessments(payload);
-    //         if (
-    //             response?.success &&
-    //             response?.data?.result?.[0]?.ResponseCode === 200
-    //         ) {
-    //             message.success(
-    //                 response.data.result[0].Message
-    //             );
-    //             fetchCyclesScoreByUserId();
-    //         } else {
-    //             message.error(
-    //                 response?.data?.result?.[0]?.Message ||
-    //                 "Failed to save review."
-    //             );
-    //         }
-    //     } catch (error) {
-    //         console.error(error);
-    //         message.error("Something went wrong.");
-    //     } finally {
-    //         setLoading(false);
-    //     }
-
-    // };
-
 
     const handleSubmitReview = async () => {
-        // Validation
+        // ---------- Validation (unchanged) ----------
         for (const item of reviewData) {
             if (sessionUserData?.RoleId !== 3) {
                 if (
@@ -820,82 +780,196 @@ export default function EmployeeKpi() {
             }
         }
 
-        // Priority confirmation
-        let isPriority = true;
+        // ---------- Confirmation ----------
+        // NOTE: this now starts false. It used to start true while the checkbox
+        // rendered unchecked, so a manager who never touched it still submitted
+        // the review flagged as Priority.
+        let isPriority = false;
 
-        Modal.confirm({
-            title: "Confirm Review Submission",
-            centered: true,
-            width: 480,
+        // The gate. Nothing submits until this is true.
+        let hasReviewedAll = false;
 
-            content: (
-                <div style={{ paddingTop: 8 }}>
+        const kpiCount = reviewData.length;
+
+        let confirmModal;
+
+        const renderContent = () => (
+            <div style={{ paddingTop: 8 }}>
+
+                {/* ---- What is about to happen ---- */}
+                <div
+                    style={{
+                        background: "#f8fafc",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: 12,
+                        padding: "16px 18px",
+                        marginBottom: 16
+                    }}
+                >
                     <div
                         style={{
-                            background: "#f8fafc",
-                            border: "1px solid #e5e7eb",
-                            borderRadius: 12,
-                            padding: "16px 18px",
-                            marginBottom: 16
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: "#111827",
+                            marginBottom: 6
                         }}
                     >
-                        <div
-                            style={{
-                                fontSize: 15,
-                                fontWeight: 600,
-                                color: "#111827",
-                                marginBottom: 6
-                            }}
-                        >
-                            Review is ready to submit
-                        </div>
-
-                        <div
-                            style={{
-                                fontSize: 13,
-                                color: "#6b7280",
-                                lineHeight: 1.6
-                            }}
-                        >
-                            Please confirm whether this review should be marked
-                            as a priority.
-                        </div>
+                        Review is ready to submit
                     </div>
 
+                    <div
+                        style={{
+                            fontSize: 13,
+                            color: "#6b7280",
+                            lineHeight: 1.6
+                        }}
+                    >
+                        Once submitted, the scores and remarks for all{" "}
+                        <strong>{kpiCount}</strong> KPI{kpiCount === 1 ? "" : "s"}{" "}
+                        are sent for the record.
+                    </div>
+                </div>
+
+
+                {/* ---- MANDATORY: the acknowledgement ----
+                 Red and loud while it is outstanding, green and calm once it
+                 is ticked, so the thing blocking the button is never in
+                 doubt. */}
+                <div
+                    style={{
+                        padding: "16px 18px",
+                        borderRadius: 12,
+                        marginBottom: 14,
+                        border: hasReviewedAll
+                            ? "2px solid #34d399"
+                            : "2px solid #ef4444",
+                        background: hasReviewedAll ? "#ecfdf5" : "#fef2f2",
+                        boxShadow: hasReviewedAll
+                            ? "0 6px 18px rgba(16,185,129,0.16)"
+                            : "0 6px 18px rgba(239,68,68,0.18)",
+                        transition: "all .2s ease"
+                    }}
+                >
                     <div
                         style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: 12,
-                            padding: "14px 16px",
-                            borderRadius: 12,
-                            border: "1px solid #fde68a",
-                            background: "#fffbeb"
+                            gap: 8,
+                            marginBottom: 10,
+                            fontSize: 11,
+                            fontWeight: 800,
+                            letterSpacing: "0.08em",
+                            textTransform: "uppercase",
+                            color: hasReviewedAll ? "#047857" : "#b91c1c"
                         }}
                     >
-                        <Checkbox
-                            defaultChecked={false}
-                            onChange={(e) => {
-                                isPriority = e.target.checked;
+                        <i
+                            className={
+                                hasReviewedAll
+                                    ? "bi bi-check-circle-fill"
+                                    : "bi bi-exclamation-triangle-fill"
+                            }
+                            style={{ fontSize: 14 }}
+                        />
+                        {hasReviewedAll ? "Confirmed" : "Required before you submit"}
+                    </div>
+
+                    <Checkbox
+                        checked={hasReviewedAll}
+                        onChange={(e) => {
+                            hasReviewedAll = e.target.checked;
+
+                            // Redraw the dialog: recolour the banner AND
+                            // enable/disable Submit.
+                            confirmModal.update({
+                                content: renderContent(),
+                                okButtonProps: {
+                                    disabled: !hasReviewedAll,
+                                    style: {
+                                        borderRadius: 8,
+                                        fontWeight: 600
+                                    }
+                                }
+                            });
+                        }}
+                    >
+                        <span
+                            style={{
+                                fontSize: 14,
+                                fontWeight: 700,
+                                color: hasReviewedAll ? "#065f46" : "#991b1b",
+                                lineHeight: 1.5
                             }}
                         >
-                            <span
-                                style={{
-                                    fontWeight: 600,
-                                    color: "#92400e"
-                                }}
-                            >
-                                ⭐ Mark this review as Priority
-                            </span>
-                        </Checkbox>
-                    </div>
+                            I have reviewed the feedback for all {kpiCount} KPI
+                            {kpiCount === 1 ? "" : "s"}
+                        </span>
+                    </Checkbox>
+
+                    {!hasReviewedAll && (
+                        <div
+                            style={{
+                                marginTop: 8,
+                                marginLeft: 24,
+                                fontSize: 12.5,
+                                fontWeight: 600,
+                                color: "#dc2626"
+                            }}
+                        >
+                            Tick this box to enable the Submit button.
+                        </div>
+                    )}
                 </div>
-            ),
+
+
+                {/* ---- Optional: priority ---- */}
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "14px 16px",
+                        borderRadius: 12,
+                        border: "1px solid #fde68a",
+                        background: "#fffbeb"
+                    }}
+                >
+                    <Checkbox
+                        defaultChecked={false}
+                        onChange={(e) => {
+                            isPriority = e.target.checked;
+                        }}
+                    >
+                        <span
+                            style={{
+                                fontWeight: 600,
+                                color: "#92400e"
+                            }}
+                        >
+                            ⭐ Mark this review as Priority{" "}
+                            <span style={{ fontWeight: 500, color: "#b45309" }}>
+                                (optional)
+                            </span>
+                        </span>
+                    </Checkbox>
+                </div>
+
+            </div>
+        );
+
+        confirmModal = Modal.confirm({
+            title: "Confirm Review Submission",
+            centered: true,
+            width: 520,
+
+            content: renderContent(),
 
             okText: "Confirm & Submit",
             cancelText: "Cancel",
 
+            // Starts disabled — the acknowledgement above turns it on.
             okButtonProps: {
+                disabled: true,
                 style: {
                     borderRadius: 8,
                     fontWeight: 600
@@ -909,6 +983,17 @@ export default function EmployeeKpi() {
             },
 
             onOk: async () => {
+                // Belt and braces: the button is disabled until the box is
+                // ticked, but a rejected promise here keeps the dialog open if
+                // onOk is ever reached another way (Enter key, a future antd
+                // change) rather than letting an unacknowledged review through.
+                if (!hasReviewedAll) {
+                    message.error(
+                        "Please confirm that you have reviewed the feedback for all KPIs."
+                    );
+                    return Promise.reject();
+                }
+
                 const payload = {
                     OrgId: sessionUserData.OrgId,
                     UserId: sessionUserData.Id,
@@ -963,6 +1048,7 @@ export default function EmployeeKpi() {
             }
         });
     };
+
 
     const handleInputChange = (index, field, value) => {
 
@@ -1039,18 +1125,30 @@ export default function EmployeeKpi() {
                 };
             }
 
+            // Target Description is free text, so it isn't converted to a number
+if (field === "TargetDescription") {
+    updated[index] = {
+        ...updated[index],
+        TargetDescription: value,
+    };
+
+    return updated;
+}
+
             // Weightage Validation
             if (field === "Weightage") {
-                const totalWeightage = updated.reduce((sum, item, i) => {
-                    if (Number(item.IsActive) === 0) return sum;
+                const totalWeightage = round1(
+                    updated.reduce((sum, item, i) => {
+                        if (Number(item.IsActive) === 0) return sum;
 
-                    const weight =
-                        i === index
-                            ? Number(newValue || 0)
-                            : Number(item.Weightage || 0);
+                        const weight =
+                            i === index
+                                ? Number(newValue || 0)
+                                : Number(item.Weightage || 0);
 
-                    return sum + weight;
-                }, 0);
+                        return sum + weight;
+                    }, 0)
+                );
 
                 if (totalWeightage > 100) {
                     message.warning("Total Weightage cannot exceed 100%.");
@@ -1068,25 +1166,61 @@ export default function EmployeeKpi() {
     };
 
     const handleUpdateAll = async () => {
+        // Include only active KPIs
+        const activeKPIs = empKPIData.filter(
+            (item) => Number(item.IsActive) === 1
+        );
 
-        const activeKPIs = empKPIData.filter(item => item.IsActive === 1);
+        if (activeKPIs.length === 0) {
+            message.warning("Please activate at least one KPI.");
+            return;
+        }
 
-        // Individual Target Validation
+        // 1. Validate Target and Weightage for every active KPI
         for (const item of activeKPIs) {
-
-            if (Number(item.Target) > 100) {
+            if (
+                item.Target === "" ||
+                item.Target === null ||
+                item.Target === undefined ||
+                !Number.isFinite(Number(item.Target))
+            ) {
                 message.warning(
-                    `${item.KPIName}: Target cannot be greater than 100.`
+                    `${item.KPIName}: Please enter Target value.`
                 );
                 return;
             }
 
+            if (Number(item.Target) < 0 || Number(item.Target) > 100) {
+                message.warning(
+                    `${item.KPIName}: Target must be between 0 and 100.`
+                );
+                return;
+            }
+
+            if (
+                item.Weightage === "" ||
+                item.Weightage === null ||
+                item.Weightage === undefined ||
+                !Number.isFinite(Number(item.Weightage))
+            ) {
+                message.warning(
+                    `${item.KPIName}: Please enter Weightage.`
+                );
+                return;
+            }
+
+            if (Number(item.Weightage) < 0 || Number(item.Weightage) > 100) {
+                message.warning(
+                    `${item.KPIName}: Weightage must be between 0 and 100.`
+                );
+                return;
+            }
         }
 
+        // 2. Validate total weightage of active KPIs
         // Total Weightage Validation
-        const totalWeightage = activeKPIs.reduce(
-            (sum, item) => sum + Number(item.Weightage || 0),
-            0
+        const totalWeightage = round1(
+            activeKPIs.reduce((sum, item) => sum + Number(item.Weightage || 0), 0)
         );
 
         if (totalWeightage !== 100) {
@@ -1096,6 +1230,9 @@ export default function EmployeeKpi() {
             return;
         }
 
+        
+
+        // 3. Prepare payload only after all validations pass
         const payload = {
             OrgId: sessionUserData.OrgId,
             UserId: sessionUserData.Id,
@@ -1104,16 +1241,29 @@ export default function EmployeeKpi() {
                 Mappings: empKPIData.map((item) => {
                     const mapping = {
                         Id: item.Id,
-                        TargetValue: Number(item.Target),
-                        Weightage: Number(item.Weightage),
+                        TargetValue:
+                            item.Target === "" ||
+                                item.Target === null ||
+                                item.Target === undefined
+                                ? null
+                                : Number(item.Target),
+                        TargetDescription: item.TargetDescription?.trim()
+                            ? item.TargetDescription.trim()
+                            : null,
+                        Weightage:
+                            item.Weightage === "" ||
+                                item.Weightage === null ||
+                                item.Weightage === undefined
+                                ? null
+                                : Number(item.Weightage),
                         IsActive: item.IsActive,
                     };
 
-                    // Include extra fields only for newly added KPIs
-                    if (item.Id === 0) {
-                        mapping.PeriodId = Number(selectedPeriod);   // Your selected period
+                    // Include additional fields for newly added KPIs
+                    if (Number(item.Id) === 0) {
+                        mapping.PeriodId = Number(selectedPeriod);
                         mapping.KPIId = item.KPIId;
-                        mapping.EmployeeId = Number(selectedEmployee); // Selected employee
+                        mapping.EmployeeId = Number(selectedEmployee);
                     }
 
                     return mapping;
@@ -1122,19 +1272,23 @@ export default function EmployeeKpi() {
         };
 
         try {
-
             setSaving(true);
 
             const response = await saveEmployeeKPIs(payload);
 
             if (response?.success) {
                 message.success("KPIs updated successfully.");
+                setEditModalOpen(false);
                 fetchKPIsByPeriod();
                 fetchCyclesScoreByUserId();
             } else {
-                message.error(response?.message);
+                message.error(
+                    response?.message || "Failed to update KPI allocation."
+                );
             }
-
+        } catch (error) {
+            console.error("Failed to update KPI allocation:", error);
+            message.error("Something went wrong while updating KPIs.");
         } finally {
             setSaving(false);
         }
@@ -1191,18 +1345,23 @@ export default function EmployeeKpi() {
     };
 
     // const showEdit = sessionActionIds?.includes(3);
-    const canEdit = ["Pending", "UNDER_REVIEW", "EVALUATED"].includes(reviewStatus);
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
     const allocatedKpiIds = empKPIData?.map(item => item.KPIId) || [];
 
 
-    const kpiList =
-        employeesData?.[0]?.RoleId === 5
-            ? orgKPIs
-            : deptKPIs;
+    const kpiList = showDept ? orgKPIs : deptKPIs;
 
     const availableKPIs = kpiList?.filter(
         kpi => !allocatedKpiIds.includes(kpi.Id)
+    );
+
+    // Rounds to one decimal place: 96.49999999999999 -> 96.5, 99.99999999 -> 100
+    const round1 = (value) => Math.round((Number(value) || 0) * 10) / 10;
+
+    const activeWeightage = round1(
+        empKPIData
+            .filter((k) => Number(k.IsActive) === 1)
+            .reduce((sum, k) => sum + Number(k.Weightage || 0), 0)
     );
 
     const firstStatus = reviewCycleData?.[0]?.Status;
@@ -1278,23 +1437,6 @@ export default function EmployeeKpi() {
                                                 </li>
                                             );
                                         })}
-                                        {sessionUserData?.RoleId === 1 && (
-                                            <a
-                                                href={`https://betasuperportal.cooperwind.online/`}
-                                                target="_blank"
-                                            >
-                                                <li className="dropdown-item d-flex align-items-center gap-2 module-item">
-                                                    <i
-                                                        className={`fa-solid fa-user-tie`}
-                                                        style={{
-                                                            color: "#c8e6c9",
-                                                            textShadow: "1px 1px 3px rgba(0, 0, 0, 0.5)",
-                                                        }}
-                                                    ></i>
-                                                    <span>Super Portal</span>
-                                                </li>
-                                            </a>
-                                        )}
                                         <li
                                             className="dropdown-item d-flex align-items-center gap-2 module-item"
                                             onClick={() => navigate("/user-modules")}
@@ -1482,7 +1624,27 @@ export default function EmployeeKpi() {
 
                             <div className="card-body pt-3">
                                 <div className="row g-4">
-                                    <div className="col-lg-5">
+                                    {!showDept && (
+                                        <div className="col-lg-4">
+                                            <label className="form-label fw-semibold mb-2">
+                                                Department
+                                            </label>
+                                            <Select
+                                                style={{ width: "100%" }}
+                                                size="large"
+                                                placeholder="Select Department"
+                                                showSearch
+                                                optionFilterProp="label"
+                                                value={selectedEmpDept}
+                                                onChange={(value) => setSelectedEmpDept(value)}
+                                                options={departments?.map((dept) => ({
+                                                    value: dept.ItemId,
+                                                    label: dept.ItemValue,
+                                                }))}
+                                            />
+                                        </div>
+                                    )}
+                                    <div className="col-lg-4">
                                         <label className="form-label fw-bold">
                                             <i className="bi bi-person-workspace text-primary me-2"></i>
                                             Employee
@@ -1495,18 +1657,19 @@ export default function EmployeeKpi() {
                                             style={{ width: "100%" }}
                                             optionFilterProp="children"
                                             onChange={(value) => setSelectedEmployee(value)}
+                                            disabled={showDept ? false : !selectedEmpDept}
                                         >
                                             {employeesData?.map(emp => (
                                                 <Select.Option
                                                     key={emp.Id}
                                                     value={emp.Id}
                                                 >
-                                                    {emp.Name} - {emp.EmpNo}
+                                                    {emp.Name}
                                                 </Select.Option>
                                             ))}
                                         </Select>
                                     </div>
-                                    <div className="col-lg-5">
+                                    <div className="col-lg-4">
                                         <label className="form-label fw-bold">
                                             <i className="bi bi-calendar3 text-success me-2"></i>
                                             Performance Period
@@ -1864,7 +2027,7 @@ export default function EmployeeKpi() {
                                                                             <div className="row g-3 mt-1">
 
                                                                                 {/* Objectives */}
-                                                                                <div className="col-12 col-md-6">
+                                                                                <div className="col-12 col-md-4">
 
                                                                                     <div className="border rounded-3 p-3 h-100 bg-light">
 
@@ -1897,9 +2060,39 @@ export default function EmployeeKpi() {
 
                                                                                 </div>
 
+                                                                                {/* Target Description */}
+                                                                                <div className="col-12 col-md-4">
+
+                                                                                    <div className="border rounded-3 p-3 h-100 bg-light">
+
+                                                                                        <div className="d-flex align-items-center gap-2 mb-2">
+
+                                                                                            <div
+                                                                                                className="d-flex align-items-center justify-content-center rounded-circle bg-primary-subtle"
+                                                                                                style={{
+                                                                                                    width: "32px",
+                                                                                                    height: "32px",
+                                                                                                }}
+                                                                                            >
+                                                                                                <i className="bi bi-card-text text-primary"></i>
+                                                                                            </div>
+
+                                                                                            <span className="fw-semibold text-dark">
+                                                                                                Target Description
+                                                                                            </span>
+
+                                                                                        </div>
+
+                                                                                        <div className="text-muted small">
+                                                                                            {item.TargetDescription ?? "-"}
+                                                                                        </div>
+
+                                                                                    </div>
+
+                                                                                </div>
 
                                                                                 {/* Measurables */}
-                                                                                <div className="col-12 col-md-6">
+                                                                                <div className="col-12 col-md-4">
 
                                                                                     <div className="border rounded-3 p-3 h-100 bg-light">
 
@@ -2298,250 +2491,371 @@ export default function EmployeeKpi() {
             </div>
 
 
-            {/* Edit Assigned KPIs model */}
-            <Modal
-                open={editModalOpen}
-                onCancel={() => setEditModalOpen(false)}
-                footer={null}
-                width={900}
-                centered
-                destroyOnClose
-                title={
-                    <div className="d-flex align-items-center">
-                        <div className="symbol symbol-45px me-3">
-                            <div className="symbol-label bg-light-primary">
-                                <i className="bi bi-bullseye text-primary fs-3"></i>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h4 className="mb-0 fw-bold">
-                                Edit KPI Allocation
-                            </h4>
-
-                            <small className="text-muted">
-                                Update KPI Target & Weightage
-                            </small>
-                        </div>
-                    </div>
-                }
+           {/* Edit Assigned KPIs modal */}
+<Modal
+    open={editModalOpen}
+    onCancel={() => setEditModalOpen(false)}
+    footer={null}
+    width={1060}
+    centered
+    destroyOnClose
+    title={
+        <div className="d-flex align-items-center">
+            <div
+                className="d-flex align-items-center justify-content-center me-3"
+                style={{ width: 40, height: 40, borderRadius: 10, background: "#eef6ff" }}
             >
-                <div className="card border-0 shadow-sm mt-5">
-                    <div className="card-header border-0 pt-5">
-                        <div className="d-flex align-items-center w-100">
-                            <div>
-                                <h3 className="fw-bold mb-1">
-                                    Assigned KPIs
-                                </h3>
-                                <span className="text-muted fs-7">
-                                    KPIs allocated for the selected employee and performance period
-                                </span>
-                            </div>
-
-                            <div className="ms-auto">
-                                <div className="card bg-light-primary border-0 px-4 py-3">
-                                    <div className="text-muted fs-8">
-                                        Total KPIs
-                                    </div>
-
-                                    <div className="fs-2 fw-bold text-primary">
-                                        {empKPIData.length}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="card-body">
-                        <div className="mb-4">
-                            <label className="form-label fw-bold">Select KPI(s)</label>
-                            <Select
-                                mode="multiple"
-                                allowClear
-                                showSearch
-                                size="large"
-                                style={{ width: "100%" }}
-                                placeholder="Search and select KPI(s)"
-                                optionFilterProp="label"
-                                onChange={handleAddKPIs}
-                                options={availableKPIs?.map((kpi) => ({
-                                    value: kpi.Id,
-                                    label: kpi.KPIName,
-                                }))}
-                            />
-                        </div>
-                        <div className="table-responsive">
-                            <table className="table table-row-bordered table-hover align-middle gs-0 gy-4">
-                                <thead className="bg-light-primary">
-                                    <tr className="fw-bold text-gray-700">
-                                        <th width="60" className='text-center'>#</th>
-                                        <th style={{ width: "28%" }}>KPI Name</th>
-                                        <th width="110" className='text-center'>UoM</th>
-                                        <th width="110" className="text-start">Objective</th>
-                                        <th width="110" className="text-center">Target</th>
-                                        <th width="110" className="text-center">Weightage</th>
-                                        <th width="110" className="text-center">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {loading ? (
-                                        <tr>
-                                            <td colSpan={9} className="text-center py-5">
-                                                Loading...
-                                            </td>
-                                        </tr>
-                                    ) : empKPIData?.length > 0 ? (
-                                        <>
-                                            {empKPIData?.map((item, index) => {
-                                                const plainObjective = item.Objectives
-                                                    ? new DOMParser()
-                                                        .parseFromString(item.Objectives, "text/html")
-                                                        .body.textContent
-                                                    : "";
-
-                                                const canEditTarget = item.IsNew || isAllCyclesDraft;
-
-                                                return (
-                                                    <tr
-                                                        key={item.Id}
-                                                        className={item.IsActive === 0 ? "table-danger opacity-50" : ""}
-                                                    >
-                                                        <td className="text-center fw-bold">{index + 1}</td>
-                                                        <td>
-                                                            <div className="d-flex align-items-center">
-                                                                <div>
-                                                                    <Tooltip
-                                                                        title={item.KPIName}
-                                                                        placement="topLeft"
-                                                                        overlayStyle={{ maxWidth: 350 }}
-                                                                    >
-                                                                        <div
-                                                                            className="fw-bold"
-                                                                            style={{ cursor: "pointer" }}
-                                                                        >
-                                                                            {item.KPIName
-                                                                                ? item.KPIName.length > 26
-                                                                                    ? `${item.KPIName.substring(0, 26)}...`
-                                                                                    : item.KPIName
-                                                                                : "-"}
-                                                                        </div>
-                                                                    </Tooltip>
-
-                                                                    <small className="text-muted">
-                                                                        KPI ID : {item.KPIId}
-                                                                    </small>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td>
-                                                            <div className="d-inline-flex align-items-center px-3 py-2 rounded-3 bg-light">
-                                                                <i className="bi bi-speedometer2 text-primary me-2"></i>
-                                                                <span className="fw-semibold text-dark">{item.UOMName}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="text-start" style={{ maxWidth: "230px" }}>
-                                                            <Tooltip
-                                                                title={plainObjective || "No Objective"}
-                                                                placement="topLeft"
-                                                                overlayStyle={{ maxWidth: 350 }}
-                                                            >
-                                                                <span
-                                                                    className="text-muted"
-                                                                    style={{
-                                                                        cursor: "pointer",
-                                                                        display: "inline-block",
-                                                                        whiteSpace: "nowrap",
-                                                                        overflow: "hidden",
-                                                                        textOverflow: "ellipsis",
-                                                                        maxWidth: "200px",
-                                                                    }}
-                                                                >
-                                                                    {plainObjective
-                                                                        ? plainObjective.length > 25
-                                                                            ? `${plainObjective.substring(0, 25)}...`
-                                                                            : plainObjective
-                                                                        : "-"}
-                                                                </span>
-                                                            </Tooltip>
-                                                        </td>
-                                                        <td className="text-center">
-                                                            <Input
-                                                                type="number"
-                                                                size="small"
-                                                                value={item.Target}
-                                                                onChange={(e) => updateField(index, "Target", e.target.value)}
-                                                                disabled={!canEditTarget}
-                                                            />
-                                                        </td>
-                                                        <td className="text-center">
-                                                            <Input
-                                                                type="number"
-                                                                size="small"
-                                                                value={item.Weightage}
-                                                                onChange={(e) => updateField(index, "Weightage", e.target.value)}
-                                                            />
-                                                        </td>
-                                                        <td className="text-center">
-                                                            <Switch
-                                                                checked={Number(item.IsActive) === 1}
-                                                                checkedChildren="Active"
-                                                                unCheckedChildren="Disabled"
-                                                                onChange={(checked) =>
-                                                                    updateField(
-                                                                        index,
-                                                                        "IsActive",
-                                                                        checked ? 1 : 0
-                                                                    )
-                                                                }
-                                                            />
-                                                        </td>
-                                                    </tr>
-                                                )
-                                            })}
-
-                                            <tr>
-                                                <td colSpan={9} className="text-end pt-4">
-                                                    <button
-                                                        className="btn btn-primary btn-sm px-5"
-                                                        onClick={handleUpdateAll}
-                                                        disabled={saving}
-                                                    >
-                                                        {saving ? (
-                                                            <>
-                                                                <span className="spinner-border spinner-border-sm me-2"></span>
-                                                                Updating...
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <i className="bi bi-check2-circle me-2"></i>
-                                                                Update KPI Allocation
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        </>
-                                    ) : (
-                                        <tr>
-                                            <td colSpan={9} className="text-center py-5">
-                                                <img
-                                                    src="/media/illustrations/sketchy-1/5.png"
-                                                    alt=""
-                                                    style={{ width: "120px" }}
-                                                />
-                                                <h5 className="mt-3">No KPIs Found</h5>
-                                                <span className="text-muted">
-                                                    No KPI has been allocated for the selected employee.
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <i className="bi bi-bullseye text-primary fs-4"></i>
+            </div>
+            <div>
+                <div className="fw-bold" style={{ fontSize: 16, lineHeight: 1.2 }}>
+                    Edit KPI Allocation
                 </div>
-            </Modal>
+                <small className="text-muted">Update Target, Target Description & Weightage</small>
+            </div>
+        </div>
+    }
+>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
+
+        <div
+            style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                flexWrap: "wrap",
+                padding: "10px 14px",
+                background: "#f8fafc",
+                border: "1px solid #eef2f7",
+                borderRadius: 10,
+            }}
+        >
+            <div style={{ minWidth: 0 }}>
+                <div className="fw-bold" style={{ fontSize: 14.5, color: "#181c32" }}>
+                    Assigned KPIs
+                </div>
+                <div className="text-muted" style={{ fontSize: 12 }}>
+                    Allocated for the selected employee and performance period
+                </div>
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+                <span
+                    style={{
+                        padding: "5px 12px",
+                        borderRadius: 8,
+                        background: "#eef6ff",
+                        color: "#0d6efd",
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    Total KPIs <b style={{ fontSize: 14, marginLeft: 4 }}>{empKPIData.length}</b>
+                </span>
+
+                <span
+                    style={{
+                        padding: "5px 12px",
+                        borderRadius: 8,
+                        background: activeWeightage === 100 ? "#ecfdf5" : "#fff7ed",
+                        color: activeWeightage === 100 ? "#047857" : "#c2410c",
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    Weightage <b style={{ fontSize: 14, marginLeft: 4 }}>{activeWeightage}%</b>
+                </span>
+            </div>
+        </div>
+
+        <div className="row g-3">
+            {showDept && (
+                <div className="col-12 col-md-4">
+                    <label className="form-label fw-semibold mb-1" style={{ fontSize: 12.5 }}>
+                        Department
+                    </label>
+                    <Select
+                        style={{ width: "100%" }}
+                        placeholder="Select Department"
+                        showSearch
+                        optionFilterProp="label"
+                        value={selectedKPIDept}
+                        onChange={(value) => setSelectedKPIDept(value)}
+                        options={departments?.map((dept) => ({
+                            value: dept.ItemId,
+                            label: dept.ItemValue,
+                        }))}
+                    />
+                </div>
+            )}
+
+            <div className={showDept ? "col-12 col-md-8" : "col-12"}>
+                <label className="form-label fw-semibold mb-1" style={{ fontSize: 12.5 }}>
+                    Select KPI(s)
+                </label>
+                <Select
+                    mode="multiple"
+                    showSearch
+                    style={{ width: "100%" }}
+                    placeholder={
+                        showDept && !selectedKPIDept
+                            ? "Select a department first"
+                            : "Search and select KPI(s)"
+                    }
+                    disabled={showDept && !selectedKPIDept}
+                    optionFilterProp="label"
+                    value={[]}
+                    onChange={handleAddKPIs}
+                    options={availableKPIs?.map((kpi) => ({
+                        value: kpi.Id,
+                        label: kpi.KPIName,
+                    }))}
+                />
+            </div>
+        </div>
+
+        <div
+            style={{
+                maxHeight: "calc(100vh - 410px)",
+                minHeight: 160,
+                overflowY: "auto",
+                overflowX: "auto",
+                border: "1px solid #eef2f7",
+                borderRadius: 10,
+            }}
+        >
+            <table
+                className="table table-row-bordered table-hover align-middle gs-0 gy-2 mb-0"
+                style={{ minWidth: 960 }}
+            >
+                <thead>
+                    <tr className="fw-bold text-gray-700" style={{ fontSize: 12.5 }}>
+                        {[
+                            { label: "#", width: 44, align: "center" },
+                            { label: "KPI Name", width: "24%", align: "left" },
+                            { label: "UoM", width: 170, align: "center" },
+                            { label: "Target", width: 96, align: "center" },
+                            { label: "Target Description", width: 240, align: "left" },
+                            { label: "Weightage", width: 96, align: "center" },
+                            { label: "Action", width: 90, align: "center" },
+                        ].map((col) => (
+                            <th
+                                key={col.label}
+                                style={{
+                                    width: col.width,
+                                    textAlign: col.align,
+                                    position: "sticky",
+                                    top: 0,
+                                    zIndex: 2,
+                                    background: "#eef6ff",
+                                    boxShadow: "0 1px 0 #e3ebf5",
+                                    paddingTop: 10,
+                                    paddingBottom: 10,
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {col.label}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+
+                <tbody>
+                    {loading ? (
+                        <tr>
+                            <td colSpan={7} className="text-center py-5">
+                                Loading...
+                            </td>
+                        </tr>
+                    ) : empKPIData?.length > 0 ? (
+                        empKPIData.map((item, index) => {
+                            const selfScored = isSelfScored(item);
+                            const targetLocked =
+                                selfScored || !(item.IsNew || isAllCyclesDraft);
+
+                            return (
+                                <tr
+                                    key={item.Id || `new-${item.KPIId}`}
+                                    className={item.IsActive === 0 ? "table-danger opacity-50" : ""}
+                                >
+                                    <td className="text-center fw-bold">{index + 1}</td>
+
+                                    <td>
+                                        <Tooltip
+                                            title={item.KPIName}
+                                            placement="topLeft"
+                                            overlayStyle={{ maxWidth: 350 }}
+                                        >
+                                            <div className="fw-bold" style={{ cursor: "pointer", fontSize: 13 }}>
+                                                {item.KPIName
+                                                    ? item.KPIName.length > 28
+                                                        ? `${item.KPIName.substring(0, 28)}...`
+                                                        : item.KPIName
+                                                    : "-"}
+                                            </div>
+                                        </Tooltip>
+
+                                        <div
+                                            className="d-flex align-items-center gap-1 text-muted"
+                                            style={{ fontSize: 12, marginTop: 2 }}
+                                        >
+                                            <i className="bi bi-diagram-3"></i>
+                                            <span>{item.DeptName || "—"}</span>
+
+                                            {selfScored && (
+                                                <Tooltip title={SELF_SCORED_TIP}>
+                                                    <i
+                                                        className="bi bi-lock-fill text-warning ms-1"
+                                                        style={{ cursor: "help" }}
+                                                    ></i>
+                                                </Tooltip>
+                                            )}
+                                        </div>
+                                    </td>
+
+                                    <td className="text-center">
+                                        <Tooltip title={item.UOMName || ""}>
+                                            <span
+                                                style={{
+                                                    display: "inline-flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
+                                                    gap: 5,
+                                                    width: 150,
+                                                    height: 28,
+                                                    padding: "0 10px",
+                                                    borderRadius: 7,
+                                                    background: "#f5f7fa",
+                                                    border: "1px solid #eef2f7",
+                                                    fontSize: 12.5,
+                                                    fontWeight: 600,
+                                                    color: "#181c32",
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                            >
+                                                <i className="bi bi-speedometer2 text-primary" style={{ flex: "none" }}></i>
+                                                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                    {item.UOMName || "-"}
+                                                </span>
+                                            </span>
+                                        </Tooltip>
+                                    </td>
+
+                                    <td className="text-center">
+                                        <Tooltip title={selfScored ? SELF_SCORED_TIP : ""}>
+                                            <span style={{ display: "inline-block" }}>
+                                                <Input
+                                                    type="number"
+                                                    size="small"
+                                                    style={{ width: 80 }}
+                                                    value={item.Target}
+                                                    onChange={(e) => updateField(index, "Target", e.target.value)}
+                                                    disabled={targetLocked}
+                                                />
+                                            </span>
+                                        </Tooltip>
+                                    </td>
+
+                                    <td>
+                                        <Tooltip title={selfScored ? SELF_SCORED_TIP : ""}>
+                                            <div>
+                                                <Input.TextArea
+                                                    size="small"
+                                                    value={item.TargetDescription ?? ""}
+                                                    onChange={(e) =>
+                                                        updateField(index, "TargetDescription", e.target.value)
+                                                    }
+                                                    disabled={selfScored}
+                                                    maxLength={TARGET_DESC_MAX}
+                                                    autoSize={{ minRows: 1, maxRows: 3 }}
+                                                    placeholder="Describe the target"
+                                                    style={{ fontSize: 12.5, resize: "none" }}
+                                                />
+                                            </div>
+                                        </Tooltip>
+                                    </td>
+
+                                    <td className="text-center">
+                                        <Input
+                                            type="number"
+                                            size="small"
+                                            style={{ width: 80 }}
+                                            value={item.Weightage}
+                                            onChange={(e) => updateField(index, "Weightage", e.target.value)}
+                                        />
+                                    </td>
+
+                                    <td className="text-center">
+                                        <Tooltip title={selfScored ? SELF_SCORED_TIP : ""}>
+                                            <span style={{ display: "inline-block" }}>
+                                                <Switch
+                                                    size="small"
+                                                    checked={Number(item.IsActive) === 1}
+                                                    checkedChildren="Active"
+                                                    unCheckedChildren="Off"
+                                                    disabled={selfScored}
+                                                    onChange={(checked) =>
+                                                        updateField(index, "IsActive", checked ? 1 : 0)
+                                                    }
+                                                />
+                                            </span>
+                                        </Tooltip>
+                                    </td>
+                                </tr>
+                            );
+                        })
+                    ) : (
+                        <tr>
+                            <td colSpan={7} className="text-center py-5">
+                                <img
+                                    src="/media/illustrations/sketchy-1/5.png"
+                                    alt=""
+                                    style={{ width: 100 }}
+                                />
+                                <h6 className="mt-3 mb-1">No KPIs Found</h6>
+                                <span className="text-muted" style={{ fontSize: 12.5 }}>
+                                    No KPI has been allocated for the selected employee.
+                                </span>
+                            </td>
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+        </div>
+
+        {!loading && empKPIData?.length > 0 && (
+            <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap">
+                <small className="text-muted">
+                    <i className="bi bi-info-circle me-1"></i>
+                    Active KPIs must add up to 100% weightage.
+                    <i className="bi bi-lock-fill text-warning ms-3 me-1"></i>
+                    Locked rows already have a self score.
+                </small>
+
+                <button
+                    className="btn btn-primary btn-sm px-5"
+                    onClick={handleUpdateAll}
+                    disabled={saving}
+                >
+                    {saving ? (
+                        <>
+                            <span className="spinner-border spinner-border-sm me-2"></span>
+                            Updating...
+                        </>
+                    ) : (
+                        <>
+                            <i className="bi bi-check2-circle me-2"></i>
+                            Update KPI Allocation
+                        </>
+                    )}
+                </button>
+            </div>
+        )}
+    </div>
+</Modal>
 
 
             {/* Any time feedback Model */}
@@ -2707,509 +3021,396 @@ export default function EmployeeKpi() {
             </Modal>
 
             <style>
-                {`
-                /* =====================================================
-   KPI REVIEW HEADER
-===================================================== */
-
-.kpi-review-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-}
-
-.kpi-review-title-section {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    flex: 1;
-}
-
-.kpi-chevron {
-    margin-right: 12px;
-    flex-shrink: 0;
-}
-
-.kpi-number {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-
-    border-radius: 50%;
-
-    background: #eaf8f0;
-    color: #16a34a;
-
-    font-size: 13px;
-    font-weight: 700;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.kpi-review-details {
-    margin-left: 12px;
-    min-width: 0;
-}
-
-.kpi-name-row {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-}
-
-.kpi-name-row h5 {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.kpi-info-icon {
-    margin-left: 8px;
-    flex-shrink: 0;
-}
-
-.kpi-badges {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 5px;
-    margin-top: 5px;
-}
-
-.kpi-final-score {
-    text-align: right;
-    margin-right: 8px;
-    flex-shrink: 0;
-}
-
-.kpi-final-score h3 {
-    font-size: 22px;
-}
-
-
-/* =====================================================
-   MOBILE
-===================================================== */
-
-@media (max-width: 767.98px) {
-
-    .review-table-container {
-        max-height: calc(100vh - 180px) !important;
-        overflow-y: auto !important;
-        overflow-x: hidden !important;
-
-        -webkit-overflow-scrolling: touch;
-    }
-
-
-    /* Card */
-    .review-table-container > .card {
-        margin-left: 0 !important;
-        margin-right: 0 !important;
-        margin-bottom: 12px !important;
-
-        border-radius: 12px !important;
-    }
-
-
-    .review-table-container > .card > .card-body {
-        padding: 12px !important;
-    }
-
-
-    /* Header */
-    .kpi-review-header {
-        align-items: flex-start;
-    }
-
-
-    .kpi-review-title-section {
-        align-items: flex-start;
-        min-width: 0;
-    }
-
-
-    .kpi-chevron {
-        margin-right: 7px;
-        margin-top: 9px;
-        font-size: 12px;
-    }
-
-
-    .kpi-number {
-        width: 30px;
-        height: 30px;
-        min-width: 30px;
-
-        font-size: 11px;
-    }
-
-
-    .kpi-review-details {
-        margin-left: 8px;
-        min-width: 0;
-        padding-right: 5px;
-    }
-
-
-    .kpi-name-row h5 {
-        font-size: 14px;
-        line-height: 1.25;
-
-        white-space: normal;
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
-    }
-
-
-    .kpi-info-icon {
-        font-size: 12px !important;
-        margin-left: 5px;
-    }
-
-
-    .kpi-badges {
-        margin-top: 5px;
-    }
-
-
-    .kpi-badges .badge {
-        font-size: 9px;
-        padding: 4px 7px;
-    }
-
-
-    /* Final Score */
-    .kpi-final-score {
-        margin-right: 0;
-        margin-left: 5px;
-        min-width: 52px;
-        text-align: center;
-    }
-
-
-    .kpi-final-score small {
-        font-size: 8px;
-        white-space: nowrap;
-    }
-
-
-    .kpi-final-score h3 {
-        font-size: 18px;
-        margin-top: 2px !important;
-    }
-
-
-    /* =================================================
-       METRIC BOXES
-    ================================================= */
-
-    .metric-box {
-        min-width: 0 !important;
-        width: 100%;
-        padding: 9px !important;
-    }
-
-
-    .metric-icon {
-        width: 30px !important;
-        height: 30px !important;
-        min-width: 30px !important;
-    }
-
-
-    .metric-content {
-        min-width: 0;
-    }
-
-
-    .metric-content span {
-        font-size: 9px;
-        white-space: normal;
-        line-height: 1.2;
-    }
-
-
-    .metric-content h6 {
-        font-size: 13px;
-        margin-bottom: 0;
-        margin-top: 2px;
-        word-break: break-word;
-    }
-
-
-    /* =================================================
-       REVIEW CARDS
-    ================================================= */
-
-    .review-table-container .row.g-3 {
-        --bs-gutter-y: 0.75rem;
-    }
-
-
-    .review-table-container .card .card-body {
-        padding: 12px !important;
-    }
-
-
-    .review-table-container .card h6 {
-        font-size: 13px;
-    }
-
-
-    .review-table-container .form-label {
-        font-size: 11px;
-    }
-
-
-    /* Inputs */
-    .review-table-container .ant-input,
-    .review-table-container .ant-input-number,
-    .review-table-container .ant-input-number-input {
-        font-size: 12px !important;
-    }
-
-
-    /* Feedback button */
-    .w-mobile-100 {
-        width: 100% !important;
-    }
-
-
-    .review-table-container .btn-premium-outline-info {
-        justify-content: center;
-        font-size: 11px;
-    }
-
-}
-                    .feedback-header{
-                        display:flex;
-                        align-items:center;
-                    }
-
-                    .feedback-icon{
-                        width:46px;
-                        height:46px;
-                        border-radius:12px;
-                        background:linear-gradient(135deg,#009ef7,#7239ea);
-                        display:flex;
-                        justify-content:center;
-                        align-items:center;
-                        font-size:20px;
-                    }
-
-                    .feedback-kpi-card{
-                        padding:14px 18px;
-                        border:1px solid #edf2f7;
-                        border-radius:12px;
-                        background:#fafcff;
-                    }
-
-                    .feedback-history{
-                        max-height:220px;
-                        overflow:auto;
-                        padding-right:6px;
-                    }
-
-                    .feedback-item{
-                        display:flex;
-                        gap:12px;
-                        padding:14px;
-                        border:1px solid #edf2f7;
-                        border-radius:12px;
-                        margin-bottom:12px;
-                        transition:.25s;
-                    }
-
-                    .feedback-item:hover{
-                        border-color:#009ef7;
-                        box-shadow:0 5px 15px rgba(0,0,0,.05);
-                    }
-
-                    .feedback-avatar{
-                        width:42px;
-                        height:42px;
-                        border-radius:50%;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        flex-shrink:0;
-                    }
-
-                    .feedback-content{
-                        flex:1;
-                    }
-                    .btn-premium-outline-info{
-                        background:#fff !important;
-                        color:#0dcaf0 !important;
-                        border:1px solid #0dcaf0 !important;
-                        border-radius:10px;
-                        font-weight:600;
-                    }
-
-                    .btn-premium-outline-info:hover{
-                        background:#0dcaf0 !important;
-                        color:#fff !important;
-                        border-color:#0dcaf0 !important;
-                    }import { capitalizeFirstLetter } from './../../../utils/capital';
-
-                                    .feedback-header{
-                    display:flex;
-                    align-items:center;
-                    margin-bottom:24px;
-                    }
-
-
-                    .feedback-kpi-card{
-                    margin-top:20px;
-                    padding:18px;
-                    border-radius:14px;
-                    background:#f8fbff;
-                    border:1px solid #e5eefc;
-                    }
-
-                    .feedback-modal textarea{
-                    border-radius:12px;
-                    }
-                    .metric-box{
-                        height:72px;
-                        border:1px solid #edf1f7;
-                        border-radius:12px;
-                        display:flex;
-                        align-items:center;
-                        padding:12px 14px;
-                        background:#fff;
-                        transition:.25s;
-                    }
-
-                    .metric-box:hover{
-                        transform:translateY(-2px);
-                        box-shadow:0 8px 18px rgba(0,0,0,.08);
-                        border-color:#009ef7;
-                    }
-
-                    .metric-icon{
-                        width:42px;
-                        height:42px;
-                        border-radius:10px;
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        flex-shrink:0;
-                        margin-right:12px;
-                    }
-
-                    .metric-icon i{
-                        font-size:18px;
-                    }
-
-                    .metric-content{
-                        display:flex;
-                        flex-direction:column;
-                        justify-content:center;
-                        overflow:hidden;
-                    }
-
-                    .metric-content span{
-                        font-size:12px;
-                        color:#7e8299;
-                        line-height:1;
-                        margin-bottom:5px;
-                    }
-
-                    .metric-content h6{
-                        margin:0;
-                        font-size:18px;
-                        font-weight:700;
-                        color:#181c32;
-                    }
-
-                    .review-card{
-                    transition:.3s;
-                    border-radius:16px;
-                    }
-
-                    .review-card:hover{
-                    transform:translateY(-4px);
-                    box-shadow:0 12px 28px rgba(0,0,0,.08);
-                    }
-
-                    .ant-input,
-                    .ant-input-number{
-                    border-radius:10px;
-                    }
-
-                    .ant-input:focus,
-                    .ant-input-number:focus-within{
-                    box-shadow:0 0 0 3px rgba(0,158,247,.15);
-                    }
-                .review-quarter-card{
-                    background:#fff;
-                    border:1px solid #e9ecef;
-                    border-radius:12px;
-                    padding:16px;
-                    transition:.25s;
-                    cursor:pointer;
-                    position:relative;
-                }
-
-                .review-quarter-card:hover:not(.quarter-disabled){
-                    transform:translateY(-2px);
-                    box-shadow:0 8px 18px rgba(0,0,0,.08);
-                    border-color:#d6dbe3;
-                }
-
-                .active-quarter{
-                    border:2px solid #0d6efd;
-                    background:#eef5ff;
-                    box-shadow:0 0 0 3px rgba(13,110,253,.15);
-                }
-
-                .active-quarter::before{
-                    content:"";
-                    position:absolute;
-                    left:0;
-                    top:0;
-                    bottom:0;
-                    width:5px;
-                    background:#0d6efd;
-                    border-radius:12px 0 0 12px;
-                }
-
-                .quarter-disabled{
-                    background:#f8f9fa;
-                    opacity:.65;
-                    cursor:not-allowed;
-                    filter:grayscale(.2);
-                }
-
-                .quarter-disabled:hover{
-                    transform:none;
-                    box-shadow:none;
-                }
-
-                .quarter-icon{
-                    width:42px;
-                    height:42px;
-                    border-radius:10px;
-                    background:#f1f3f5;
-                    color:#6c757d;
-                    display:flex;
-                    align-items:center;
-                    justify-content:center;
-                }
-
-                .active-quarter .quarter-icon{
-                    background:#dbeafe;
-                    color:#0d6efd;
-                }
-                `}
-            </style>
+    {`
+        .kpi-review-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .kpi-review-title-section {
+            display: flex;
+            align-items: center;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .kpi-chevron {
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .kpi-number {
+            width: 34px;
+            height: 34px;
+            min-width: 34px;
+            border-radius: 50%;
+            background: #eaf8f0;
+            color: #16a34a;
+            font-size: 13px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .kpi-review-details {
+            margin-left: 12px;
+            min-width: 0;
+        }
+
+        .kpi-name-row {
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .kpi-name-row h5 {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .kpi-badges {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .kpi-final-score {
+            text-align: right;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+
+        .kpi-final-score h3 {
+            font-size: 22px;
+        }
+
+        .metric-box {
+            height: 72px;
+            border: 1px solid #edf1f7;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            padding: 12px 14px;
+            background: #fff;
+            transition: .25s;
+        }
+
+        .metric-box:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, .08);
+            border-color: #009ef7;
+        }
+
+        .metric-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-right: 12px;
+        }
+
+        .metric-icon i {
+            font-size: 18px;
+        }
+
+        .metric-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .metric-content span {
+            font-size: 12px;
+            color: #7e8299;
+            line-height: 1;
+            margin-bottom: 5px;
+        }
+
+        .metric-content h6 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 700;
+            color: #181c32;
+        }
+
+        .btn-premium-outline-info {
+            background: #fff !important;
+            color: #0dcaf0 !important;
+            border: 1px solid #0dcaf0 !important;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .btn-premium-outline-info:hover {
+            background: #0dcaf0 !important;
+            color: #fff !important;
+            border-color: #0dcaf0 !important;
+        }
+
+        .feedback-header {
+            display: flex;
+            align-items: center;
+        }
+
+        .feedback-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #009ef7, #7239ea);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+        }
+
+        .feedback-kpi-card {
+            margin-top: 20px;
+            padding: 18px;
+            border-radius: 14px;
+            background: #f8fbff;
+            border: 1px solid #e5eefc;
+        }
+
+        .feedback-history {
+            max-height: 220px;
+            overflow: auto;
+            padding-right: 6px;
+        }
+
+        .feedback-item {
+            display: flex;
+            gap: 12px;
+            padding: 14px;
+            border: 1px solid #edf2f7;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            transition: .25s;
+        }
+
+        .feedback-item:hover {
+            border-color: #009ef7;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, .05);
+        }
+
+        .feedback-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .feedback-content {
+            flex: 1;
+        }
+
+        .feedback-modal textarea {
+            border-radius: 12px;
+        }
+
+        .ant-input,
+        .ant-input-number {
+            border-radius: 10px;
+        }
+
+        .ant-input:focus,
+        .ant-input-number:focus-within {
+            box-shadow: 0 0 0 3px rgba(0, 158, 247, .15);
+        }
+
+        .review-quarter-card {
+            position: relative;
+            background: #fff;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: .25s;
+        }
+
+        .review-quarter-card:hover:not(.quarter-disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, .08);
+            border-color: #d6dbe3;
+        }
+
+        .active-quarter {
+            border: 2px solid #0d6efd;
+            background: #eef5ff;
+            box-shadow: 0 0 0 3px rgba(13, 110, 253, .15);
+        }
+
+        .active-quarter::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 5px;
+            background: #0d6efd;
+            border-radius: 12px 0 0 12px;
+        }
+
+        .quarter-disabled {
+            background: #f8f9fa;
+            opacity: .65;
+            cursor: not-allowed;
+            filter: grayscale(.2);
+        }
+
+        .quarter-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            background: #f1f3f5;
+            color: #6c757d;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .active-quarter .quarter-icon {
+            background: #dbeafe;
+            color: #0d6efd;
+        }
+
+        @media (max-width: 767.98px) {
+            .review-table-container {
+                max-height: calc(100vh - 180px) !important;
+                overflow-y: auto !important;
+                overflow-x: hidden !important;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .review-table-container > .card {
+                margin-left: 0 !important;
+                margin-right: 0 !important;
+                margin-bottom: 12px !important;
+                border-radius: 12px !important;
+            }
+
+            .review-table-container .card .card-body {
+                padding: 12px !important;
+            }
+
+            .review-table-container .card h6 {
+                font-size: 13px;
+            }
+
+            .review-table-container .row.g-3 {
+                --bs-gutter-y: 0.75rem;
+            }
+
+            .review-table-container .ant-input {
+                font-size: 12px !important;
+            }
+
+            .kpi-review-header,
+            .kpi-review-title-section {
+                align-items: flex-start;
+            }
+
+            .kpi-chevron {
+                margin-right: 7px;
+                margin-top: 9px;
+                font-size: 12px;
+            }
+
+            .kpi-number {
+                width: 30px;
+                height: 30px;
+                min-width: 30px;
+                font-size: 11px;
+            }
+
+            .kpi-review-details {
+                margin-left: 8px;
+                padding-right: 5px;
+            }
+
+            .kpi-name-row h5 {
+                font-size: 14px;
+                line-height: 1.25;
+                white-space: normal;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+
+            .kpi-badges .badge {
+                font-size: 9px;
+                padding: 4px 7px;
+            }
+
+            .kpi-final-score {
+                margin-right: 0;
+                margin-left: 5px;
+                min-width: 52px;
+                text-align: center;
+            }
+
+            .kpi-final-score small {
+                font-size: 8px;
+                white-space: nowrap;
+            }
+
+            .kpi-final-score h3 {
+                font-size: 18px;
+                margin-top: 2px !important;
+            }
+
+            .metric-box {
+                min-width: 0 !important;
+                width: 100%;
+                padding: 9px !important;
+            }
+
+            .metric-icon {
+                width: 30px !important;
+                height: 30px !important;
+                min-width: 30px !important;
+            }
+
+            .metric-content {
+                min-width: 0;
+            }
+
+            .metric-content span {
+                font-size: 9px;
+                white-space: normal;
+                line-height: 1.2;
+            }
+
+            .metric-content h6 {
+                font-size: 13px;
+                margin-top: 2px;
+                word-break: break-word;
+            }
+
+            .w-mobile-100 {
+                width: 100% !important;
+            }
+
+            .review-table-container .btn-premium-outline-info {
+                justify-content: center;
+                font-size: 11px;
+            }
+        }
+    `}
+</style>
         </Base1>
     )
 }

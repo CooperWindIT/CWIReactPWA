@@ -3,7 +3,6 @@ import './App.css';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import VisitingList from './Components/Visitings/List';
 import ContactorsList from './Components/Contarctors/List';
-import UsersList from './Components/Users/List';
 import RoleMenu from './Components/RoleMenu/RoleMenu';
 import ReportData from './Components/Reports/ReportData';
 import Dashboard from './Components/Dashboard/Dashboard';
@@ -54,6 +53,19 @@ import AssetlessTicketRequest from './Components/ServiceNow/AssetlessTicketReque
 import AssetlessMyTickets from './Components/ServiceNow/MyTickets';
 import AssetlessTechMyTickets from './Components/ServiceNow/TechMyTickets';
 import KPIHRPublish from './Components/KPI/Publish/KPIHRPublish';
+import TrackTicket from './Components/ServiceNow/TrackTicket';
+import CFMDashboard from './Components/CFM/Dashboard/dashboard';
+import Customers from './Components/CFM/Customers/customers';
+import FeedbackContent from './Components/CFM/FeedbackContent/feedbackContent';
+import FeedbackRequest from './Components/CFM/FeedbackRequest/Feedbackrequest';
+import EditFeedbackRequest from './Components/CFM/FeedbackRequest/EditFeedbackRequest';
+import CreateFeedbackRequest from './Components/CFM/FeedbackRequest/CreateFeedbackrequest';
+import JobsList from './Components/PAM/Jobs/JobsList';
+import UsersList from './Components/PAM/Users/List';
+import PAMDashboard from './Components/PAM/Dashboard/Dashboard';
+import Contents from './Components/PAM/WebsiteContents/ContentsList';
+import ContentTypes from './Components/PAM/WebsiteContentTypes/ContentTypesList';
+
 
 function App() {
   return (
@@ -99,7 +111,6 @@ function App() {
               <Route path="/report" element={<ReportData />} />
 
               <Route path="/user-modules" element={<SampleScreen2 />} />
-              <Route path="/users" element={<UsersList />} />
               <Route path="/role-menu" element={<RoleMenu />} />
 
               {/* EDM */}
@@ -119,7 +130,7 @@ function App() {
               <Route path="/kpi/my-kpis" element={<MyKPIs />} />
               <Route path="/kpi/manager-review" element={<ManagerReviewCycle />} />
               <Route path="/kpi/employee-review" element={<EmployeeReviewCycle />} />
-              <Route path="/kpi/allocate-kpi" element={<AllocateKPI />} />
+              <Route path="/kpi/allocate-kpi/:deptId" element={<AllocateKPI />} />
               <Route path="/kpi/review-cycles" element={<ReviewCycles />} />
               <Route path="/kpi/hr-publish" element={<KPIHRPublish />} />
 
@@ -128,21 +139,34 @@ function App() {
               <Route path="/tech-faqs" element={<TechHelp1 />} />
               <Route path="/organization-chart" element={<FullOrgChartstatic />} />
               <Route path="/remi" element={<ReminderScreen />} />
-              {/* <Route path="/org" element={<OrganizationFlowChart />} /> */}
 
               {/* Repository Management */}
               <Route path="/rm-list" element={<SampleRM />} />
               <Route path="/item-master/:id" element={<ItemMasterDetails />} />
               <Route path="/rm/upload-documents" element={<SampleRM1 />} />
 
-              {/* Assetless Ticket Request */}
+              {/* ServiceNow */}
               <Route path="/service-requests/assetless" element={<AssetlessTicketRequest />} />
               <Route path="/service-requests/my-tickets" element={<AssetlessMyTickets />} />
               <Route path="/service-requests/tech-tickets" element={<AssetlessTechMyTickets />} />
+              <Route path="/service-requests/track-ticket" element={<TrackTicket />} />
 
-              {/* Organization charts */}
-              {/* <Route path="/org-chart" element={<OrgChart />} /> */}
-              {/* <Route path="/kpi" element={<KpiModule />} /> */}
+              {/* Customer Feedback Module */}
+              <Route path="/cfm/dashboard" element={<CFMDashboard />} />
+              <Route path="/cfm/feedback-content" element={<FeedbackContent />} />
+
+              <Route path="/cfm/feedback-request" element={<FeedbackRequest />} />
+              <Route path="/cfm/feedback-request/create" element={<CreateFeedbackRequest />} />
+              <Route path="/cfm/feedback-request/edit/:publicCode" element={<EditFeedbackRequest />} />
+
+              {/* HRM */}
+              <Route path="/pam/users" element={<UsersList />} />
+              <Route path="/pam/jobs" element={<JobsList />} />
+              <Route path="/pam/dashboard" element={<PAMDashboard />} />
+              <Route path="/pam/contents" element={<Contents />} />
+              <Route path="/pam/content-types" element={<ContentTypes />} />
+              <Route path="/pam/customers" element={<Customers />} />
+
             </Routes>
           }
         />

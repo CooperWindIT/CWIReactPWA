@@ -903,7 +903,7 @@ export default function ReportData() {
                             </a>
                         </div>
 
-                        {sessionModuleId === '15' || sessionModuleId === '16'  && (
+                        {(sessionModuleId === '15' || sessionModuleId === '16')  && (
                             <div className="d-flex flex-column w-100">
                                 <div className="d-flex align-items-center mb-4">
                                     {menuData?.map((menu) => {
@@ -1002,7 +1002,7 @@ export default function ReportData() {
                             </div>
                         )}
 
-                        <div className={`page-title mt-4 d-md-none ${(shouldHideSidebar || reportId === '3' ) ? 'd-block' : 'd-none'}`}>
+                        <div className={`page-title mt-4 d-md-none ${(shouldHideSidebar || reportId === '3') ? 'd-block' : 'd-none'}`}>
                             <div className="dropdown d-inline-block">
                                 <span
                                     className="menu-link bg-white shadow-sm me-2 dropdown-toggle"
@@ -1112,6 +1112,7 @@ export default function ReportData() {
                         )}
                     </div>
                 </div>
+                
                 <div id="kt_app_content" className="app-content flex-column-fluid pt-1">
                     <div id="kt_app_content_container" className="app-container container-xxl">
                         <div className="card shadow-sm border-0 rounded-4 mb-5">

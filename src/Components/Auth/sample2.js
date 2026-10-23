@@ -225,7 +225,7 @@ export default function SampleScreen2() {
                 {/* Initial Splash View */}
                 <div className={`initial-view ${showMain ? "fade-out" : "fade-in"}`}>
                     <div className="nexus-logo d-flex" style={{ minWidth: '400px' }}>
-                        <img src={`${BASE_IMAGE_API_GET}${sessionUserData?.ImageUrl}`} style={{ maxHeight: '240px' }} alt="Nexus Logo" />
+                        <img src={`${BASE_IMAGE_API_GET}${sessionUserData?.OrgURL}`} style={{ maxHeight: '240px' }} alt="Nexus Logo" />
                     </div>
                 </div>
 
@@ -234,7 +234,7 @@ export default function SampleScreen2() {
                     <div className="fade-in">
                         <div className="text-center mb-5 header-animate">
                             <div className="d-flex justify-content-center mt-4">
-                                <img src={`${BASE_IMAGE_API_GET}${sessionUserData?.ImageUrl}`} style={{ maxHeight: '110px' }} alt="Nexus Logo" />
+                                <img src={`${BASE_IMAGE_API_GET}${sessionUserData?.OrgURL}`} style={{ maxHeight: '110px' }} alt="Nexus Logo" />
                             </div>
                         </div>
 
@@ -248,11 +248,10 @@ export default function SampleScreen2() {
                                     
 
                                     <div className="fs-4 fw-bold text-dark">
-                                        Hello, <span className="animated-username">{sessionUserData.Name}</span>
+                                        Hello, <span className="animated-username">{sessionUserData?.Name} - {sessionUserData?.EmpNo}</span>
                                     </div>
 
                                     <div className="text-muted mt-2 d-flex align-items-center justify-content-center gap-2">
-                                        {/* <i className="bi bi-grid-1x2-fill text-primary"></i> */}
                                         <span>Explore the modules available to you below</span>
                                     </div>
                                 </div>
@@ -440,7 +439,7 @@ export default function SampleScreen2() {
                         left: 0;
                         width: 100%;
                         height: 100%;
-                        background: url(${BASE_IMAGE_API_GET}${sessionUserData?.ImageUrl}) center center no-repeat;
+                        background: url(${BASE_IMAGE_API_GET}${sessionUserData?.OrgURL}) center center no-repeat;
                         background-size: contain;
                         opacity: 0.05;
                         z-index: 0;

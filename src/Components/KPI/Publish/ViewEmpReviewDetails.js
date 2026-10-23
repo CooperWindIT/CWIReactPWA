@@ -323,10 +323,6 @@ export default function ViewEmpReview({ empReviewData }) {
                     {empReviewData && (
                         <div className="text-muted small">
                             {empReviewData.UserName || "---"}
-                            {" "}
-                            {empReviewData.EmpNo
-                                ? `(${empReviewData.EmpNo})`
-                                : ""}
                         </div>
                     )}
                 </div>
@@ -403,12 +399,6 @@ export default function ViewEmpReview({ empReviewData }) {
                                                     {empReviewData.UserName ||
                                                         "---"}
                                                 </h5>
-
-                                                <div className="text-muted small">
-                                                    Employee No:{" "}
-                                                    {empReviewData.EmpNo ||
-                                                        "-"}
-                                                </div>
 
                                                 <div className="text-muted small">
                                                     Manager:{" "}

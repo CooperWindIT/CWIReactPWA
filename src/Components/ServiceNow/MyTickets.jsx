@@ -6,7 +6,6 @@ import '../Config/Pagination.css';
 import '../Config/Loader.css';
 import { Link, useNavigate } from "react-router-dom";
 import { fetchWithAuth } from "../../utils/api";
-import Swal from "sweetalert2";
 import { BASE_IMAGE_API_GET } from "../Config/Config";
 import ResolveTicket from "./ReolveTicket";
 // import CloseTicket from "./CloseTicket";
@@ -333,7 +332,7 @@ export default function AssetlessMyTickets() {
 
     return (
         <Base1>
-            <div id="kt_app_toolbar" className="app-toolbar py-3 py-lg-6">
+            {/* <div id="kt_app_toolbar" className="app-toolbar py-3 py-lg-6">
                 <div id="kt_app_toolbar_container" className="app-container container-xxl d-flex flex-stack">
                     <div className="page-title d-flex flex-column">
 
@@ -372,7 +371,139 @@ export default function AssetlessMyTickets() {
 
                     </div>
                 </div>
+            </div> */}
+            <div
+    id="kt_app_toolbar"
+    className="app-toolbar py-4 py-lg-5"
+>
+    <div
+        id="kt_app_toolbar_container"
+        className="app-container container-xxl d-flex flex-stack"
+        style={{
+            background: "linear-gradient(135deg, #ffffff 0%, #f7faff 100%)",
+            borderBottom: "1px solid #eef1f6",
+        }}
+        >
+        {/* Left Section */}
+        <div className="page-title d-flex flex-column"
+        >
+
+            {/* Back Navigation */}
+            <Link
+                to="/user-modules"
+                className="text-muted text-hover-primary fw-semibold mb-3"
+                style={{
+                    fontSize: "13px",
+                    width: "fit-content",
+                    textDecoration: "none",
+                }}
+            >
+                <i className="fa-solid fa-arrow-left me-2"></i>
+                Back to Modules
+            </Link>
+
+            {/* Title */}
+            <div className="d-flex align-items-center">
+
+                {/* Icon */}
+                <div
+                    className="d-flex align-items-center justify-content-center me-3"
+                    style={{
+                        width: "52px",
+                        height: "52px",
+                        borderRadius: "14px",
+                        background:
+                            "linear-gradient(135deg, rgba(13,110,253,0.14), rgba(13,110,253,0.05))",
+                        border: "1px solid rgba(13,110,253,0.10)",
+                        boxShadow:
+                            "0 6px 18px rgba(13,110,253,0.08)",
+                    }}
+                >
+                    <i
+                        className="fa-solid fa-ticket"
+                        style={{
+                            fontSize: "21px",
+                            color: "#0d6efd",
+                        }}
+                    ></i>
+                </div>
+
+                {/* Heading */}
+                <div>
+                    <div
+                        className="text-muted fw-semibold mb-1"
+                        style={{
+                            fontSize: "10px",
+                            letterSpacing: "0.5px",
+                            textTransform: "uppercase",
+                        }}
+                    >
+                        Service Requests
+                    </div>
+
+                    <h4
+                        className="fw-bold mb-0"
+                        style={{
+                            fontSize: "21px",
+                            color: "#181c32",
+                            letterSpacing: "-0.3px",
+                        }}
+                    >
+                        My Ticket Requests
+                    </h4>
+
+                    <div
+                        className="text-muted mt-1"
+                        style={{ fontSize: "11px" }}
+                    >
+                        Track and manage your submitted tickets
+                    </div>
+                </div>
             </div>
+        </div>
+
+        {/* Right Section */}
+        <div className="d-flex align-items-center gap-3">
+
+            <Link
+                to="/service-requests/assetless"
+                className="d-flex align-items-center text-decoration-none"
+                style={{
+                    height: "44px",
+                    padding: "0 18px",
+                    borderRadius: "12px",
+                    background: "#ffffff",
+                    border: "1px solid #e4e8ef",
+                    color: "#0d6efd",
+                    fontWeight: "600",
+                    fontSize: "13px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                    transition: "all 0.2s ease",
+                }}
+            >
+                <span
+                    className="d-flex align-items-center justify-content-center me-2"
+                    style={{
+                        width: "30px",
+                        height: "30px",
+                        borderRadius: "8px",
+                        background: "rgba(13,110,253,0.08)",
+                    }}
+                >
+                    <i className="fa-solid fa-list-check"></i>
+                </span>
+
+                Tickets List
+
+                <i
+                    className="fa-solid fa-arrow-right ms-3"
+                    style={{ fontSize: "11px" }}
+                ></i>
+            </Link>
+
+        </div>
+    </div>
+</div>
 
             <div id="kt_app_content" className={`app-content flex-column-fluid pt-2`}>
                 <div id="kt_app_content_container" className="app-container container-xxl">
@@ -415,180 +546,193 @@ export default function AssetlessMyTickets() {
                                 </div>
                             </div>
                             <div
-    style={{
-        maxHeight: "500px",
-        overflowY: "auto",
-        overflowX: "auto",
-    }}
-    className="custom-scrollbar"
->
-                            <table className="table align-middle table-hover gs-7 gy-5 mb-0 fs-6">
-                                <thead className="bg-light-primary sticky-top">
-                                    <tr className="text-start text-muted fw-bold fs-7 text-uppercase gs-0 border-bottom-2 border-primary">
-                                        <th className="">S.No</th>
-                                        <th className="min-w-125px">Ticket Code</th>
-                                        <th className="min-w-125px">Created On</th>
-                                        <th className="min-w-205px">Sub-category</th>
-                                        <th className="min-w-100px text-center">Priority</th>
-                                        <th className="min-w-100px text-center">Status</th>
-                                        <th className="min-w-100px">Aging</th>
-                                        <th className="min-w-80px">Action Req. By</th>
-                                        <th className="min-w-40px">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="fw-semibold text-gray-700">
-                                    {dataLoading ? (
-                                        <tr>
-                                            <td colSpan="12" className="text-center">
-                                                <div className="container"></div>
-                                            </td>
+                                style={{
+                                    maxHeight: "500px",
+                                    overflowY: "auto",
+                                    overflowX: "auto",
+                                }}
+                                className="custom-scrollbar"
+                            >
+                                <table className="table align-middle table-hover gs-7 gy-5 mb-0 fs-6">
+                                    <thead className="bg-light-primary">
+                                        <tr className="text-start text-muted fw-bold fs-7 text-uppercase gs-0 border-bottom-2 border-primary">
+                                            <th className="">S.No</th>
+                                            <th className="min-w-125px">Ticket Code</th>
+                                            <th className="min-w-125px">Created On</th>
+                                            <th className="min-w-205px">Sub-category</th>
+                                            <th className="min-w-100px text-center">Priority</th>
+                                            <th className="min-w-100px text-center">Status</th>
+                                            <th className="min-w-100px">Aging</th>
+                                            <th className="min-w-80px">Action Req. By</th>
+                                            <th className="min-w-40px">Actions</th>
                                         </tr>
-                                    ) : filteredTickets && filteredTickets?.length > 0 ? (
-                                        filteredTickets?.map((item, index) => {
-                                            const showApproveBtn = item.Status?.toUpperCase() === "REQ-SUBMITTED";
+                                    </thead>
+                                    <tbody className="fw-semibold text-gray-700">
+                                        {dataLoading ? (
+                                            <tr>
+                                                <td colSpan="12" className="text-center">
+                                                    <div className="container"></div>
+                                                </td>
+                                            </tr>
+                                        ) : filteredTickets && filteredTickets?.length > 0 ? (
+                                            filteredTickets?.map((item, index) => {
+                                                const showApproveBtn = item.Status?.toUpperCase() === "REQ-SUBMITTED";
+                                                const showRejectBtn = true;
 
-                                            return (
-                                                <tr
-                                                    key={index}
-                                                    className="shadow-sm rounded-3"
-                                                    style={{
-                                                        transition: "all 0.2s ease-in-out",
-                                                    }}
-                                                >
-                                                    <td className="text-muted">
-                                                        {index + 1}
-                                                    </td>
-                                                    <td>
-                                                        {item.TicketCode}
-                                                    </td>
-                                                    <td>{formatDate(item.CreatedOn) || 'N/A'}</td>
-                                                    <td>{item.TicketType || 'N/A'}</td>
-                                                    <td className="text-center">
-                                                        {item.Priority === 1 && (
+                                                return (
+                                                    <tr
+                                                        key={index}
+                                                        className="shadow-sm rounded-3"
+                                                        style={{
+                                                            transition: "all 0.2s ease-in-out",
+                                                        }}
+                                                    >
+                                                        <td className="text-muted">
+                                                            {index + 1}
+                                                        </td>
+                                                        <td>
+                                                            {item.TicketCode}
+                                                        </td>
+                                                        <td>{formatDate(item.CreatedOn) || 'N/A'}</td>
+                                                        <td>{item.TicketType || 'N/A'}</td>
+                                                        <td className="text-center">
+                                                            {item.Priority === 1 && (
+                                                                <span
+                                                                    className="badge badge-light-danger d-inline-flex align-items-center justify-content-center"
+                                                                    style={{ width: "80px" }}
+                                                                >
+                                                                    High
+                                                                </span>
+                                                            )}
+                                                            {item.Priority === 2 && (
+                                                                <span
+                                                                    className="badge badge-light-warning d-inline-flex align-items-center justify-content-center"
+                                                                    style={{ width: "80px" }}
+                                                                >
+                                                                    Medium
+                                                                </span>
+                                                            )}
+                                                            {item.Priority === 3 && (
+                                                                <span
+                                                                    className="badge badge-light-primary d-inline-flex align-items-center justify-content-center"
+                                                                    style={{ width: "80px" }}
+                                                                >
+                                                                    Low
+                                                                </span>
+                                                            )}
+                                                        </td>
+
+                                                        <td className="text-center">
                                                             <span
-                                                                className="badge badge-light-danger d-inline-flex align-items-center justify-content-center"
+                                                                className={`badge ${getStatusBadgeClass(item.Status)} d-inline-flex align-items-center justify-content-center`}
                                                                 style={{ width: "80px" }}
                                                             >
-                                                                High
+                                                                {item.Status}
                                                             </span>
-                                                        )}
-                                                        {item.Priority === 2 && (
-                                                            <span
-                                                                className="badge badge-light-warning d-inline-flex align-items-center justify-content-center"
-                                                                style={{ width: "80px" }}
+                                                        </td>
+                                                        <td className="text-info">
+                                                            <Tooltip
+                                                                title={getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
+                                                                placement="topLeft"
+                                                                color="blue"
                                                             >
-                                                                Medium
-                                                            </span>
-                                                        )}
-                                                        {item.Priority === 3 && (
-                                                            <span
-                                                                className="badge badge-light-primary d-inline-flex align-items-center justify-content-center"
-                                                                style={{ width: "80px" }}
-                                                            >
-                                                                Low
-                                                            </span>
-                                                        )}
-                                                    </td>
+                                                                <span
+                                                                    style={{
+                                                                        display: "inline-block",
+                                                                        maxWidth: "100px",
+                                                                        whiteSpace: "nowrap",
+                                                                        overflow: "hidden",
+                                                                        textOverflow: "ellipsis",
+                                                                        verticalAlign: "middle",
+                                                                    }}
+                                                                >
+                                                                    {getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
+                                                                </span>
+                                                            </Tooltip>
+                                                        </td>
+                                                        <td>
+                                                            <div className="d-flex align-items-center gap-2">
+                                                                <span className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
+                                                                    style={{ width: "28px", height: "28px", flexShrink: 0 }}
+                                                                >
+                                                                    <i className="fa-solid fa-user"></i>
+                                                                </span>
+                                                                <span>{item.ActionRequiredFrom || '---'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <Popover
+                                                                placement="bottom"
+                                                                content={
+                                                                    <div style={{ width: '8rem' }}>
+                                                                        <p
+                                                                            onClick={() => {
+                                                                                if (!showViewBtn) return;
 
-                                                    <td className="text-center">
-                                                        <span
-                                                            className={`badge ${getStatusBadgeClass(item.Status)} d-inline-flex align-items-center justify-content-center`}
-                                                            style={{ width: "80px" }}
-                                                        >
-                                                            {item.Status}
-                                                        </span>
-                                                    </td>
-                                                    <td className="text-info">
-                                                        <Tooltip
-                                                            title={getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
-                                                            placement="topLeft"
-                                                            color="blue"
-                                                        >
-                                                            <span
-                                                                style={{
-                                                                    display: "inline-block",
-                                                                    maxWidth: "100px",
-                                                                    whiteSpace: "nowrap",
-                                                                    overflow: "hidden",
-                                                                    textOverflow: "ellipsis",
-                                                                    verticalAlign: "middle",
-                                                                }}
+                                                                                setSelectedTicket(item);
+                                                                                setCommentsOpen(true);
+                                                                            }}
+                                                                            style={{
+                                                                                cursor: showViewBtn ? "pointer" : "not-allowed",
+                                                                                opacity: showViewBtn ? 1 : 0.5,
+                                                                                pointerEvents: showViewBtn ? "auto" : "none",
+                                                                                filter: showViewBtn ? "none" : "blur(1px)",
+                                                                            }}
+                                                                            className="text-hover-primary"
+                                                                        >
+                                                                            <i className="fa-solid fa-clipboard-check text-primary me-2"></i>
+                                                                            View
+                                                                        </p>
+                                                                        <p
+                                                                            data-bs-toggle="offcanvas"
+                                                                            data-bs-target="#offcanvasRightResolveTic"
+                                                                            style={{
+                                                                                cursor: showApproveBtn ? "pointer" : "not-allowed",
+                                                                                opacity: showApproveBtn ? 1 : 0.5,
+                                                                                pointerEvents: showApproveBtn ? "auto" : "none",
+                                                                            }}
+                                                                            onClick={() => handleResolveTicket(item)}
+                                                                            className="text-hover-success"
+                                                                        >
+                                                                            <i className="fa-solid fa-circle-check text-success me-2"></i>
+                                                                            Resolve
+                                                                        </p>
+                                                                        <p
+                                                                            style={{
+                                                                                cursor: showRejectBtn ? "pointer" : "not-allowed",
+                                                                                opacity: showRejectBtn ? 1 : 0.5,
+                                                                                pointerEvents: showRejectBtn ? "auto" : "none",
+                                                                            }}
+                                                                            // onClick={() => handleResolveTicket(item)}
+                                                                            className="text-hover-danger"
+                                                                        >
+                                                                            <i className="fa-solid fa-circle-xmark text-danger me-2"></i>
+                                                                            Reject
+                                                                        </p>
+                                                                    </div>
+                                                                }
+                                                                trigger="hover"
                                                             >
-                                                                {getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
-                                                            </span>
-                                                        </Tooltip>
-                                                    </td>
-                                                    <td>
-                                                        <div className="d-flex align-items-center gap-2">
-                                                            <span className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
-                                                                style={{ width: "28px", height: "28px", flexShrink: 0 }}
-                                                            >
-                                                                <i className="fa-solid fa-user"></i>
-                                                            </span>
-                                                            <span>{item.ActionRequiredFrom || '---'}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <Popover
-                                                            placement="bottom"
-                                                            content={
-                                                                <div style={{ width: '8rem' }}>
-                                                                    <p
-                                                                        onClick={() => {
-                                                                            if (!showViewBtn) return;
-
-                                                                            setSelectedTicket(item);
-                                                                            setCommentsOpen(true);
-                                                                        }}
-                                                                        style={{
-                                                                            cursor: showViewBtn ? "pointer" : "not-allowed",
-                                                                            opacity: showViewBtn ? 1 : 0.5,
-                                                                            pointerEvents: showViewBtn ? "auto" : "none",
-                                                                            filter: showViewBtn ? "none" : "blur(1px)",
-                                                                        }}
-                                                                        className="text-hover-primary"
-                                                                    >
-                                                                        <i className="fa-solid fa-clipboard-check text-primary me-2"></i>
-                                                                        View
-                                                                    </p>
-                                                                    <p
-                                                                        data-bs-toggle="offcanvas"
-                                                                                data-bs-target="#offcanvasRightResolveTic"
-                                                                        style={{
-                                                                            cursor: showApproveBtn ? "pointer" : "not-allowed",
-                                                                            opacity: showApproveBtn ? 1 : 0.5,
-                                                                            pointerEvents: showApproveBtn ? "auto" : "none",
-                                                                        }}
-                                                                        onClick={() => handleResolveTicket(item)}
-                                                                        className="text-hover-success"
-                                                                    >
-                                                                        <i className="fa-solid fa-circle-check text-success me-2"></i>
-                                                                        Resolve
-                                                                    </p>
-                                                                </div>
-                                                            }
-                                                            trigger="hover"
-                                                        >
-                                                            <button
-                                                                className="btn"
-                                                            >
-                                                                <i className="fa-solid fa-ellipsis-vertical"></i>
-                                                            </button>
-                                                        </Popover>
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })
-                                    ) : (
-                                        <tr>
-                                            <td colSpan="12" className="text-center">
-                                                <p>No Data Available</p>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </tbody>
-                            </table>
-</div>
+                                                                <button
+                                                                    className="btn"
+                                                                >
+                                                                    <i className="fa-solid fa-ellipsis-vertical"></i>
+                                                                </button>
+                                                            </Popover>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="12" className="text-center">
+                                                    <p>No Data Available</p>
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -596,94 +740,94 @@ export default function AssetlessMyTickets() {
 
                 {/* Commnets Modal */}
                 <Modal
-                    open={commentsOpen}
-                    title={
-                        <div className="d-flex justify-content-between align-items-center w-100 pe-4">
-                            <div className="d-flex align-items-center">
-                                <i className="fa-solid fa-comments text-primary me-2"></i>
-                                <span>Ticket Comments</span>
-                            </div>
-
-                            {selectedTicket?.ImageUrl && (
-                                <button
-                                    type="button"
-                                    className="btn btn-icon btn-sm btn-light-primary"
-                                    title="Download Attachment"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDownload(selectedTicket.ImageUrl);
-                                    }}
-                                >
-                                    <i className="bi bi-download"></i>
-                                </button>
-                            )}
-                        </div>
-                    }
-                    onCancel={() => setCommentsOpen(false)}
-                    footer={null}
-                    width={700}
-                    centered
-                >
-                    <div className="card border-0 bg-light-primary mb-2">
-                        <div className="card-body py-2 px-3" style={{ fontSize: "0.8rem" }}>
-                            {/* Header row */}
-                            <div className="d-flex justify-content-between align-items-center mb-1">
-                                <div className="d-flex align-items-center gap-1 flex-wrap">
-                                    <span className="fw-bold text-primary" style={{ fontSize: "0.85rem" }}>
-                                        {selectedTicket?.TicketCode}
-                                    </span>
-                                    <span className="badge badge-light-success py-1 px-2" style={{ fontSize: "0.65rem" }}>
-                                        {selectedTicket?.Status}
-                                    </span>
-                                    <span className={`badge badge-light-${priorityColor(selectedTicket?.Priority)} py-1 px-2`} style={{ fontSize: "0.65rem" }}>
-                                        {priorityLabel(selectedTicket?.Priority)}
-                                    </span>
-                                </div>
-                                <small className="text-muted" style={{ fontSize: "0.7rem" }}>
-                                    Due: {formatDate(selectedTicket?.DueDate)}
-                                </small>
-                            </div>
-
-                            {/* Compact field grid */}
-                            <div className="row g-2 mb-1">
-                                <div className="col-4">
-                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Category</div>
-                                    <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.ServiceType || "-"}</div>
-                                </div>
-                                <div className="col-4">
-                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Sub-category</div>
-                                    <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.TicketType || "-"}</div>
-                                </div>
-                                <div className="col-4">
-                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Issue Type</div>
-                                    <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.IssueType || "-"}</div>
-                                </div>
-                            </div>
-
-                            <div className="mb-1">
-                                <div className="text-muted" style={{ fontSize: "0.65rem" }}>Description</div>
-                                <div className="text-gray-700" style={{ fontSize: "0.78rem" }}>{selectedTicket?.Description || "-"}</div>
-                            </div>
-
-                            {(selectedTicket?.ResolutionSummary || selectedTicket?.ResolvedDate) && (
-                                <div className="row g-2">
-                                    <div className="col-4">
-                                        <div className="text-muted" style={{ fontSize: "0.65rem" }}>Resolved Date</div>
-                                        <div className="fw-semibold text-success" style={{ fontSize: "0.78rem" }}>
-                                            {selectedTicket?.ResolvedDate ? formatDate(selectedTicket.ResolvedDate) : "-"}
-                                        </div>
-                                    </div>
-                                    <div className="col-8">
-                                        <div className="text-muted" style={{ fontSize: "0.65rem" }}>Resolution Summary</div>
-                                        <div className="text-gray-700" style={{ fontSize: "0.78rem" }}>{selectedTicket?.ResolutionSummary}</div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                                   open={commentsOpen}
+                                   title={
+                                       <div className="d-flex justify-content-between align-items-center w-100 pe-4">
+                                           <div className="d-flex align-items-center">
+                                               <i className="fa-solid fa-comments text-primary me-2"></i>
+                                               <span>Ticket Comments</span>
+                                           </div>
+               
+                                           {selectedTicket?.ImageUrl && (
+                                               <button
+                                                   type="button"
+                                                   className="btn btn-icon btn-sm btn-light-primary"
+                                                   title="Download Attachment"
+                                                   onClick={(e) => {
+                                                       e.stopPropagation();
+                                                       handleDownload(selectedTicket.ImageUrl);
+                                                   }}
+                                               >
+                                                   <i className="bi bi-download"></i>
+                                               </button>
+                                           )}
+                                       </div>
+                                   }
+                                   onCancel={() => setCommentsOpen(false)}
+                                   footer={null}
+                                   width={700}
+                                   centered
+                               >
+                                   <div className="card border-0 bg-light-primary mb-2">
+                                       <div className="card-body py-2 px-3" style={{ fontSize: "0.8rem" }}>
+                                           {/* Header row */}
+                                           <div className="d-flex justify-content-between align-items-center mb-1">
+                                               <div className="d-flex align-items-center gap-1 flex-wrap">
+                                                   <span className="fw-bold text-primary" style={{ fontSize: "0.85rem" }}>
+                                                       {selectedTicket?.TicketCode}
+                                                   </span>
+                                                   <span className="badge badge-light-success py-1 px-2" style={{ fontSize: "0.65rem" }}>
+                                                       {selectedTicket?.Status}
+                                                   </span>
+                                                   <span className={`badge badge-light-${priorityColor(selectedTicket?.Priority)} py-1 px-2`} style={{ fontSize: "0.65rem" }}>
+                                                       {priorityLabel(selectedTicket?.Priority)}
+                                                   </span>
+                                               </div>
+                                               <small className="text-muted" style={{ fontSize: "0.7rem" }}>
+                                                   Due: {formatDate(selectedTicket?.DueDate)}
+                                               </small>
+                                           </div>
+               
+                                           {/* Compact field grid */}
+                                           <div className="row g-2 mb-1">
+                                               <div className="col-4">
+                                                   <div className="text-muted" style={{ fontSize: "0.65rem" }}>Category</div>
+                                                   <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.ServiceType || "-"}</div>
+                                               </div>
+                                               <div className="col-4">
+                                                   <div className="text-muted" style={{ fontSize: "0.65rem" }}>Sub-category</div>
+                                                   <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.TicketType || "-"}</div>
+                                               </div>
+                                               <div className="col-4">
+                                                   <div className="text-muted" style={{ fontSize: "0.65rem" }}>Issue Type</div>
+                                                   <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.IssueType || "-"}</div>
+                                               </div>
+                                           </div>
+               
+                                           <div className="mb-1">
+                                               <div className="text-muted" style={{ fontSize: "0.65rem" }}>Description</div>
+                                               <div className="text-gray-700" style={{ fontSize: "0.78rem" }}>{selectedTicket?.Description || "-"}</div>
+                                           </div>
+               
+                                           {(selectedTicket?.ResolutionSummary || selectedTicket?.ResolvedDate) && (
+                                               <div className="row g-2">
+                                                   <div className="col-4">
+                                                       <div className="text-muted" style={{ fontSize: "0.65rem" }}>Resolved Date</div>
+                                                       <div className="fw-semibold text-success" style={{ fontSize: "0.78rem" }}>
+                                                           {selectedTicket?.ResolvedDate ? formatDate(selectedTicket.ResolvedDate) : "-"}
+                                                       </div>
+                                                   </div>
+                                                   <div className="col-8">
+                                                       <div className="text-muted" style={{ fontSize: "0.65rem" }}>Resolution Summary</div>
+                                                       <div className="text-gray-700" style={{ fontSize: "0.78rem" }}>{selectedTicket?.ResolutionSummary}</div>
+                                                   </div>
+                                               </div>
+                                           )}
+                                       </div>
+                                   </div>
 
                     {/* Existing Comments */}
-                    <div className="mb-4" style={{
+                    {/* <div className="mb-4" style={{
                         maxHeight: "250px",
                         overflowY: "auto",
                         paddingRight: "6px",
@@ -761,7 +905,6 @@ export default function AssetlessMyTickets() {
                         )}
                     </div>
 
-                    {/* Add Comment */}
                     <div className="mb-3">
                         <label className="form-label fw-semibold">
                             {editingComment ? "Edit Comment" : "Add Comment"}
@@ -839,7 +982,7 @@ export default function AssetlessMyTickets() {
                                 </>
                             )}
                         </button>
-                    </div>
+                    </div> */}
                 </Modal>
 
 

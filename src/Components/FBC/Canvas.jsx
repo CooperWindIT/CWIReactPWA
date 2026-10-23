@@ -1,12 +1,98 @@
 import React, { useRef, useCallback, useEffect } from 'react';
 import Node from './Node';
 import Connections from './Connections';
+import ContextMenu from './ContextMenu';
+import {
+  isElbow,
+  getElbowPoints,
+  routeElbowPoints,
+  routeElbowAnchors,
+  trimForArrow,
+  buildPolylinePath,
+  distanceToPolyline,
+  CONNECTION_WIDTH,
+  ARROW_TYPE,
+  STROKE_PALETTE,
+  getArrowType,
+  nearestAnchor,
+  resolveAnchors,
+  moveSegment,
+  settleWaypoints,
+  anchorTForCursor,
+  CONNECTION_LAYER,
+} from './connectionRouting';
 import styles from './Canvas.module.css';
 import { uid } from './Geometry';
 import { BASE_IMAGE_API_GET } from '../Config/Config';
+import { getImageFiles, pickImageFiles, placeImageFiles } from './imageSupport';
 
 const BASE_WIDTH = 3200;
 const BASE_HEIGHT = 2400;
+
+// How far a shape may stick out of another and still count as inside it.
+const CONTAINMENT_SLACK = 2;
+
+// Does `outer` fully enclose `inner`? Area is compared as well as bounds so two
+// shapes drawn on top of each other at the same size can't each claim to
+// contain the other — with no strict winner, neither is a container.
+function nodeContains(outer, inner) {
+  if (outer.id === inner.id) return false;
+  if (outer.w * outer.h <= inner.w * inner.h) return false;
+
+  return inner.x >= outer.x - CONTAINMENT_SLACK
+    && inner.y >= outer.y - CONTAINMENT_SLACK
+    && inner.x + inner.w <= outer.x + outer.w + CONTAINMENT_SLACK
+    && inner.y + inner.h <= outer.y + outer.h + CONTAINMENT_SLACK;
+}
+
+// Stacking for the canvas: both the order shapes are drawn in and the z-index
+// each one gets.
+//
+// Array position alone decides what covers what, and a shape drawn later
+// naturally sits on top. That is wrong for the one case where it matters most:
+// draw a big box around a finished group, give it a fill, and the fill hides
+// everything it was drawn around.
+//
+// So a shape that fully encloses others is treated as a container and put
+// underneath them. Nesting works too — each shape is ranked by how many shapes
+// enclose it, so a box inside a box inside a frame still comes out on top.
+// Within one rank the original order is kept untouched, which is what lets
+// Bring to front and Send to back carry on meaning something between shapes
+// that sit side by side.
+//
+// Order is not enough on its own, because the arrows are a separate layer of
+// their own. A container has to go below THAT too, or its fill covers every
+// connection crossing it — which is why each shape also carries an explicit
+// z-index rather than relying on where it falls in the list.
+export function computeNodeStacking(nodes) {
+  const depths = nodes.map((node) => (
+    nodes.reduce((count, other) => (nodeContains(other, node) ? count + 1 : count), 0)
+  ));
+
+  const encloses = nodes.map((node) => nodes.some((other) => nodeContains(node, other)));
+
+  const layers = {};
+  nodes.forEach((node, index) => {
+    layers[node.id] = encloses[index]
+      // Containers stack among themselves by nesting depth, all of them below
+      // the arrows. The clamp only matters for absurdly deep nesting.
+      ? Math.min(depths[index], CONNECTION_LAYER - 1)
+      // Everything else sits above the arrows, so a line passing under a box
+      // is still hidden by that box.
+      : CONNECTION_LAYER + 1 + depths[index];
+  });
+
+  if (nodes.length < 2 || depths.every((depth) => depth === 0)) {
+    return { ordered: nodes, layers };
+  }
+
+  const ordered = nodes
+    .map((node, index) => ({ node, index, depth: depths[index] }))
+    .sort((a, b) => (a.depth - b.depth) || (a.index - b.index))
+    .map((entry) => entry.node);
+
+  return { ordered, layers };
+}
 
 // How close the eraser has to pass to something to catch it, in canvas units.
 const ERASER_RADIUS = 8;
@@ -51,7 +137,21 @@ function pointHitsConnection(point, connection, nodeMap, radius) {
   const end = { x: toNode.x + toNode.w / 2, y: toNode.y + toNode.h / 2 };
   const control = connection.controlPoint;
 
-  if (!control) return distanceToSegment(point, start, end) <= radius;
+  // An elbow doesn't follow the straight line between centers at all, so it
+  // has to be measured against its actual right-angle route or the eraser
+  // would swipe straight through it without catching anything.
+  if (isElbow(connection)) {
+    const points = trimForArrow(getElbowPoints(connection, fromNode, toNode));
+    return distanceToPolyline(point, points) <= radius;
+  }
+
+  // A connection switched to "straight" in the panel may still be carrying the
+  // control point from when it was a curve. The renderer ignores it, so the
+  // hit test has to ignore it too, or the clickable line would sit somewhere
+  // the visible line isn't.
+  if (!control || getArrowType(connection) === ARROW_TYPE.STRAIGHT) {
+    return distanceToSegment(point, start, end) <= radius;
+  }
 
   const SAMPLES = 12;
   let previous = start;
@@ -107,6 +207,14 @@ export default function Canvas({
   onCreateNode,
   onCreateLine,
   onCreateTextNode,
+  onCreateImage,
+  insertImageRequest,
+  autoEditNodeId,
+  onAutoEditConsumed,
+  onWrapTextInContainer,
+  onChangeNodeLayer,
+  onCreateArrowConnection,
+  arrowDefaults,
   onNodeDragEnd,
   onToggle,
   onSelectNode,
@@ -151,6 +259,9 @@ export default function Canvas({
   // the button comes back up — until then they're only grayed out, so a
   // mis-swipe can be taken back with Alt.
   const erasing = useRef(null);
+  // Elbow-arrow tool: the shape the drag started on, plus where it started.
+  // Nothing is created until the drag is released over another shape.
+  const drawingElbow = useRef(null);
   const didDrag = useRef(false);
   const [selectionRect, setSelectionRect] = React.useState(null);
   // Live preview of the line being drawn, in absolute canvas coordinates —
@@ -159,6 +270,13 @@ export default function Canvas({
   // Ids currently marked by an in-progress eraser stroke, mirrored into state
   // so the affected shapes and connections can render grayed out.
   const [erasePreview, setErasePreview] = React.useState({ nodeIds: [], connectionIds: [] });
+  // Open right-click menu: viewport coords plus which node (if any) was under
+  // the cursor. null when closed.
+  const [contextMenu, setContextMenu] = React.useState(null);
+  // Live right-angle preview that tracks the cursor while an elbow arrow is
+  // being dragged, plus the shape currently under it so it can be highlighted
+  // as a valid drop target.
+  const [elbowPreview, setElbowPreview] = React.useState(null);
 
   const lastPointerPos = useRef({ x: BASE_WIDTH / 2, y: BASE_HEIGHT / 2 });
 
@@ -175,6 +293,17 @@ export default function Canvas({
     // Let the browser's native paste run when the user is actively typing
     // inside a node label or a text field — don't hijack that.
     if (isEditingText) return;
+
+    // An image on the clipboard wins over any text flavour the same clipboard
+    // may also carry (copying a picture from a browser or Word usually brings
+    // along HTML/text too), so this has to be checked BEFORE the text path
+    // below or the image would never be seen.
+    const pastedImages = getImageFiles(event.clipboardData);
+    if (pastedImages.length) {
+      event.preventDefault();
+      placeImageFiles(pastedImages, lastPointerPos.current, onCreateImage);
+      return;
+    }
 
     let clipboardText = event.clipboardData?.getData('text/plain') || '';
 
@@ -222,12 +351,62 @@ export default function Canvas({
         collapsed: false,
       });
     });
-  }, [readMode, selectedIds, onLabelChange, onNodeDrop]);
+  }, [readMode, selectedIds, onLabelChange, onNodeDrop, onCreateImage]);
 
   useEffect(() => {
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, [handlePaste]);
+
+  // The toolbar's Image button bumps a counter rather than opening the picker
+  // itself — placement happens here, where the scroll position and zoom
+  // needed to work out canvas coordinates actually live. The initial 0 is
+  // skipped so this doesn't fire a file dialog on mount.
+  useEffect(() => {
+    if (!insertImageRequest || readMode) return;
+
+    (async () => {
+      const files = await pickImageFiles();
+      if (!files.length) return;
+
+      const wrap = wrapRef.current;
+      // Lands in the middle of what's currently on screen, not the middle of
+      // the (much larger) canvas.
+      const point = wrap
+        ? {
+          x: Math.round((wrap.scrollLeft + wrap.clientWidth / 2) / zoom),
+          y: Math.round((wrap.scrollTop + wrap.clientHeight / 2) / zoom),
+        }
+        : lastPointerPos.current;
+
+      placeImageFiles(files, point, onCreateImage);
+    })();
+    // Deliberately keyed only on the request counter: re-running whenever zoom
+    // or the callback identity changed would pop the file dialog open again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [insertImageRequest]);
+
+  // Which shape is under a canvas point. Walks backwards because later nodes
+  // render on top, so the last match is the one the user can actually see.
+  // Stacking order for drawing AND for hit-testing. The two have to come from
+  // the same list or clicks land on whatever used to be on top.
+  const stacking = React.useMemo(() => computeNodeStacking(nodes), [nodes]);
+  const stackedNodes = stacking.ordered;
+
+  const nodeAtPoint = useCallback((point) => {
+    for (let i = stackedNodes.length - 1; i >= 0; i -= 1) {
+      const node = stackedNodes[i];
+      if (
+        point.x >= node.x &&
+        point.x <= node.x + node.w &&
+        point.y >= node.y &&
+        point.y <= node.y + node.h
+      ) {
+        return node;
+      }
+    }
+    return null;
+  }, [stackedNodes]);
 
   const getCanvasRectFromPoints = useCallback((a, b) => ({
     x: Math.min(a.x, b.x),
@@ -387,6 +566,42 @@ export default function Canvas({
         return;
       }
 
+      if (drawingElbow.current) {
+        const point = toCanvasPoint(event.clientX, event.clientY);
+        const { fromId, fromAnchor, start } = drawingElbow.current;
+        const overNode = nodeAtPoint(point);
+        const sourceNode = nodes.find((node) => node.id === fromId);
+
+        // Straight and curved arrows don't route by side, so their preview is
+        // just a line to the cursor. Only an elbow has a route worth
+        // previewing in detail.
+        const previewType = arrowDefaults?.arrowType || ARROW_TYPE.ELBOW;
+        const previewIsElbow = previewType === ARROW_TYPE.ELBOW;
+
+        // Once the cursor is over a valid target, the preview switches from a
+        // loose line to the EXACT route that will be created — including the
+        // side it will enter, which follows the cursor around the target.
+        if (overNode && overNode.id !== fromId && sourceNode) {
+          const toAnchor = nearestAnchor(overNode, point);
+          drawingElbow.current.toAnchor = toAnchor;
+
+          setElbowPreview({
+            points: previewIsElbow
+              ? routeElbowAnchors(sourceNode, overNode, fromAnchor, toAnchor)
+              : [start, point],
+            targetId: overNode.id,
+          });
+        } else {
+          drawingElbow.current.toAnchor = null;
+          setElbowPreview({
+            points: previewIsElbow ? routeElbowPoints(start, point) : [start, point],
+            targetId: null,
+          });
+        }
+
+        return;
+      }
+
       if (erasing.current) {
         const point = toCanvasPoint(event.clientX, event.clientY);
         // Alt turns the stroke into an "un-eraser": swiping back over
@@ -454,7 +669,99 @@ export default function Canvas({
         if (!handleState) return;
         didDrag.current = true;
         const point = toCanvasPoint(event.clientX, event.clientY);
-        const { connectionId } = handleState;
+        const { connectionId, kind, end, segmentIndex } = handleState;
+
+        // Dragging an endpoint. The cursor is projected onto the shape's
+        // outline, so the anchor can land anywhere along the border rather
+        // than snapping to one of four edge midpoints.
+        if (kind === 'endpoint') {
+          onConnectionsChange((prev) => prev.map((connection) => {
+            if (connection.id !== connectionId) return connection;
+
+            const node = nodes.find((n) => (
+              n.id === (end === 'from' ? connection.from : connection.to)
+            ));
+            if (!node) return connection;
+
+            const other = nodes.find((n) => (
+              n.id === (end === 'from' ? connection.to : connection.from)
+            ));
+            if (!other) return connection;
+
+            const anchor = nearestAnchor(node, point);
+            const key = end === 'from' ? 'fromAnchor' : 'toAnchor';
+
+            const resolved = end === 'from'
+              ? resolveAnchors(connection, node, other)
+              : resolveAnchors(connection, other, node);
+            const previous = end === 'from' ? resolved.from : resolved.to;
+
+            // Hand-placed waypoints are kept while the arrow still leaves from
+            // the same side — sliding the anchor along one edge doesn't
+            // invalidate the route. Moving to a different side does: the whole
+            // shape of the route changes, so it's recomputed from scratch
+            // rather than left bent around a path that no longer makes sense.
+            const sideChanged = !previous || previous.side !== anchor.side;
+
+            return {
+              ...connection,
+              [key]: anchor,
+              // The legacy bare-side field has to go, or normalizeAnchor would
+              // keep preferring it over the anchor just placed.
+              ...(end === 'from' ? { fromSide: undefined } : { toSide: undefined }),
+              ...(sideChanged ? { waypoints: undefined } : {}),
+            };
+          }));
+          return;
+        }
+
+        // Dragging a segment sideways. Every move is applied to the route as
+        // it was when the drag began — never to the route as it currently
+        // renders. Rebuilding the route can insert or merge corners, so
+        // measuring against the live version meant the segment index drifted
+        // onto a different segment mid-gesture and each move baked the
+        // rebuilt corners in as fresh waypoints.
+        if (kind === 'segment') {
+          const base = handleState.basePoints;
+          if (!base) return;
+
+          onConnectionsChange((prev) => prev.map((connection) => {
+            if (connection.id !== connectionId) return connection;
+
+            // The first and last segments are the stubs attached to the two
+            // shapes. Perpendicular for them means "along the border", so
+            // dragging one slides the anchor instead of bending the route.
+            if (handleState.segmentKind === 'start' || handleState.segmentKind === 'end') {
+              const isStart = handleState.segmentKind === 'start';
+              const key = isStart ? 'fromAnchor' : 'toAnchor';
+              const nodeId = isStart ? connection.from : connection.to;
+              const node = nodes.find((n) => n.id === nodeId);
+
+              if (!node) return connection;
+
+              const toNode = nodes.find((n) => n.id === connection.to);
+              const fromNode = nodes.find((n) => n.id === connection.from);
+              if (!fromNode || !toNode) return connection;
+
+              // resolveAnchors, not normalizeAnchor: an arrow that never
+              // stored anchors still has the ones it is being DRAWN with, and
+              // those are what the stub is attached to.
+              const resolved = resolveAnchors(connection, fromNode, toNode);
+              const anchor = isStart ? resolved.from : resolved.to;
+              if (!anchor) return connection;
+
+              return {
+                ...connection,
+                [key]: { side: anchor.side, t: anchorTForCursor(node, anchor.side, point) },
+                ...(isStart ? { fromSide: undefined } : { toSide: undefined }),
+              };
+            }
+
+            return { ...connection, waypoints: moveSegment(base, segmentIndex, point) };
+          }));
+          return;
+        }
+
         onConnectionsChange((prev) => prev.map((connection) => (
           connection.id === connectionId
             ? { ...connection, controlPoint: { x: point.x, y: point.y } }
@@ -497,6 +804,22 @@ export default function Canvas({
         setActiveShape(null);
       }
 
+      // Releasing over a second shape is what turns the dragged line into a
+      // real elbow connection. Released anywhere else, the drag is simply
+      // abandoned — no stray arrow is left behind.
+      if (drawingElbow.current) {
+        const point = toCanvasPoint(event.clientX, event.clientY);
+        const target = nodeAtPoint(point);
+        const { fromId, fromAnchor } = drawingElbow.current;
+
+        drawingElbow.current = null;
+        setElbowPreview(null);
+
+        if (target && target.id !== fromId) {
+          onCreateArrowConnection(fromId, target.id, fromAnchor, nearestAnchor(target, point));
+        }
+      }
+
       // Releasing the button is what actually commits an eraser stroke —
       // everything marked during the swipe goes in one deletion (and so one
       // undo step).
@@ -523,6 +846,25 @@ export default function Canvas({
           .map((node) => node.id);
         onSelectNodes(ids);
       }
+      // Tidy the route once the handle is released. Mid-drag this would
+      // renumber the segments under the cursor; here it just removes the
+      // corners the gesture left behind, so the handles the user sees next
+      // match the shape of the line and don't multiply with every edit.
+      const releasedHandle = draggingConnectionHandle.current;
+      if (releasedHandle && releasedHandle.kind === 'segment'
+        && releasedHandle.segmentKind === 'middle' && didDrag.current) {
+        const { connectionId } = releasedHandle;
+        onConnectionsChange((prev) => prev.map((connection) => {
+          if (connection.id !== connectionId) return connection;
+
+          const fromNode = nodes.find((n) => n.id === connection.from);
+          const toNode = nodes.find((n) => n.id === connection.to);
+          if (!fromNode || !toNode) return connection;
+
+          return { ...connection, waypoints: settleWaypoints(connection, fromNode, toNode) };
+        }));
+      }
+
       dragging.current = null;
       resizing.current = null;
       resizingLineEndpoint.current = null;
@@ -531,8 +873,10 @@ export default function Canvas({
       selecting.current = null;
       drawingLine.current = null;
       erasing.current = null;
+      drawingElbow.current = null;
       setSelectionRect(null);
       setLinePreview(null);
+      setElbowPreview(null);
       if (shouldCommitDrag) onNodeDragEnd();
       if (shouldCommitConnection) onConnectionControlEnd();
       didDrag.current = false;
@@ -544,7 +888,7 @@ export default function Canvas({
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [getCanvasRectFromPoints, nodes, onConnectionControlEnd, onConnectionsChange, onCreateLine, onErase, onNodeDragEnd, onNodesChange, onSelectNodes, setActiveShape, applyEraserAlongSegment, toCanvasPoint]);
+  }, [getCanvasRectFromPoints, nodes, onConnectionControlEnd, onConnectionsChange, onCreateLine, onErase, onNodeDragEnd, onNodesChange, onSelectNodes, setActiveShape, applyEraserAlongSegment, toCanvasPoint, nodeAtPoint, onCreateArrowConnection, arrowDefaults]);
 
   useEffect(() => {
     if (!activeSearchNodeId || !wrapRef.current) return;
@@ -560,16 +904,16 @@ export default function Canvas({
     if (!node) return;
     if (event.ctrlKey || event.metaKey) return;
     const point = toCanvasPoint(event.clientX, event.clientY);
-    // const dragIds = selectedIds.includes(nodeId) ? selectedIds : [nodeId];
     const isAlreadySelected = selectedIds.includes(nodeId);
 
-const dragIds = isAlreadySelected
-    ? selectedIds
-    : [nodeId];
+    const dragIds = isAlreadySelected
+      ? selectedIds
+      : [nodeId];
 
-if (!isAlreadySelected) {
-    onSelectNodes([nodeId]);   // <-- important
-}
+    if (!isAlreadySelected) {
+      onSelectNodes([nodeId]);
+    }
+
     dragging.current = {
       nodeIds: dragIds,
       startPoint: point,
@@ -581,7 +925,7 @@ if (!isAlreadySelected) {
     };
     didDrag.current = false;
     event.preventDefault();
-  }, [mode, nodes, readMode, selectedIds, toCanvasPoint]);
+  }, [mode, nodes, readMode, selectedIds, toCanvasPoint, onSelectNodes]);
 
   const handleResizeStart = useCallback((event, nodeId, handle) => {
     if (mode !== 'select' || readMode) return;
@@ -624,7 +968,41 @@ if (!isAlreadySelected) {
 
   const handleConnectionControlDragStart = useCallback((event, connectionId) => {
     if (readMode) return;
-    draggingConnectionHandle.current = { connectionId };
+    draggingConnectionHandle.current = { connectionId, kind: 'control' };
+    didDrag.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, [readMode]);
+
+  // Both of these ride the same global mousemove/mouseup pair the control
+  // point already used; only the `kind` differs, which is what the move
+  // handler branches on.
+  const handleConnectionEndpointDragStart = useCallback((event, connectionId, end) => {
+    if (readMode) return;
+    draggingConnectionHandle.current = { connectionId, kind: 'endpoint', end };
+    didDrag.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, [readMode]);
+
+  // basePoints is the route exactly as it was drawn at the moment the handle
+  // was grabbed. Freezing it here is what keeps the gesture stable from
+  // mousedown to mouseup.
+  const handleConnectionSegmentDragStart = useCallback((
+    event,
+    connectionId,
+    segmentIndex,
+    basePoints,
+    segmentKind,
+  ) => {
+    if (readMode) return;
+    draggingConnectionHandle.current = {
+      connectionId,
+      kind: 'segment',
+      segmentIndex,
+      segmentKind,
+      basePoints: basePoints ? basePoints.map((p) => ({ x: p.x, y: p.y })) : null,
+    };
     didDrag.current = false;
     event.preventDefault();
     event.stopPropagation();
@@ -637,6 +1015,16 @@ if (!isAlreadySelected) {
   const handleDrop = useCallback((event) => {
     event.preventDefault();
     if (readMode) return;
+
+    // Image files dragged in from the desktop or another window. Checked
+    // before the shape payload below, since a file drop carries no 'shape'
+    // data and would otherwise just be ignored.
+    const droppedImages = getImageFiles(event.dataTransfer);
+    if (droppedImages.length) {
+      placeImageFiles(droppedImages, toCanvasPoint(event.clientX, event.clientY), onCreateImage);
+      return;
+    }
+
     const shape = event.dataTransfer.getData('shape');
     if (!shape) return;
 
@@ -660,11 +1048,34 @@ if (!isAlreadySelected) {
       collapsed: false,
     });
     setActiveShape(null);
-  }, [onNodeDrop, readMode, toCanvasPoint]);
+  }, [onNodeDrop, readMode, toCanvasPoint, onCreateImage, setActiveShape]);
 
   const handleCanvasMouseDown = useCallback((event) => {
     const clickedOnCanvasSurface =
       event.target === canvasRef.current || event.target.classList.contains(styles.grid);
+
+    // Elbow arrow tool: the drag has to START on a shape, since that shape is
+    // one end of the connection. Pressing empty canvas with the tool active
+    // does nothing rather than beginning a line that can't become an arrow.
+    if (mode === 'arrow' && !readMode) {
+      const point = toCanvasPoint(event.clientX, event.clientY);
+      const sourceNode = nodeAtPoint(point);
+
+      if (sourceNode) {
+        drawingElbow.current = {
+          fromId: sourceNode.id,
+          start: point,
+          // The edge the drag began on decides where the arrow leaves from.
+          // Where on the border the drag began, not just which edge — so a
+          // new arrow attaches exactly where the user grabbed.
+          fromAnchor: nearestAnchor(sourceNode, point),
+        };
+        setElbowPreview({ points: [point, point], targetId: null });
+      }
+
+      event.preventDefault();
+      return;
+    }
 
     // Eraser: begin a stroke wherever the button goes down — including
     // directly on top of a shape, which is the normal way to start one.
@@ -713,7 +1124,34 @@ if (!isAlreadySelected) {
       setSelectionRect({ x: point.x, y: point.y, w: 0, h: 0 });
       onSelectNode(null);
     }
-  }, [activeShape, mode, onCreateNode, onSelectNode, readMode, setActiveShape, toCanvasPoint, applyEraserAlongSegment]);
+  }, [activeShape, mode, onCreateNode, onSelectNode, readMode, setActiveShape, toCanvasPoint, applyEraserAlongSegment, nodeAtPoint]);
+
+  const handleContextMenu = useCallback((event) => {
+    if (readMode) return;
+
+    event.preventDefault();
+
+    // Right-clicking a shape acts on THAT shape, and selects it first so the
+    // menu's actions and the visible selection can't disagree.
+    const nodeEl = event.target.closest?.('[data-nodeid]');
+    const nodeId = nodeEl?.dataset?.nodeid || null;
+
+    // Connections are SVG paths rather than nodes, so they're identified by
+    // their own marker on the transparent hit stroke.
+    const connEl = nodeId ? null : event.target.closest?.('[data-connid]');
+    const connectionId = connEl?.dataset?.connid || null;
+
+    if (nodeId && !selectedIds.includes(nodeId)) {
+      onSelectNodes([nodeId]);
+    }
+    if (connectionId) {
+      onSelectConnection(connectionId);
+    }
+
+    setContextMenu({ x: event.clientX, y: event.clientY, nodeId, connectionId });
+  }, [readMode, selectedIds, onSelectNodes, onSelectConnection]);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   const handleCanvasDoubleClick = useCallback((event) => {
     // Erase mode must not spawn a free text node on a double-click — two
@@ -833,7 +1271,7 @@ if (!isAlreadySelected) {
         id="canvas-wrap"
         onWheel={handleWheel}
         style={{
-          cursor: mode === "pan" ? "grab" : mode === "erase" ? "cell" : activeShape ? "crosshair" : "default",
+          cursor: mode === "pan" ? "grab" : mode === "erase" ? "cell" : (mode === "arrow" || activeShape) ? "crosshair" : "default",
         }}
       >
         <div
@@ -847,6 +1285,7 @@ if (!isAlreadySelected) {
             onDrop={handleDrop}
             onMouseDown={handleCanvasMouseDown}
             onDoubleClick={handleCanvasDoubleClick}
+            onContextMenu={handleContextMenu}
             style={{
               width: BASE_WIDTH,
               height: BASE_HEIGHT,
@@ -887,6 +1326,52 @@ if (!isAlreadySelected) {
               </svg>
             )}
 
+            {elbowPreview && (() => {
+              const points = elbowPreview.points;
+              const target = elbowPreview.targetId
+                ? nodes.find((node) => node.id === elbowPreview.targetId)
+                : null;
+
+              return (
+                <svg
+                  width={BASE_WIDTH}
+                  height={BASE_HEIGHT}
+                  style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible', pointerEvents: 'none' }}
+                >
+                  <path
+                    d={buildPolylinePath(points)}
+                    // Colour and weight of the arrow that is about to be
+                    // created, so the preview is a true picture of what lands
+                    // on release rather than a generic blue line.
+                    stroke={
+                      arrowDefaults?.stroke ||
+                      (theme === 'dark' ? STROKE_PALETTE.dark[3] : STROKE_PALETTE.light[3])
+                    }
+                    strokeWidth={arrowDefaults?.strokeWidth || CONNECTION_WIDTH}
+                    fill="none"
+                    strokeDasharray="6 4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Outlines the shape the arrow would land on, so it's
+                      obvious before releasing whether the drop will take. */}
+                  {target && (
+                    <rect
+                      x={target.x - 3}
+                      y={target.y - 3}
+                      width={target.w + 6}
+                      height={target.h + 6}
+                      rx={8}
+                      fill="none"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                    />
+                  )}
+                </svg>
+              );
+            })()}
+
             {(() => {
               const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]));
               const hiddenNodeIds = new Set();
@@ -925,7 +1410,7 @@ if (!isAlreadySelected) {
                 });
               });
 
-              const visibleNodes = nodes.filter((node) => !hiddenNodeIds.has(node.id));
+              const visibleNodes = stackedNodes.filter((node) => !hiddenNodeIds.has(node.id));
 
               const visibleConnections = connections.filter((connection) => {
                 if (hiddenNodeIds.has(connection.from) || hiddenNodeIds.has(connection.to)) {
@@ -958,6 +1443,8 @@ if (!isAlreadySelected) {
                       }
                       onSelectConnection={onSelectConnection}
                       onControlPointDragStart={handleConnectionControlDragStart}
+                      onEndpointDragStart={handleConnectionEndpointDragStart}
+                      onSegmentDragStart={handleConnectionSegmentDragStart}
                       onDeleteConnection={onDeleteConnection}
                       onLabelChange={onConnectionLabelChange}
                     />
@@ -982,6 +1469,7 @@ if (!isAlreadySelected) {
                       <Node
                         key={node.id}
                         node={node}
+                        layer={stacking.layers[node.id]}
                         sideControls={sideControls}
                         dimmed={
                           readMode &&
@@ -1005,6 +1493,8 @@ if (!isAlreadySelected) {
                         onTextsChange={onTextsChange}
                         onAutoResize={onAutoResize}
                         markedForErase={erasePreview.nodeIds.includes(node.id)}
+                        autoEdit={autoEditNodeId === node.id}
+                        onAutoEditConsumed={onAutoEditConsumed}
                         readMode={readMode}
                         theme={theme}
                       />
@@ -1016,6 +1506,88 @@ if (!isAlreadySelected) {
           </div>
         </div>
       </div>
+
+      {contextMenu && (() => {
+        const targetNode = contextMenu.nodeId
+          ? nodes.find((node) => node.id === contextMenu.nodeId)
+          : null;
+        const isTextNode = targetNode?.shape === 'text';
+
+        const targetConnection = contextMenu.connectionId
+          ? connections.find((c) => c.id === contextMenu.connectionId)
+          : null;
+
+        const items = [];
+
+        if (targetConnection) {
+          items.push({
+            label: 'Delete',
+            shortcut: 'Del',
+            danger: true,
+            onClick: () => onDeleteConnection(targetConnection.id),
+          });
+
+          return (
+            <ContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              items={items}
+              theme={theme}
+              onClose={closeContextMenu}
+            />
+          );
+        }
+
+        // Only meaningful for a free text node — everything else already has a
+        // container. Shown greyed rather than hidden so the menu doesn't
+        // reshuffle depending on what was clicked.
+        if (targetNode) {
+          items.push({
+            label: 'Wrap text in a container',
+            disabled: !isTextNode,
+            onClick: () => onWrapTextInContainer(contextMenu.nodeId),
+          });
+          items.push({ separator: true });
+          items.push({
+            label: 'Bring to front',
+            onClick: () => onChangeNodeLayer(contextMenu.nodeId, 'front'),
+          });
+          items.push({
+            label: 'Send to back',
+            onClick: () => onChangeNodeLayer(contextMenu.nodeId, 'back'),
+          });
+          items.push({ separator: true });
+          items.push({
+            label: 'Delete',
+            shortcut: 'Del',
+            danger: true,
+            onClick: () => onErase([contextMenu.nodeId], []),
+          });
+        } else {
+          items.push({
+            label: 'Add text here',
+            onClick: () => onCreateTextNode(toCanvasPoint(contextMenu.x, contextMenu.y)),
+          });
+          items.push({
+            label: 'Insert image...',
+            onClick: async () => {
+              const files = await pickImageFiles();
+              if (!files.length) return;
+              placeImageFiles(files, toCanvasPoint(contextMenu.x, contextMenu.y), onCreateImage);
+            },
+          });
+        }
+
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={items}
+            theme={theme}
+            onClose={closeContextMenu}
+          />
+        );
+      })()}
     </div>
   );
 }

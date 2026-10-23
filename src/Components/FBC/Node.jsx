@@ -109,6 +109,7 @@ function readEditableText(el) {
 
 export default function Node({
   node,
+  layer,
   sideControls,
   selected,
   theme,
@@ -128,6 +129,8 @@ export default function Node({
   onTextsChange,
   onAutoResize,
   markedForErase,
+  autoEdit,
+  onAutoEditConsumed,
   readMode,
 }) {
   // Which text block is currently open for editing (null = none). Replaces
@@ -165,6 +168,19 @@ export default function Node({
   const handleMouseDown = useCallback((event) => {
     if (event.target.classList.contains(styles.cp) || event.target.classList.contains(styles.resizeHandle)) return;
 
+    // Pressing inside the text block that's currently open for editing has to
+    // be left entirely to the browser: that press is the start of a
+    // click-and-drag text selection. The node-drag path below calls
+    // preventDefault() and begins moving the shape, which cancels the native
+    // selection before it starts — which is why highlighting part of a label
+    // did nothing while Ctrl+A (never routed through mousedown) worked fine.
+    const pressedTextId = event.target.closest?.('[data-textid]')?.dataset?.textid;
+    if (editingTextId && pressedTextId === editingTextId) {
+      // Still kept from the canvas, so it doesn't start a rubber-band select.
+      event.stopPropagation();
+      return;
+    }
+
     if (mode === 'connect') {
       onConnect(node.id);
       return;
@@ -174,7 +190,7 @@ export default function Node({
       onSelect(node.id, { additive: event.ctrlKey || event.metaKey });
       onMouseDown(event, node.id);
     }
-  }, [mode, node.id, onConnect, onMouseDown, onSelect, readMode]);
+  }, [mode, node.id, onConnect, onMouseDown, onSelect, readMode, editingTextId]);
 
 
   // Puts the caret at the end of the given editable element on the next tick
@@ -200,41 +216,76 @@ export default function Node({
     }, 0);
   }, []);
 
+  // A text node created by double-clicking empty canvas (or by the Text tool)
+  // arrives already carrying one empty block and flagged for auto-focus, so
+  // the same gesture that created it also drops the caret in. Without this it
+  // took four clicks: two to create the node, two more on the node itself
+  // before anything could be typed.
+  useEffect(() => {
+    if (!autoEdit || readMode) return;
+
+    const firstBlock = texts[0];
+    if (!firstBlock) return;
+
+    setEditingTextId(firstBlock.id);
+    focusEditable(firstBlock.id);
+
+    // Cleared immediately so this fires once: the flag lives in the parent's
+    // state, and leaving it set would re-grab focus on later re-renders.
+    if (typeof onAutoEditConsumed === 'function') onAutoEditConsumed();
+    // Keyed on the flag alone — re-running as `texts` changes would fight the
+    // user for the caret while they type.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoEdit]);
+
   const handleDoubleClick = useCallback((event) => {
     if (readMode || mode !== "select") return;
 
     // Double-clicking ON an existing text block reopens THAT block for
-    // editing. Double-clicking anywhere else in the shape starts a brand new,
-    // independent block at that spot — which is the whole point: the text
-    // already in the shape stays exactly where it was put.
+    // editing.
     const hitText = event.target.closest?.('[data-textid]');
     if (hitText?.dataset?.textid) {
+      // Already editing this block? Then this double-click is the browser's
+      // "select the word under the cursor" gesture — leave it alone.
+      // focusEditable() would otherwise collapse the caret to the very end and
+      // wipe out the word that was just highlighted.
+      if (editingTextId === hitText.dataset.textid) {
+        event.stopPropagation();
+        return;
+      }
+
       setEditingTextId(hitText.dataset.textid);
       focusEditable(hitText.dataset.textid);
       return;
     }
 
-    // Where inside the shape's own box the user double-clicked, as a fraction
-    // of its rendered width/height. Using a fraction rather than raw pixels
-    // makes this land on the same local point regardless of the canvas's
-    // current zoom — getBoundingClientRect() already reflects that zoom, so
-    // dividing by it cancels the scale out, and multiplying back by the
-    // node's own (unscaled) w/h gives a point in the node's coordinate space.
-    const rect = event.currentTarget.getBoundingClientRect();
-    const fractionX = rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0.5;
-    const fractionY = rect.height > 0 ? (event.clientY - rect.top) / rect.height : 0.5;
+    // Double-clicking anywhere ELSE in the shape edits the shape's own label,
+    // which is a single block in the middle. It does not start a second block
+    // at the spot that was clicked: a shape has one caption, and scattering
+    // extra fragments around its interior by accident was easier to do than to
+    // undo. Text that belongs somewhere specific is its own object, placed
+    // with the Text tool.
+    if (texts.length) {
+      const existing = texts[0];
+      setEditingTextId(existing.id);
+      focusEditable(existing.id);
+      return;
+    }
 
+    // Leaving x and y unset is what centres the block (see getTextBlockStyle).
+    // Storing a measured midpoint instead would freeze the caption in place
+    // the first time the shape was resized.
     const newText = {
       id: `${node.id}-t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
-      x: Math.round(fractionX * node.w),
-      y: Math.round(fractionY * node.h),
+      x: null,
+      y: null,
       value: '',
     };
 
     onTextsChange(node.id, [...texts, newText]);
     setEditingTextId(newText.id);
     focusEditable(newText.id);
-  }, [mode, readMode, node.id, node.w, node.h, onTextsChange, texts, focusEditable]);
+  }, [mode, readMode, node.id, onTextsChange, texts, focusEditable, editingTextId]);
 
   // Finishing an edit: save the typed value back onto that one block, and
   // drop the block entirely if it was left empty so abandoned double-clicks
@@ -293,7 +344,9 @@ export default function Node({
   // this stylesheet — borrowing shape_diamond's CLASS (not its polygon
   // rendering, which stays gated on node.shape === 'diamond' elsewhere) for
   // a line's wrapper div reuses that same proven "invisible box" styling
-  // instead of fighting shape_rect's CSS from here.
+  // instead of fighting shape_rect's CSS from here. An image borrows the
+  // same class for the same reason: the picture IS the content, so it needs
+  // no rectangle drawn around it.
   // An oval is a circle that isn't forced square — Canvas.jsx only locks the
   // aspect ratio for 'circle', so the same fully-rounded styling stretched
   // over a non-square box reads as an ellipse. There's no shape_oval class in
@@ -301,7 +354,8 @@ export default function Node({
   // below as a backstop in case that class does more than round the corners).
   const isLineShape = node.shape === 'line';
   const isOvalShape = node.shape === 'oval';
-  const shapeClass = isLineShape
+  const isImageShape = node.shape === 'image';
+  const shapeClass = isLineShape || isImageShape
     ? (styles.shape_diamond || styles.shape_rect)
     : isOvalShape
       ? (styles.shape_circle || styles.shape_rect)
@@ -349,7 +403,7 @@ export default function Node({
   // it kept its height:100% but shrank its width to fit the text. So both
   // of the overrides below target .nodeInner, and neither one ever takes it
   // out of normal flow.
-  const lineOverrideStyle = isLineShape
+  const lineOverrideStyle = isLineShape || isImageShape
     ? { background: 'transparent', border: 'none', boxShadow: 'none' }
     : {};
 
@@ -375,12 +429,21 @@ export default function Node({
   // spot was picked, and the vertical offset is pulled up about half a line
   // so the clicked point lands mid-text, where a caret visually belongs.
   const getTextBlockStyle = (textBlock) => {
+    const isEditingThisBlock = editingTextId === textBlock.id;
+
     const base = {
       position: 'absolute',
       fontFamily,
       fontSize: `${fontSize}px`,
       lineHeight: 1.25,
       whiteSpace: 'pre-wrap',
+      // Highlighting has to be explicitly allowed on the block being edited —
+      // the surrounding node chrome disables text selection so shapes can be
+      // dragged without smearing a selection across their labels. Blocks that
+      // aren't being edited keep that behavior, so dragging a shape by its
+      // text still moves the shape.
+      userSelect: isEditingThisBlock ? 'text' : 'none',
+      WebkitUserSelect: isEditingThisBlock ? 'text' : 'none',
       // Long unbroken strings wrap instead of running out past the shape's
       // right edge — the shape grows downward to fit (see the auto-grow
       // effect below), so height is the only dimension that has to react.
@@ -427,8 +490,11 @@ export default function Node({
   //
   // offsetHeight is layout height, so the canvas's CSS zoom transform doesn't
   // distort it — these stay in the node's own coordinate space.
+  //
+  // Images are excluded: growing the box to fit a caption would stretch the
+  // picture's frame, and the caption is meant to sit ON the image anyway.
   const fitHeightToText = useCallback(() => {
-    if (isLineShape || !texts.length || typeof onAutoResize !== 'function') return;
+    if (isLineShape || isImageShape || !texts.length || typeof onAutoResize !== 'function') return;
 
     let needed = 0;
 
@@ -451,7 +517,7 @@ export default function Node({
     if (needed > node.h) {
       onAutoResize(node.id, { h: Math.ceil(needed) });
     }
-  }, [isLineShape, texts, onAutoResize, fontSize, node.h, node.id]);
+  }, [isLineShape, isImageShape, texts, onAutoResize, fontSize, node.h, node.id]);
 
   useLayoutEffect(fitHeightToText);
 
@@ -481,6 +547,10 @@ export default function Node({
       top: node.y,
       width: node.w,
       height: node.h,
+      // Set by the canvas from how deeply this shape is nested. A shape that
+      // encloses others sits below the connection layer so its fill can't
+      // blot out the arrows crossing it.
+      ...(typeof layer === 'number' ? { zIndex: layer } : {}),
       '--node-stroke': strokeColor,
       '--node-fill': fillColor,
       ...lineOverrideStyle,
@@ -496,6 +566,28 @@ export default function Node({
 
       {isLineShape && (
         <LineShape node={node} strokeColor={strokeColor} />
+      )}
+
+      {/* A pasted / dropped / picked image. Rendered BEFORE .nodeInner so the
+          text blocks inside it still land on top — double-clicking an image
+          captions it rather than being swallowed by the picture.
+          object-fit: contain means dragging a corner handle never distorts
+          the image; it just letterboxes inside whatever box it's given. */}
+      {isImageShape && node.src && (
+        <img
+          src={node.src}
+          alt=""
+          draggable={false}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            pointerEvents: 'none',
+            userSelect: 'none',
+          }}
+        />
       )}
 
       {/* .nodeInner is the shape's visual body: it paints the border and
@@ -542,19 +634,6 @@ export default function Node({
           );
         })}
       </div>
-
-      {/* {!readMode && CP_POSITIONS.map((cp) => (
-        <div
-          key={cp.pos}
-          className={styles.cp}
-          style={{ left: cp.left, top: cp.top }}
-          onMouseDown={(event) => {
-            event.stopPropagation();
-            onConnect(node.id);
-          }}
-          data-pos={cp.pos}
-        />
-      ))} */}
 
       {!readMode && CP_POSITIONS.map((cp) => (
 

@@ -81,7 +81,7 @@ export default function RegisterTicket({ serviceTypesData }) {
             return;
         }
 
-        if (!formData.TicketTypeId) {
+        if (!selectedTicTypeId) {
             Swal.fire("Validation", "Please select sub-Category Type.", "warning");
             return;
         }
@@ -114,6 +114,7 @@ export default function RegisterTicket({ serviceTypesData }) {
             DueDate: formData.DueDate || null,
             ServiceTypeId: formData.ServiceTypeId,
             TicketTypeId: selectedTicTypeId,
+            PhNo: sessionUserData?.Mobile,
         };
 
         formPayload.append("JsonData", JSON.stringify(jsonData));
@@ -149,7 +150,7 @@ export default function RegisterTicket({ serviceTypesData }) {
                     allowOutsideClick: false,
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        // window.location.reload();
+                        window.location.reload();
                     }
                 });
 

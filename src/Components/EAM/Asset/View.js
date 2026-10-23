@@ -3375,7 +3375,7 @@ export default function AssetDetailsView() {
                                                                             <div className="d-flex align-items-center mt-2 pt-2 border-top">
                                                                                 <div className="text-info small fw-bold">
                                                                                     <i className="bi bi-person-circle me-1"></i>
-                                                                                    {item.LoggedUser || "System"} - {item.EmpNo || "N/A"}
+                                                                                    {item.LoggedUser || "System"}
                                                                                 </div>
                                                                             </div>
                                                                         </div>
@@ -3407,10 +3407,10 @@ export default function AssetDetailsView() {
                                                                                     {item.Status}
                                                                                 </span>
                                                                             </td>
-                                                                            <td className="fw-semibold text-info">
+                                                                            {/* <td className="fw-semibold text-info">
                                                                                 <i className="bi bi-person-circle me-2"></i>
                                                                                 {item.LoggedUser || "N/A"} - {item.EmpNo}
-                                                                            </td>
+                                                                            </td> */}
                                                                         </tr>
                                                                     ))}
                                                                 </tbody>
@@ -3940,18 +3940,18 @@ export default function AssetDetailsView() {
                                                     }}
                                                 />
 
-<div className="flex-grow-1">
-    <div className="fw-bold text-dark">
-        {item.ItemValue}
-    </div>
+                                                <div className="flex-grow-1">
+                                                    <div className="fw-bold text-dark">
+                                                        {item.ItemValue}
+                                                    </div>
 
-    <div className="text-muted small">
-        {item.DisplayValue}
-        <span className="ms-2">
-            {item.DisplayValue3}
-        </span>
-    </div>
-</div>
+                                                    <div className="text-muted small">
+                                                        {item.DisplayValue}
+                                                        <span className="ms-2">
+                                                            {item.DisplayValue3}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </label>
                                         </div>
                                     );
@@ -3973,7 +3973,7 @@ export default function AssetDetailsView() {
                     assetName={targetAsset.name}
                     deptId={targetAsset.deptId}
                 />
-                                <ViewAlert alertObj={selectedAlert} />
+                <ViewAlert alertObj={selectedAlert} />
                 <RegisterMasterTypes typeCategory={3} />
                 <AddAlert machineId={machineId} versionId={0} deptId={machineData?.DepartmentId} entityType="MachineReg" />
                 {/* <AddAlert machineId={machineId} deptId={machineData?.DepartmentId} /> */}

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
-import ReactPlayer from "react-player";
 import { useNavigate } from "react-router-dom";
 import Base1 from "../Config/Base1";
-import { fetchWithAuth } from "../../utils/api";
 
 const Help1 = () => {
 
@@ -61,37 +59,6 @@ const Help1 = () => {
             setDataLoading(false);
         }
     };
-
-    // const fetchDModuleFaqsata = async () => {
-    //     setDataLoading(true);
-    //         try {
-    //             const response = await fetchWithAuth(
-    //                 `public/GetFAQs?ModuleId=${sessionModuleId}&IsExternal=0`,
-    //                 {
-    //                     method: "GET",
-    //                     headers: { "Content-Type": "application/json" },
-    //                 }
-    //             );
-
-    //             if (!response.ok) throw new Error("Network response was not ok");
-
-    //             const data = await response.json();
-
-    //             if (data.success) {
-    //                 setFaqsData(data.data);
-    //                 setFilteredFaqs(data.data);
-    //             } else {
-    //                 setFaqsData([]);
-    //                 setFilteredFaqs([]);
-    //             }
-
-    //         } catch (error) {
-    //             console.error("Failed to fetch types data:", error);
-    //             setFilteredFaqs([]);
-    //         } finally {
-    //             setDataLoading(false);
-    //         }
-    //     };
 
     useEffect(() => {
         if (sessionModuleId) {

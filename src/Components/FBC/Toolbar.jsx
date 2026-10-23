@@ -64,19 +64,22 @@ const EraserIcon = () => (
   </svg>
 );
 
-const UndoIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 14H4V9" />
-    <path d="M20 20a8 8 0 0 0-8-8H4" />
-  </svg>
-);
-
-const RedoIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M15 14h5V9" />
-    <path d="M4 20a8 8 0 0 1 8-8h8" />
-  </svg>
-);
+// A plain arrow rather than an elbow: the tool no longer draws one fixed
+// shape, it draws whatever the arrow panel has selected.
+function ArrowToolIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
+      <path
+        d="M3.5,16.5 L16,4"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        fill="none"
+        strokeLinecap="round"
+      />
+      <path d="M16.8,3.2 L10.6,4.6 L15.4,9.4 Z" fill="currentColor" />
+    </svg>
+  );
+}
 
 const SaveIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -253,6 +256,21 @@ export default function Toolbar({
             >
               <EraserIcon />
             </ToolButton>
+
+            <Tooltip title="Arrow — drag from one shape to another">
+  <span style={{ display: 'inline-block' }}>
+    <ToolButton
+      active={mode === 'arrow'}
+      label="Arrow"
+      // Clicking the active tool drops back to select, so the user can get out
+      // of arrow mode without hunting for the pointer button.
+      onClick={() => onModeChange(mode === 'arrow' ? 'select' : 'arrow')}
+      disabled={readMode}
+    >
+      <ArrowToolIcon />
+    </ToolButton>
+  </span>
+</Tooltip>
 
             <Tooltip
               title={

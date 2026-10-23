@@ -486,11 +486,6 @@ export default function ContractorDashboard() {
                                     </li>
                                 </ul>
                             </div>
-
-                            <span className="menu-link bg-white shadow-sm me-2 cursor-pointer active" style={{ position: "relative", zIndex: 10 }}>
-                                <span className="menu-title"><i className="fa-solid fa-border-all"></i> Dashboard</span>
-                                <span className="menu-arrow"></span>
-                            </span>
                         </div>
 
                         <div className="page-title d-md-none d-block mt-4">

@@ -22,14 +22,15 @@ export default function KPIMaster() {
     const [openCreateKPI, setOpenCreateKPI] = useState(false);
     const [organizationKPIData, setOrganizationKPIData] = useState([]);
     const [allManagerKpis, setAllManagerKpis] = useState([]);
-const [managerKpis, setManagerKpis] = useState([]);
+    const [managerKpis, setManagerKpis] = useState([]);
     const [loading, setLoading] = useState(false);
     const [openEditModal, setOpenEditModal] = useState(false);
     const [uomTypes, setUOMTypes] = useState([]);
     const [sessionModuleId, setSessionModuleId] = useState(null);
+    const [selectedMainDept, setSelectedMainDept] = useState(null);
     const [selectedKPI, setSelectedKPI] = useState(null);
-    const [departments, setDepartments] = useState([]);
     const [childKpisMap, setChildKpisMap] = useState({});
+    const [departments, setDepartments] = useState([]);
     const [selectedDeptId, setSelectedDeptId] = useState(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
     const [deleteKPI, setDeleteKPI] = useState(null);
@@ -59,6 +60,7 @@ const [managerKpis, setManagerKpis] = useState([]);
             const storedModule = JSON.parse(localStorage.getItem("ModuleData"));
             const moduleId = storedModule?.Id?.toString();
             setSessionModuleId(moduleId);
+            setSelectedMainDept(userData?.DeptId);
         } else {
             navigate("/");
         }
@@ -190,32 +192,47 @@ const [managerKpis, setManagerKpis] = useState([]);
             if (sessionDDL) {
                 const parsed = JSON.parse(sessionDDL);
 
-                setDepartments(parsed.depts || []);
+                const filteredData = showDept
+                    ? parsed.depts || []
+                    : parsed.deptsByManager || [];
+
+                setDepartments(filteredData);
                 return;
             }
 
             const response = await fetchWithAuth(
-                `ADMINRoutes/CWIGetDDLItems?OrgId=${sessionUserData?.OrgId}&UserId=0`,
+                `ADMINRoutes/CWIGetDDLItems?OrgId=${sessionUserData?.OrgId}&UserId=${sessionUserData?.Id}`,
                 {
                     method: "GET",
                     headers: { "Content-Type": "application/json" },
                 }
             );
 
-            if (!response.ok) throw new Error("Network response was not ok");
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
 
             const data = await response.json();
 
-            const deptsFilteredData = data.ResultData.filter(
+            const deptsFilteredData = (data.ResultData || []).filter(
                 (item) => item.DDLName === "Departments"
             );
 
-            setDepartments(deptsFilteredData || []);
+            const managerDeptsFilteredData = (data.ResultData || []).filter(
+                (item) => item.DDLName === "getdeptsByManager"
+            );
+
+            const filteredData = showDept
+                ? deptsFilteredData
+                : managerDeptsFilteredData;
+
+            setDepartments(filteredData);
 
             sessionStorage.setItem(
                 "ddlKPIMasterData",
                 JSON.stringify({
                     depts: deptsFilteredData,
+                    deptsByManager: managerDeptsFilteredData,
                 })
             );
 
@@ -230,7 +247,7 @@ const [managerKpis, setManagerKpis] = useState([]);
             setLoading(true);
             const response = await getKPIs({
                 orgId: sessionUserData?.OrgId,
-                deptId: 0,
+                deptId: selectedMainDept,
                 kpiLevel: 1,
                 userId: sessionUserData?.Id,
             });
@@ -247,45 +264,29 @@ const [managerKpis, setManagerKpis] = useState([]);
         if (activeTab === "organization" && sessionUserData?.OrgId) {
             fetchKPIList();
         }
-    }, [activeTab, sessionUserData?.OrgId]);
-
-    // const fetchManagerKPIs = async () => {
-    //     try {
-    //         setLoading(true);
-    //         const response = await getManagerKPIs({
-    //             orgId: sessionUserData?.OrgId,
-    //             employeeId: sessionUserData?.Id,
-    //             periodId: showCurrentPeriodOnly ? sessionUserData?.PeriodId : 0,
-    //         });
-
-    //         setManagerKpis(response?.data);
-    //     } catch (error) {
-    //         console.error(error);
-    //     } finally {
-    //         setLoading(false);
-    //     }
-    // };
+    }, [activeTab, sessionUserData?.OrgId, selectedMainDept]);
 
     const fetchManagerKPIs = async () => {
         try {
             setLoading(true);
-    
+
             const response = await getManagerKPIs({
                 orgId: sessionUserData?.OrgId,
                 employeeId: sessionUserData?.Id,
+                deptId: selectedMainDept,
                 periodId: showCurrentPeriodOnly
                     ? sessionUserData?.PeriodId
                     : 0,
             });
-    
+
             const allKpis = response?.data || [];
-    
+
             // Store complete API response
             setAllManagerKpis(allKpis);
-    
+
         } catch (error) {
             console.error(error);
-    
+
         } finally {
             setLoading(false);
         }
@@ -296,41 +297,42 @@ const [managerKpis, setManagerKpis] = useState([]);
         if (sessionUserData?.Id && activeTab === "department") {
             fetchManagerKPIs();
         }
-    
+
     }, [
         sessionUserData?.Id,
         sessionUserData?.OrgId,
         sessionUserData?.PeriodId,
         showCurrentPeriodOnly,
+        selectedMainDept,
         activeTab
     ]);
 
     useEffect(() => {
 
         const userId = Number(sessionUserData?.Id);
-    
+
         let filteredKpis = [];
-    
+
         if (kpiView === "department") {
-    
+
             filteredKpis = allManagerKpis.filter(
                 (item) =>
                     Number(item.CreatedBy) !== userId
             );
-    
+
         } else if (kpiView === "my") {
-    
+
             filteredKpis = allManagerKpis.filter(
                 (item) =>
                     Number(item.CreatedBy) === userId
             );
         }
-    
+
         setManagerKpis(filteredKpis);
-    
+
         // Reset pagination when switching tabs
         setCurrentPage(1);
-    
+
     }, [
         kpiView,
         allManagerKpis,
@@ -343,7 +345,7 @@ const [managerKpis, setManagerKpis] = useState([]);
 
             const response = await getChildKPIs({
                 orgId: sessionUserData?.OrgId,
-                deptId: sessionUserData?.DeptId,
+                deptId: selectedMainDept,
                 parentId,
             });
 
@@ -538,14 +540,12 @@ const [managerKpis, setManagerKpis] = useState([]);
                 UserId: sessionUserData?.Id,
                 JsonData: data.map(item => ({
                     KPILevel:
-                    activeTab === "organization"
-                        ? 1
-                        : selectedParentKPIId
-                            ? 2
-                            : 1,
-                    RefId: activeTab === "organization"
-                        ? null
-                        : sessionUserData?.DeptId,
+                        activeTab === "organization"
+                            ? 1
+                            : selectedParentKPIId
+                                ? 2
+                                : 1,
+                    RefId: item.refId,
                     UOMId: item.uom,
                     KPIName: item.KPIName,
                     Objectives: item.objective,
@@ -607,6 +607,7 @@ const [managerKpis, setManagerKpis] = useState([]);
                         ParentId: activeTab === "organization"
                             ? null
                             : data.ParentId,
+                        RefId: data.RefId || selectedMainDept,
                     }
                 ]
             };
@@ -688,6 +689,7 @@ const [managerKpis, setManagerKpis] = useState([]);
     const showAdd = sessionActionIds?.includes(1);
     const showEdit = sessionActionIds?.includes(3);
     const showDelete = sessionActionIds?.includes(11);
+    const showDept = sessionActionIds?.includes(25);
 
     useEffect(() => {
         if (showOrgTab) {
@@ -751,23 +753,6 @@ const [managerKpis, setManagerKpis] = useState([]);
                                                 </li>
                                             );
                                         })}
-                                        {sessionUserData?.RoleId === 1 && (
-                                            <a
-                                                href={`https://betasuperportal.cooperwind.online/`}
-                                                target="_blank"
-                                            >
-                                                <li className="dropdown-item d-flex align-items-center gap-2 module-item">
-                                                    <i
-                                                        className={`fa-solid fa-user-tie`}
-                                                        style={{
-                                                            color: "#c8e6c9",
-                                                            textShadow: "1px 1px 3px rgba(0, 0, 0, 0.5)",
-                                                        }}
-                                                    ></i>
-                                                    <span>Super Portal</span>
-                                                </li>
-                                            </a>
-                                        )}
                                         <li
                                             className="dropdown-item d-flex align-items-center gap-2 module-item"
                                             onClick={() => navigate("/user-modules")}
@@ -879,20 +864,6 @@ const [managerKpis, setManagerKpis] = useState([]);
                                                 </li>
                                             );
                                         })}
-                                        {sessionUserData?.RoleId === 1 && (
-                                            <a href={`https://betasuperportal.cooperwind.online/`} target="_blank">
-                                                <li className="dropdown-item d-flex align-items-center gap-2 module-item">
-                                                    <i
-                                                        className={`fa-solid fa-user-tie`}
-                                                        style={{
-                                                            color: '#c8e6c9',
-                                                            textShadow: '1px 1px 3px rgba(0, 0, 0, 0.5)',
-                                                        }}
-                                                    ></i>
-                                                    <span>Super Portal</span>
-                                                </li>
-                                            </a>
-                                        )}
                                         <li className="dropdown-item d-flex align-items-center gap-2 module-item"
                                             onClick={() => navigate("/user-modules")}
                                             style={{ cursor: "pointer" }}
@@ -965,7 +936,7 @@ const [managerKpis, setManagerKpis] = useState([]);
                             )}
 
                             <Link
-                                to="/kpi/allocate-kpi"
+                                to={`/kpi/allocate-kpi/${selectedMainDept}`}
                                 className="btn rounded-pill px-3 px-md-4 py-2 fw-semibold btn-light-primary"
                             >
                                 <i className="bi bi-bullseye me-2"></i>
@@ -1005,7 +976,21 @@ const [managerKpis, setManagerKpis] = useState([]);
                                                             Organization KPI Management
                                                         </h3>
                                                     </div>
-
+                                                    <div className="col-12 col-md-3">
+                                                        <Select
+                                                            style={{ width: "100%" }}
+                                                            size="large"
+                                                            placeholder="Select Department"
+                                                            showSearch
+                                                            optionFilterProp="label"
+                                                            value={selectedMainDept}
+                                                            onChange={(value) => setSelectedMainDept(value)}
+                                                            options={departments?.map((dept) => ({
+                                                                value: dept.ItemId,
+                                                                label: dept.ItemValue,
+                                                            }))}
+                                                        />
+                                                    </div>
                                                     {/* Search */}
                                                     <div className="organization-kpi-search">
                                                         <div className="input-group input-group-sm">
@@ -1375,7 +1360,23 @@ const [managerKpis, setManagerKpis] = useState([]);
                                                         Organization KPI Management
                                                     </h3>
                                                 </div>
+                                                <div className="col-12 col-md-3">
+                                                    <Select
+                                                        style={{ width: "100%" }}
+                                                        size="large"
+                                                        placeholder="Select Department"
+                                                        showSearch
+                                                        optionFilterProp="label"
+                                                        value={selectedMainDept}
+                                                        onChange={(value) => setSelectedMainDept(value)}
+                                                        options={departments?.map((dept) => ({
+                                                            value: dept.ItemId,
+                                                            label: dept.ItemValue,
+                                                        }))}
+                                                    />
+                                                </div>
                                                 <div className="organization-kpi-search">
+
                                                     <div className="input-group input-group-sm">
                                                         <span className="input-group-text bg-light border-end-0">
                                                             <i className="fa fa-search text-muted"></i>
@@ -1573,6 +1574,7 @@ const [managerKpis, setManagerKpis] = useState([]);
                             <>
                                 <div className="card shadow-sm border-0 department-kpi-card d-none d-md-block">
                                     <div className="card-body">
+
                                         <div className="card border-0 shadow-sm mb-4 department-kpi-header-card">
                                             <div className="card-body py-3">
                                                 <div className="department-kpi-header">
@@ -1589,27 +1591,44 @@ const [managerKpis, setManagerKpis] = useState([]);
                                                                 : "View and manage your individual KPIs."}
                                                         </small>
                                                     </div>
+                                                    <div className="col-12 col-md-3">
+                                                        <Select
+                                                            style={{ width: "100%" }}
+                                                            size="large"
+                                                            placeholder="Select Department"
+                                                            showSearch
+                                                            optionFilterProp="label"
+                                                            value={selectedMainDept}
+                                                            onChange={(value) => setSelectedMainDept(value)}
+                                                            options={departments?.map((dept) => ({
+                                                                value: dept.ItemId,
+                                                                label: dept.ItemValue,
+                                                            }))}
+                                                        />
+                                                    </div>
+                                                    <div className="d-flex align-items-center gap-3 flex-wrap">
+                                                        {/* KPI View Toggle */}
+                                                        <div className="kpi-view-toggle">
+                                                            <button
+                                                                type="button"
+                                                                className={`kpi-toggle-btn ${kpiView === "department" ? "active" : ""
+                                                                    }`}
+                                                                onClick={() => setKpiView("department")}
+                                                            >
+                                                                <i className="bi bi-building me-2"></i>
+                                                                Department KPIs
+                                                            </button>
 
-                                                    <div className="kpi-view-toggle">
-                                                        <button
-                                                            type="button"
-                                                            className={`kpi-toggle-btn ${kpiView === "department" ? "active" : ""
-                                                                }`}
-                                                            onClick={() => setKpiView("department")}
-                                                        >
-                                                            <i className="bi bi-building me-2"></i>
-                                                            Department KPIs
-                                                        </button>
-
-                                                        <button
-                                                            type="button"
-                                                            className={`kpi-toggle-btn ${kpiView === "my" ? "active" : ""
-                                                                }`}
-                                                            onClick={() => setKpiView("my")}
-                                                        >
-                                                            <i className="bi bi-person-check me-2"></i>
-                                                            Individual KPIs
-                                                        </button>
+                                                            <button
+                                                                type="button"
+                                                                className={`kpi-toggle-btn ${kpiView === "my" ? "active" : ""
+                                                                    }`}
+                                                                onClick={() => setKpiView("my")}
+                                                            >
+                                                                <i className="bi bi-person-check me-2"></i>
+                                                                Individual KPIs
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1705,10 +1724,6 @@ const [managerKpis, setManagerKpis] = useState([]);
 
                                                 </div>
 
-
-                                                {/* ==========================================
-                            PARENT KPI TABLE
-                        ========================================== */}
 
                                                 <div className="department-parent-table-scroll">
 
@@ -1863,8 +1878,17 @@ const [managerKpis, setManagerKpis] = useState([]);
                                                                                 </td>
 
                                                                                 <td className="border-0">
-                                                                                    {item.Measurables ||
-                                                                                        "---"}
+                                                                                    {item.Measurables ? (
+                                                                                        <Tooltip title={item.Measurables} placement="top">
+                                                                                            <span style={{ cursor: "pointer" }}>
+                                                                                                {item.Measurables.length > 25
+                                                                                                    ? `${item.Measurables.slice(0, 25)}...`
+                                                                                                    : item.Measurables}
+                                                                                            </span>
+                                                                                        </Tooltip>
+                                                                                    ) : (
+                                                                                        "---"
+                                                                                    )}
                                                                                 </td>
 
                                                                                 <td
@@ -2924,487 +2948,59 @@ const [managerKpis, setManagerKpis] = useState([]);
 
             <style>
                 {`
-                /* ================================
-   HEADER LAYOUT
-================================ */
-
-.department-kpi-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-}
-
-
-/* ================================
-   PREMIUM KPI TOGGLE
-================================ */
-
-.kpi-view-toggle {
-    display: flex;
-    align-items: center;
-
-    padding: 4px;
-
-    background: #f3f6fa;
-
-    border: 1px solid #e3e9f1;
-
-    border-radius: 12px;
-
-    box-shadow:
-        inset 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-
-.kpi-toggle-btn {
-    border: none;
-
-    background: transparent;
-
-    padding: 9px 16px;
-
-    border-radius: 9px;
-
-    color: #6c757d;
-
-    font-size: 13px;
-
-    font-weight: 600;
-
-    white-space: nowrap;
-
-    cursor: pointer;
-
-    transition:
-        all 0.25s ease;
-}
-
-
-.kpi-toggle-btn:hover {
-    color: #0d6efd;
-}
-
-
-.kpi-toggle-btn.active {
-    background: #ffffff;
-
-    color: #0d6efd;
-
-    box-shadow:
-        0 3px 10px rgba(0, 0, 0, 0.08);
-
-    font-weight: 700;
-}
-
-
-.kpi-toggle-btn i {
-    font-size: 14px;
-}
                 /* =========================================================
-                        DEPARTMENT KPI
-                        DESKTOP
-                        ========================================================= */
-
-                        .department-kpi-card {
-                            width: 100%;
-                        }
-
-                        .department-kpi-header-card {
-                            width: 100%;
-                        }
-
-                        .department-kpi-header {
-                            display: flex;
-                            align-items: center;
-                            justify-content: space-between;
-                            gap: 24px;
-                        }
-
-                        .department-kpi-title {
-                            flex: 1;
-                            min-width: 0;
-                        }
-
-                        .department-kpi-search {
-                            width: 320px;
-                            min-width: 320px;
-                        }
-
-                        .department-kpi-search .input-group {
-                            width: 100%;
-                        }
-
-                        .department-kpi-table-wrapper {
-                            width: 100%;
-                        }
-
-                        .department-parent-table-scroll {
-                            width: 100%;
-                            overflow-x: auto;
-                            -webkit-overflow-scrolling: touch;
-                        }
-
-                        .department-parent-table-scroll table {
-                            min-width: 1050px;
-                        }
-
-
-                        /* =========================================================
-                        CHILD KPI
-                        ========================================================= */
-
-                        .child-kpi-wrapper {
-                            width: 100%;
-                            background: #f8faff;
-                            padding: 15px 20px 20px;
-                        }
-
-                        .child-header {
-                            display: flex;
-                            align-items: center;
-                            flex-wrap: wrap;
-                            gap: 4px;
-                            font-size: 14px;
-                            font-weight: 600;
-                            padding: 10px 5px 15px;
-                        }
-
-                        .child-kpi-table-scroll {
-                            width: 100%;
-                            overflow-x: auto;
-                            -webkit-overflow-scrolling: touch;
-                        }
-
-                        .child-kpi-table-scroll table {
-                            min-width: 1020px;
-                        }
-
-
-                        /* =========================================================
-                        SHOW ENTRIES
-                        ========================================================= */
-
-                        .department-kpi-entries {
-                            min-height: 45px;
-                            border-radius: 6px;
-                        }
-
-
-                        /* =========================================================
-                        PAGINATION
-                        ========================================================= */
-
-                        .department-pagination {
-                            width: 100%;
-                        }
-
-                        .department-pagination .pagination {
-                            margin-bottom: 0;
-                        }
-
-
-                        /* =========================================================
-                        MOBILE
-                        ========================================================= */
-
-                        @media (max-width: 767.98px) {
-
-                            /* ---------------------------------------------
-                            MAIN CARD
-                            --------------------------------------------- */
-
-                            .department-kpi-card .card-body {
-                                padding: 12px !important;
-                            }
-
-
-                            /* ---------------------------------------------
-                            HEADER
-                            --------------------------------------------- */
-
-                            .department-kpi-header {
-                                flex-direction: column;
-                                align-items: stretch;
-                                gap: 14px;
-                            }
-
-                            .department-kpi-title {
-                                width: 100%;
-                            }
-
-                            .department-kpi-title h6 {
-                                font-size: 16px;
-                                line-height: 1.4;
-                            }
-
-                            .department-kpi-title small {
-                                display: block;
-                                font-size: 12px;
-                                line-height: 1.5;
-                            }
-
-
-                            /* ---------------------------------------------
-                            BREADCRUMB
-                            --------------------------------------------- */
-
-                            .department-kpi-title nav {
-                                font-size: 12px;
-                                margin-top: 8px !important;
-                            }
-
-                            .department-kpi-title nav .mx-2 {
-                                margin-left: 6px !important;
-                                margin-right: 6px !important;
-                            }
-
-
-                            /* ---------------------------------------------
-                            SEARCH
-                            --------------------------------------------- */
-
-                            .department-kpi-search {
-                                width: 100%;
-                                min-width: 100%;
-                            }
-
-                            .department-kpi-search .form-control {
-                                height: 40px;
-                                font-size: 13px;
-                            }
-
-                            .department-kpi-search .input-group-text {
-                                height: 40px;
-                            }
-
-
-                            /* ---------------------------------------------
-                            SHOW ENTRIES
-                            --------------------------------------------- */
-
-                            .department-kpi-entries {
-                                width: 100%;
-                                padding: 8px !important;
-                                gap: 8px !important;
-                                margin-bottom: 10px !important;
-                            }
-
-                            .department-kpi-entries span {
-                                font-size: 12px;
-                            }
-
-                            .department-kpi-entries .ant-select {
-                                width: 70px !important;
-                            }
-
-
-                            /* ---------------------------------------------
-                            PARENT TABLE
-                            --------------------------------------------- */
-
-                            .department-parent-table-scroll {
-                                width: 100%;
-                                overflow-x: auto;
-                                overflow-y: hidden;
-                                -webkit-overflow-scrolling: touch;
-                                scrollbar-width: thin;
-                            }
-
-                            .department-parent-table-scroll table {
-                                min-width: 1050px !important;
-                                table-layout: fixed !important;
-                            }
-
-
-                            /* ---------------------------------------------
-                            TABLE HEADER
-                            --------------------------------------------- */
-
-                            .department-parent-table-scroll th {
-                                white-space: nowrap;
-                                font-size: 11px !important;
-                            }
-
-                            .department-parent-table-scroll td {
-                                font-size: 12px !important;
-                            }
-
-
-                            /* ---------------------------------------------
-                            KPI NAME
-                            --------------------------------------------- */
-
-                            .department-parent-table-scroll .avatar-circle {
-                                width: 30px;
-                                height: 30px;
-                                min-width: 30px;
-                            }
-
-                            .department-parent-table-scroll .avatar-square {
-                                width: 28px;
-                                height: 28px;
-                                min-width: 28px;
-                                font-size: 11px;
-                            }
-
-                            .department-parent-table-scroll .kpi-row .fw-bold {
-                                font-size: 12px;
-                            }
-
-                            .department-parent-table-scroll .badge {
-                                font-size: 10px;
-                            }
-
-
-                            /* ---------------------------------------------
-                            CHILD KPI
-                            --------------------------------------------- */
-
-                            .child-kpi-wrapper {
-                                padding: 12px;
-                            }
-
-                            .child-header {
-                                font-size: 12px;
-                                padding: 8px 4px 12px;
-                                line-height: 1.6;
-                            }
-
-                            .child-header .badge {
-                                margin-left: 6px !important;
-                            }
-
-                            .child-kpi-table-scroll {
-                                width: 100%;
-                                overflow-x: auto;
-                                overflow-y: hidden;
-                                -webkit-overflow-scrolling: touch;
-                                scrollbar-width: thin;
-                            }
-
-                            .child-kpi-table-scroll table {
-                                min-width: 1020px !important;
-                                table-layout: fixed !important;
-                            }
-
-                            .child-kpi-table-scroll th {
-                                white-space: nowrap;
-                                font-size: 11px !important;
-                            }
-
-                            .child-kpi-table-scroll td {
-                                font-size: 12px !important;
-                            }
-
-
-                            /* ---------------------------------------------
-                            ACTION BUTTON
-                            --------------------------------------------- */
-
-                            .action-menu-btn {
-                                width: 32px;
-                                height: 32px;
-                            }
-
-
-                            /* ---------------------------------------------
-                            PAGINATION
-                            --------------------------------------------- */
-
-                            .department-pagination {
-                                flex-direction: column !important;
-                                align-items: center !important;
-                                justify-content: center !important;
-                                gap: 15px;
-                                padding-top: 20px !important;
-                            }
-
-                            .department-pagination > div {
-                                width: 100%;
-                                justify-content: center !important;
-                                text-align: center;
-                            }
-
-                            .department-pagination .fs-6 {
-                                font-size: 12px !important;
-                                line-height: 1.5;
-                            }
-
-                            .department-pagination .pagination {
-                                justify-content: center;
-                                flex-wrap: wrap;
-                                gap: 2px;
-                            }
-
-                            .department-pagination .page-link {
-                                padding: 5px 9px;
-                                font-size: 12px;
-                            }
-
-                        }
-
-
-                        /* =========================================================
-                        SMALL MOBILE - 480px
-                        ========================================================= */
-
-                        @media (max-width: 480px) {
-
-                            .department-kpi-card .card-body {
-                                padding: 8px !important;
-                            }
-
-                            .department-kpi-header-card {
-                                margin-bottom: 12px !important;
-                            }
-
-                            .department-kpi-header-card .card-body {
-                                padding: 12px !important;
-                            }
-
-                            .department-kpi-title h6 {
-                                font-size: 15px;
-                            }
-
-                            .department-kpi-title small {
-                                font-size: 11px;
-                            }
-
-                            .department-kpi-search .form-control {
-                                font-size: 12px;
-                            }
-
-                            .department-kpi-entries {
-                                min-height: 42px;
-                            }
-
-                            .department-pagination .page-link {
-                                padding: 4px 8px;
-                                font-size: 11px;
-                            }
-
-                        }
-                /* ============================================
-                KPI HEADER - DESKTOP
-                ============================================ */
-
-                .kpi-header-actions {
-                    width: 100%;
+                   TOP BAR — Create KPI button
+                ========================================================= */
+
+                .kpi-actions { margin-left: auto; }
+
+                .premium-btn-primary {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 10px;
+                    padding: 10px 18px;
+                    border: none;
+                    border-radius: 14px;
+                    background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+                    color: #fff;
+                    font-size: 14px;
+                    font-weight: 600;
+                    letter-spacing: .3px;
+                    box-shadow: 0 10px 20px rgba(37, 99, 235, .25);
+                    transition: all .25s ease;
                 }
 
-                .kpi-create-wrapper {
-                    margin-left: auto;
+                .premium-btn-primary:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 14px 28px rgba(37, 99, 235, .35);
+                    background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%);
+                    color: #fff;
                 }
 
-                .kpi-create-btn {
-                    white-space: nowrap;
+                .premium-btn-primary:active { transform: scale(.98); }
+
+                .premium-btn-primary:focus {
+                    outline: none;
+                    box-shadow: 0 0 0 .2rem rgba(79, 70, 229, .2);
+                }
+
+                .premium-btn-primary i { color: #fff; }
+
+                .premium-btn-icon {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 8px;
+                    background: rgba(255, 255, 255, .18);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 14px;
                 }
 
 
-                /* ============================================
-                ORGANIZATION KPI HEADER
-                ============================================ */
+                /* =========================================================
+                   ORGANIZATION KPI — header
+                ========================================================= */
 
                 .organization-kpi-header {
                     display: flex;
@@ -3413,9 +3009,7 @@ const [managerKpis, setManagerKpis] = useState([]);
                     gap: 20px;
                 }
 
-                .organization-kpi-title {
-                    flex: 1;
-                }
+                .organization-kpi-title { flex: 1; }
 
                 .organization-kpi-search {
                     width: 280px;
@@ -3423,55 +3017,217 @@ const [managerKpis, setManagerKpis] = useState([]);
                 }
 
 
-                /* ============================================
-                MOBILE
-                ============================================ */
+                /* =========================================================
+                   DEPARTMENT KPI — header + view toggle
+                ========================================================= */
+
+                .department-kpi-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 24px;
+                }
+
+                .department-kpi-title {
+                    flex: 1;
+                    min-width: 0;
+                }
+
+                .department-kpi-search {
+                    width: 320px;
+                    min-width: 320px;
+                }
+
+                .kpi-view-toggle {
+                    display: flex;
+                    align-items: center;
+                    padding: 4px;
+                    background: #f3f6fa;
+                    border: 1px solid #e3e9f1;
+                    border-radius: 12px;
+                    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04);
+                }
+
+                .kpi-toggle-btn {
+                    border: none;
+                    background: transparent;
+                    padding: 9px 16px;
+                    border-radius: 9px;
+                    color: #6c757d;
+                    font-size: 13px;
+                    font-weight: 600;
+                    white-space: nowrap;
+                    cursor: pointer;
+                    transition: all 0.25s ease;
+                }
+
+                .kpi-toggle-btn:hover { color: #0d6efd; }
+
+                .kpi-toggle-btn.active {
+                    background: #ffffff;
+                    color: #0d6efd;
+                    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+                    font-weight: 700;
+                }
+
+                .kpi-toggle-btn i { font-size: 14px; }
+
+                .department-kpi-entries {
+                    min-height: 45px;
+                    border-radius: 6px;
+                }
+
+
+                /* =========================================================
+                   DEPARTMENT KPI — parent table
+                ========================================================= */
+
+                .department-parent-table-scroll {
+                    overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                .department-parent-table-scroll table { min-width: 1050px; }
+
+                .kpi-row { border-left: 4px solid transparent; }
+                .kpi-row.accent-primary { border-left-color: var(--bs-primary); }
+                .kpi-row.accent-success { border-left-color: var(--bs-success); }
+                .kpi-row.accent-info    { border-left-color: var(--bs-info); }
+                .kpi-row td { vertical-align: middle; }
+
+                .avatar-square { width: 32px; height: 32px; font-size: .85rem; }
+                .avatar-circle { width: 32px; height: 32px; }
+                .chevron-btn   { width: 32px; height: 32px; }
+
+
+                /* =========================================================
+                   DEPARTMENT KPI — child table
+                ========================================================= */
+
+                .child-kpi-wrapper {
+                    width: 100%;
+                    background: #fff;
+                    border: 1px solid #e9edf5;
+                    border-radius: 12px;
+                    padding: 18px;
+                    margin: 8px;
+                    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+                }
+
+                .child-header {
+                    display: flex;
+                    align-items: center;
+                    flex-wrap: wrap;
+                    gap: 4px;
+                    padding: 10px 5px 15px;
+                    margin-bottom: 15px;
+                    font-size: 15px;
+                    font-weight: 700;
+                    color: #0d6efd;
+                }
+
+                .child-kpi-table-scroll {
+                    overflow-x: auto;
+                    -webkit-overflow-scrolling: touch;
+                }
+
+                .child-kpi-table-scroll table { min-width: 1020px; }
+
+                .child-kpi-wrapper thead { background: #f8faff; }
+
+                .child-kpi-wrapper thead th {
+                    font-size: 12px;
+                    color: #7b8794;
+                    text-transform: uppercase;
+                    border-bottom: 1px solid #edf2f7;
+                }
+
+                .child-kpi-wrapper tbody tr { border-bottom: 1px solid #f3f4f6; }
+
+                .child-kpi-wrapper tbody tr:last-child { border-bottom: none; }
+
+                /* Objective tooltip (rich text) */
+                .quill-tooltip-content {
+                    max-width: 400px;
+                    max-height: 250px;
+                    overflow-y: auto;
+                }
+
+                .quill-tooltip-content p { margin-bottom: 5px; }
+
+                .quill-tooltip-content ul,
+                .quill-tooltip-content ol {
+                    padding-left: 20px;
+                    margin-bottom: 5px;
+                }
+
+
+                /* =========================================================
+                   ROW ACTIONS — ⋮ button + dropdown
+                ========================================================= */
+
+                .action-menu-btn {
+                    width: 38px;
+                    height: 38px;
+                    border: none;
+                    border-radius: 12px;
+                    background: #f8fafc;
+                    color: #64748b;
+                    transition: .25s;
+                }
+
+                .action-menu-btn:hover {
+                    background: #2563eb;
+                    color: #fff;
+                    transform: translateY(-2px);
+                    box-shadow: 0 8px 20px rgba(37, 99, 235, .25);
+                }
+
+                .premium-dropdown .ant-dropdown-menu {
+                    border-radius: 14px;
+                    padding: 8px;
+                    box-shadow: 0 10px 35px rgba(15, 23, 42, .15);
+                }
+
+                .dropdown-item-premium {
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    min-width: 130px;
+                    font-weight: 500;
+                }
+
+                .dropdown-item-premium i {
+                    width: 18px;
+                    font-size: 16px;
+                }
+
+
+                /* =========================================================
+                   MOBILE  (≤ 767px — only the mobile header/card views
+                   are visible here; the desktop tables are d-none)
+                ========================================================= */
 
                 @media (max-width: 767.98px) {
 
-                    /* -----------------------------
-                    TOP KPI BUTTONS
-                    ----------------------------- */
-
-                    .kpi-header-actions {
-                        display: flex !important;
-                        flex-direction: column !important;
-                        align-items: stretch !important;
+                    .kpi-actions {
                         width: 100%;
-                        gap: 8px !important;
+                        margin-left: 0;
                     }
 
-                    .kpi-tab-btn {
-                        width: 100%;
-                        justify-content: center;
-                        margin: 0 !important;
-                    }
-
-                    .kpi-create-wrapper {
-                        width: 100%;
-                        margin-left: 0 !important;
-                        margin-top: 2px;
-                    }
-
-                    .kpi-create-btn {
+                    .kpi-actions .premium-btn-primary {
                         width: 100%;
                         justify-content: center;
                     }
 
-
-                    /* -----------------------------
-                    ORGANIZATION HEADER
-                    ----------------------------- */
-
+                    /* Organization header */
                     .organization-kpi-header {
                         flex-direction: column;
                         align-items: stretch;
                         gap: 12px;
                     }
 
-                    .organization-kpi-title {
-                        width: 100%;
-                    }
+                    .organization-kpi-title { width: 100%; }
 
                     .organization-kpi-title h3 {
                         font-size: 18px;
@@ -3484,238 +3240,68 @@ const [managerKpis, setManagerKpis] = useState([]);
                         min-width: 100%;
                     }
 
-
-                    /* -----------------------------
-                    TABLE
-                    ----------------------------- */
-
-                    .organization-kpi-table {
-                        width: 100%;
-                        overflow-x: auto;
-                        -webkit-overflow-scrolling: touch;
-                    }
-
-                    .organization-kpi-table table {
-                        min-width: 850px;
-                    }
-
-
-                    /* -----------------------------
-                    PAGINATION
-                    ----------------------------- */
-
-                    .organization-pagination {
+                    /* Department header */
+                    .department-kpi-header {
                         flex-direction: column;
-                        align-items: center !important;
-                        gap: 15px;
-                        padding-top: 20px !important;
+                        align-items: stretch;
+                        gap: 14px;
                     }
 
-                    .organization-pagination > div {
-                        width: 100%;
-                        justify-content: center;
-                        text-align: center;
+                    .department-kpi-title { width: 100%; }
+
+                    .department-kpi-title h6 {
+                        font-size: 16px;
+                        line-height: 1.4;
                     }
 
-                    .organization-pagination .pagination {
-                        justify-content: center;
-                        flex-wrap: wrap;
+                    .department-kpi-title small {
+                        display: block;
+                        font-size: 12px;
+                        line-height: 1.5;
                     }
 
-                }
-
-
-                /* ============================================
-                VERY SMALL DEVICES
-                ============================================ */
-
-                @media (max-width: 480px) {
-
-                    .kpi-tab-btn {
-                        font-size: 13px;
-                        padding: 9px 12px !important;
+                    .department-kpi-title nav {
+                        font-size: 12px;
+                        margin-top: 8px !important;
                     }
 
-                    .kpi-tab-btn i {
+                    .department-kpi-title nav .mx-2 {
+                        margin-left: 6px !important;
                         margin-right: 6px !important;
                     }
 
-                    .kpi-create-btn {
+                    .department-kpi-search {
+                        width: 100%;
+                        min-width: 100%;
+                    }
+
+                    .department-kpi-search .form-control {
+                        height: 40px;
                         font-size: 13px;
-                        min-height: 38px;
                     }
 
-                    .organization-kpi-title h3 {
-                        font-size: 16px;
-                    }
-
-                    .organization-pagination .fs-6 {
-                        font-size: 12px !important;
-                    }
-
-                    .organization-pagination .page-link {
-                        padding: 5px 9px;
-                    }
-
-                }
-                .kpi-actions {
-                    margin-left: auto;
+                    .department-kpi-search .input-group-text { height: 40px; }
                 }
 
-                @media (max-width: 767.98px) {
-                    .kpi-actions {
-                        width: 100%;
-                        margin-left: 0;
-                    }
 
-                    .kpi-actions .premium-btn-primary {
-                        width: 100%;
-                        justify-content: center;
-                    }
+                /* =========================================================
+                   SMALL MOBILE  (≤ 480px)
+                ========================================================= */
+
+                @media (max-width: 480px) {
+
+                    .organization-kpi-title h3 { font-size: 16px; }
+
+                    .department-kpi-header-card { margin-bottom: 12px !important; }
+
+                    .department-kpi-header-card .card-body { padding: 12px !important; }
+
+                    .department-kpi-title h6 { font-size: 15px; }
+
+                    .department-kpi-title small { font-size: 11px; }
+
+                    .department-kpi-search .form-control { font-size: 12px; }
                 }
-                    .quill-tooltip-content {
-                        max-width: 400px;
-                        max-height: 250px;
-                        overflow-y: auto;
-                    }
-
-                    .quill-tooltip-content p {
-                        margin-bottom: 5px;
-                    }
-
-                    .quill-tooltip-content ul,
-                    .quill-tooltip-content ol {
-                        padding-left: 20px;
-                        margin-bottom: 5px;
-                    }
-                    .kpi-row { border-left: 4px solid transparent; }
-                        .kpi-row.accent-primary { border-left-color: var(--bs-primary); }
-                        .kpi-row.accent-success { border-left-color: var(--bs-success); }
-                        .kpi-row.accent-info    { border-left-color: var(--bs-info); }
-                        .kpi-row td { vertical-align: middle; }
-
-                        .avatar-square { width: 32px; height: 32px; font-size: .85rem; }
-                        .avatar-circle { width: 32px; height: 32px; }
-                        .chevron-btn   { width: 32px; height: 32px; }
-
-                        .child-kpi-wrapper{
-                            background:#fff;
-                            border:1px solid #e9edf5;
-                            border-radius:12px;
-                            padding:18px;
-                            margin: 8px;
-                            box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-                        }
-
-                        .child-header{
-                            display:flex;
-                            align-items:center;
-                            font-weight:700;
-                            color:#0d6efd;
-                            margin-bottom:15px;
-                            font-size:15px;
-                        }
-
-                        .child-kpi-wrapper thead{
-                            background:#f8faff;
-                        }
-
-                        .child-kpi-wrapper thead th{
-                            font-size:12px;
-                            color:#7b8794;
-                            text-transform:uppercase;
-                            border-bottom:1px solid #edf2f7;
-                        }
-
-                        .child-kpi-wrapper tbody tr{
-                            border-bottom:1px solid #f3f4f6;
-                        }
-
-                        .child-kpi-wrapper tbody tr:last-child{
-                            border-bottom:none;
-                        }
-                    .premium-btn-primary{
-                        display:inline-flex;
-                        align-items:center;
-                        gap:10px;
-                        padding:10px 18px;
-                        border:none;
-                        border-radius:14px;
-                        background:linear-gradient(135deg,#2563eb 0%,#4f46e5 100%);
-                        color:#fff;
-                        font-size:14px;
-                        font-weight:600;
-                        letter-spacing:.3px;
-                        box-shadow:0 10px 20px rgba(37,99,235,.25);
-                        transition:all .25s ease;
-                    }
-
-                    .premium-btn-primary:hover{
-                        transform:translateY(-2px);
-                        box-shadow:0 14px 28px rgba(37,99,235,.35);
-                        background:linear-gradient(135deg,#1d4ed8 0%,#4338ca 100%);
-                        color:#fff;
-                    }
-
-                    .premium-btn-primary:active{
-                        transform:scale(.98);
-                    }
-
-                    .premium-btn-primary:focus{
-                        outline:none;
-                        box-shadow:0 0 0 .2rem rgba(79,70,229,.2);
-                    }
-
-                    .premium-btn-icon{
-                        width:28px;
-                        height:28px;
-                        border-radius:8px;
-                        background:rgba(255,255,255,.18);
-                        display:flex;
-                        align-items:center;
-                        justify-content:center;
-                        font-size:14px;
-                    }
-
-                    .premium-btn-primary i{
-                        color:#fff;
-                    }
-
-                    .action-menu-btn{
-                        width:38px;
-                        height:38px;
-                        border:none;
-                        border-radius:12px;
-                        background:#f8fafc;
-                        color:#64748b;
-                        transition:.25s;
-                    }
-
-                    .action-menu-btn:hover{
-                        background:#2563eb;
-                        color:#fff;
-                        transform:translateY(-2px);
-                        box-shadow:0 8px 20px rgba(37,99,235,.25);
-                    }
-
-                    .premium-dropdown .ant-dropdown-menu{
-                        border-radius:14px;
-                        padding:8px;
-                        box-shadow:0 10px 35px rgba(15,23,42,.15);
-                    }
-
-                    .dropdown-item-premium{
-                        display:flex;
-                        align-items:center;
-                        gap:12px;
-                        min-width:130px;
-                        font-weight:500;
-                    }
-
-                    .dropdown-item-premium i{
-                        width:18px;
-                        font-size:16px;
-                    }
                 `}
             </style>
 
@@ -3729,7 +3315,9 @@ const [managerKpis, setManagerKpis] = useState([]);
                 managerKpis={managerKpis}
                 selectedParentId={selectedParentKPIId}
                 selectedParentUOMId={selectedParentUOMId}
-                loading={loading}
+                loading={saving}
+                depts={departments}
+                selectedMainDept={selectedMainDept}
                 title={
                     activeTab === "organization"
                         ? "Create Organization KPI"
@@ -3747,6 +3335,8 @@ const [managerKpis, setManagerKpis] = useState([]);
                 uomTypes={uomTypes}
                 managerKpis={managerKpis}
                 loading={saving}
+                depts={departments}
+                selectedMainDept={selectedMainDept}
                 title={
                     activeTab === "organization"
                         ? "Edit Organization KPI"

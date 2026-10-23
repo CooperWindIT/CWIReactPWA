@@ -3,8 +3,6 @@ import { Modal, Input, Select, Collapse, message } from "antd";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 
-const { TextArea } = Input;
-
 export default function KpiModal({
     open,
     onCancel,
@@ -15,79 +13,60 @@ export default function KpiModal({
     loading,
     selectedParentId,
     selectedParentUOMId,
+    depts,
+    selectedMainDept,
 }) {
-
     const [sessionUserData, setsessionUserData] = useState({});
     const [activeKeys, setActiveKeys] = useState([]);
+    const [selectedDept, setSelectedDept] = useState(null);
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem("userData");
         if (userDataString) {
             const userData = JSON.parse(userDataString);
             setsessionUserData(userData);
-        } else {
-            console.log("/");
+            setSelectedDept(userData?.DeptId);
         }
     }, []);
 
-    const [kpis, setKpis] = useState([
-        {
-            id: Date.now(),
-            KPIName: "",
-            Measurables: "",
-            objective: "",
-            targetValue: "",
-            uom: selectedParentUOMId || null,
-            deptId: sessionUserData?.DeptId,
-            parentId: activeTab === "department" ? selectedParentId : null,
-        }
-    ]);
+    // Department dropdown is shown for Organization KPIs, or Department KPIs without a parent
+    const showDeptSelect = activeTab === "organization" || !selectedParentId;
 
+    // Single place that builds a KPI row — so refId is never missed
+    const buildKPI = () => ({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        KPIName: "",
+        Measurables: "",
+        objective: "",
+        targetValue: "",
+        uom: selectedParentUOMId || null,
+        deptId: sessionUserData?.DeptId ?? null,
+        // With a parent KPI → parent's dept (e.g. 21); otherwise default to user's dept
+        refId: selectedParentId
+            ? (selectedMainDept ?? null)
+            : (selectedDept ?? sessionUserData?.DeptId ?? null),
+        parentId: activeTab === "department" ? selectedParentId : null,
+    });
+
+    const [kpis, setKpis] = useState(() => [buildKPI()]);
+
+    const resetKPIs = () => {
+        const first = buildKPI();
+        setKpis([first]);
+        setActiveKeys([first.id]);
+    };
+
+    // Fresh row every time the modal opens (or the parent / dept context changes)
     useEffect(() => {
-        if (kpis.length > 0 && activeKeys.length === 0) {
-            setActiveKeys([kpis[0].id.toString()]);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (open) {
-            setKpis([
-                {
-                    id: Date.now(),
-                    KPIName: "",
-                    Measurables: "",
-                    objective: "",
-                    targetValue: "",
-                    uom: selectedParentUOMId || null,
-                    deptId: sessionUserData?.DeptId,
-                    parentId: activeTab === "department" ? selectedParentId : null,
-                }
-            ]);
-
-            setActiveKeys([Date.now().toString()]);
-        }
-    }, [open, sessionUserData]);
+        if (open) resetKPIs();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, sessionUserData, selectedDept, selectedMainDept, selectedParentId, selectedParentUOMId, activeTab]);
 
     const addKPI = () => {
-
-        const newId = Date.now().toString();
-
-        setKpis(prev => [
-            ...prev,
-            {
-                id: newId,
-                KPIName: "",
-                Measurables: "",
-                objective: "",
-                targetValue: "",
-                uom: selectedParentUOMId || null,
-                deptId: sessionUserData?.DeptId,
-                parentId: activeTab === "department" ? selectedParentId : null,
-            }
-        ]);
-
-        // Close previous panels and open only new panel
-        setActiveKeys([newId]);
+        const next = buildKPI();
+        setKpis(prev => [...prev, next]);
+        // Close previous panels and open only the new one
+        setActiveKeys([next.id]);
     };
 
     const removeKPI = (id) => {
@@ -95,9 +74,8 @@ export default function KpiModal({
         setKpis(updated);
 
         if (updated.length > 0) {
-            setActiveKeys([updated[updated.length - 1].id.toString()]);
+            setActiveKeys([updated[updated.length - 1].id]);
         }
-
     };
 
     const updateKPI = (id, field, value) => {
@@ -110,53 +88,44 @@ export default function KpiModal({
         );
     };
 
-    const getInitialKPI = () => ({
-        id: Date.now(),
-        KPIName: "",
-        Measurables: "",
-        objective: "",
-        targetValue: "",
-        uom: selectedParentUOMId || null,
-        deptId: sessionUserData?.DeptId,
-        parentId: activeTab === "department" ? selectedParentId : null,
-    });
-
     const handleSave = async () => {
         for (let i = 0; i < kpis.length; i++) {
             const item = kpis[i];
 
             if (activeTab === "department" && !item.parentId && selectedParentId) {
-                setActiveKeys([item.id.toString()]);
+                setActiveKeys([item.id]);
                 return message.warning(`Please select Parent KPI for KPI #${i + 1}.`);
             }
 
             if (!item.KPIName?.trim()) {
-                setActiveKeys([item.id.toString()]);
+                setActiveKeys([item.id]);
                 return message.warning(`Please enter KPI Name for KPI #${i + 1}.`);
             }
 
+            if (showDeptSelect && !item.refId) {
+                setActiveKeys([item.id]);
+                return message.warning(`Please select Department for KPI #${i + 1}.`);
+            }
+
             if (!item.Measurables?.trim()) {
-                setActiveKeys([item.id.toString()]);
+                setActiveKeys([item.id]);
                 return message.warning(`Please enter Measurables for KPI #${i + 1}.`);
             }
 
             if (!item.uom) {
-                setActiveKeys([item.id.toString()]);
+                setActiveKeys([item.id]);
                 return message.warning(`Please select Unit Of Measure for KPI #${i + 1}.`);
             }
 
-            if (!item.objective?.trim()) {
-                setActiveKeys([item.id.toString()]);
+            if (!item.objective?.replace(/<[^>]*>/g, "").trim()) {
+                setActiveKeys([item.id]);
                 return message.warning(`Please enter Objective for KPI #${i + 1}.`);
             }
         }
 
         const success = await onSave(kpis);
 
-        if (success) {
-            setKpis([getInitialKPI()]);
-            setActiveKeys([Date.now().toString()]);
-        }
+        if (success) resetKPIs();
     };
 
     return (
@@ -169,20 +138,13 @@ export default function KpiModal({
                     <div className="d-flex align-items-center">
                         <div
                             className="rounded-circle bg-light-primary d-flex align-items-center justify-content-center me-3"
-                            style={{
-                                width: "50px",
-                                height: "50px"
-                            }}
+                            style={{ width: "50px", height: "50px" }}
                         >
                             <i className="fa fa-bullseye text-primary fs-3"></i>
                         </div>
                         <div>
-                            <h4 className="fw-bold mb-0">
-                                {title}
-                            </h4>
-                            <span className="text-muted fs-7">
-                                Configure KPI objectives
-                            </span>
+                            <h4 className="fw-bold mb-0">{title}</h4>
+                            <span className="text-muted fs-7">Configure KPI objectives</span>
                         </div>
                     </div>
                     <div className="badge badge-light-primary px-4 py-2">
@@ -223,9 +185,7 @@ export default function KpiModal({
 
             <div className="d-flex justify-content-between align-items-center mb-4">
                 <div>
-                    <h6 className="fw-bold mb-1">
-                        KPI Configuration
-                    </h6>
+                    <h6 className="fw-bold mb-1">KPI Configuration</h6>
                 </div>
                 {activeTab !== "department" && (
                     <button
@@ -237,27 +197,18 @@ export default function KpiModal({
                     </button>
                 )}
             </div>
-            <div
-                style={{
-                    maxHeight: "340px",
-                    overflowY: "auto",
-                    paddingRight: "5px"
-                }}
-            >
+
+            <div style={{ maxHeight: "340px", overflowY: "auto", paddingRight: "5px" }}>
                 <Collapse
                     activeKey={activeKeys}
-                    onChange={(keys) =>
-                        setActiveKeys(Array.isArray(keys) ? keys : [keys])
-                    }
+                    onChange={(keys) => setActiveKeys(Array.isArray(keys) ? keys : [keys])}
                 >
                     {kpis.map((item, index) => (
                         <Collapse.Panel
                             key={item.id}
                             header={
                                 <div className="d-flex justify-content-between align-items-center w-100">
-                                    <span className="fw-bold">
-                                        KPI #{index + 1}
-                                    </span>
+                                    <span className="fw-bold">KPI #{index + 1}</span>
                                     {kpis.length > 1 && (
                                         <button
                                             type="button"
@@ -275,56 +226,63 @@ export default function KpiModal({
                             }
                         >
                             <div className="row g-4">
-                                <div className="col-8">
-                                    <label className="form-label">KPI Name<span className="text-danger">*</span></label>
+                                <div className={showDeptSelect ? "col-12 col-md-8" : "col-12"}>
+                                    <label className="form-label">
+                                        KPI Name<span className="text-danger">*</span>
+                                    </label>
                                     <Input
                                         value={item.KPIName}
                                         onChange={(e) => {
                                             const value = e.target.value;
-
-                                            const formattedValue =
-                                                value.charAt(0).toUpperCase() + value.slice(1);
-
-                                            updateKPI(
-                                                item.id,
-                                                "KPIName",
-                                                formattedValue
-                                            );
+                                            const formattedValue = value.charAt(0).toUpperCase() + value.slice(1);
+                                            updateKPI(item.id, "KPIName", formattedValue);
                                         }}
                                         placeholder="Enter KPI Name"
                                     />
                                 </div>
-                                <div className="col-4">
-                                    <label className="form-label">Measurables<span className="text-danger">*</span></label>
+
+                                {showDeptSelect && (
+                                    <div className="col-12 col-md-4">
+                                        <label className="form-label">
+                                            Department<span className="text-danger">*</span>
+                                        </label>
+                                        <Select
+                                            style={{ width: "100%" }}
+                                            placeholder="Select Department"
+                                            showSearch
+                                            optionFilterProp="label"
+                                            value={item.refId ?? null}
+                                            onChange={(value) => updateKPI(item.id, "refId", value)}
+                                            options={(depts || []).map((dept) => ({
+                                                value: dept.ItemId,
+                                                label: dept.ItemValue,
+                                            }))}
+                                        />
+                                    </div>
+                                )}
+
+                                <div className={showDeptSelect ? "col-12 col-md-8" : "col-12"}>
+                                    <label className="form-label">
+                                        Measurables<span className="text-danger">*</span>
+                                    </label>
                                     <Input
                                         value={item.Measurables}
-                                        onChange={(e) => {
-                                            const value = e.target.value;
-
-                                            updateKPI(
-                                                item.id,
-                                                "Measurables",
-                                                value
-                                            );
-                                        }}
+                                        onChange={(e) => updateKPI(item.id, "Measurables", e.target.value)}
                                         placeholder="Enter Measurables"
                                     />
                                 </div>
-                                {(activeTab === "organization" || !selectedParentId) && (
+
+                                {showDeptSelect && (
                                     <div className="col-12 col-md-4">
-                                        <label className="form-label">Unit Of Measure<span className="text-danger">*</span></label>
+                                        <label className="form-label">
+                                            Unit Of Measure<span className="text-danger">*</span>
+                                        </label>
                                         <Select
                                             style={{ width: "100%" }}
                                             placeholder="Select UOM"
                                             value={item.uom}
-                                            onChange={(value) =>
-                                                updateKPI(
-                                                    item.id,
-                                                    "uom",
-                                                    value
-                                                )
-                                            }
-                                            options={uomTypes.map(uom => ({
+                                            onChange={(value) => updateKPI(item.id, "uom", value)}
+                                            options={(uomTypes || []).map(uom => ({
                                                 value: uom.Id,
                                                 label: uom.TypeName
                                             }))}
@@ -336,19 +294,15 @@ export default function KpiModal({
                                     <label className="form-label">
                                         Objectives <span className="text-danger">*</span>
                                     </label>
-
                                     <ReactQuill
                                         theme="snow"
                                         value={item.objective || ""}
-                                        onChange={(value) =>
-                                            updateKPI(item.id, "objective", value)
-                                        }
+                                        onChange={(value) => updateKPI(item.id, "objective", value)}
                                         placeholder="Enter objectives..."
                                         className="objective-quill"
                                     />
                                 </div>
                             </div>
-
                         </Collapse.Panel>
                     ))}
                 </Collapse>

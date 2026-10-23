@@ -3,9 +3,11 @@ import Sidebar from './Sidebar';
 import Toolbar from './Toolbar';
 import Canvas from './Canvas';
 import PropertiesPanel from './PropertiesPanel';
+import ArrowPropertiesPanel from './ArrowPropertiesPanel';
 import Toast from './Toast';
 import { useFiles } from './hooks/useFiles';
 import { uid, snapshot } from './Geometry';
+import { DEFAULT_ARROW_STYLE } from './connectionRouting';
 import './flow.css';
 import { useNavigate } from 'react-router-dom';
 import { exportDiagramAsPdf } from './hooks/pdfUtils';
@@ -19,6 +21,19 @@ const DEFAULT_FONT_FAMILY = 'Segoe UI';
 const DEFAULT_FONT_SIZE = 16;
 const ZOOM_STEPS = [50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200];
 const DEFAULT_COLLAPSED_SIDES = { top: false, right: false, bottom: false, left: false };
+
+// Breathing room added around a text block when it's wrapped in a container,
+// so the box doesn't sit flush against the lettering.
+const CONTAINER_PADDING_X = 24;
+const CONTAINER_PADDING_Y = 18;
+
+// Shapes that decorate a diagram rather than being a step in it. Auto arrow
+// ignores them in both directions.
+const ANNOTATION_SHAPES = new Set(['text', 'line', 'image']);
+
+function isAnnotationNode(node) {
+  return ANNOTATION_SHAPES.has(node?.shape);
+}
 
 const DRAFT_KEY_PREFIX = 'fc_diagram_draft_';
 
@@ -48,6 +63,9 @@ function writeDraft(payload) {
     localStorage.setItem(getDraftStorageKey(), JSON.stringify({ ...payload, savedAt: Date.now() }));
   } catch (e) {
     // Quota exceeded or storage unavailable (e.g. private browsing) — fail silently.
+    // NOTE: images are stored inline as data URLs, so an image-heavy diagram is
+    // the most likely thing to hit the ~5MB localStorage cap and land here.
+    // imageSupport.js downscales to keep that unlikely.
   }
 }
 
@@ -164,6 +182,9 @@ function normalizeNode(node) {
     node.strokeColor === '#1f1f1f' ||
     node.strokeColor === '#ffffff';
 
+  // The spread of `...node` carries through everything this function doesn't
+  // name explicitly — including an image node's `src` and a line's
+  // x1/y1/x2/y2 — so loaded diagrams keep those intact.
   return {
     strokeColor: DEFAULT_STROKE,
     fillColor: DEFAULT_FILL,
@@ -255,6 +276,16 @@ export default function FlowBuilderC() {
   const [selectedId, setSelectedId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState(null);
+
+  // The arrow styling panel. `arrowDefaults` is sticky in the Excalidraw
+  // sense: whatever was last chosen becomes the starting point for the next
+  // arrow drawn, so a user who wants ten dashed green arrows sets it once.
+  const [arrowDefaults, setArrowDefaults] = useState(DEFAULT_ARROW_STYLE);
+  // Panel visibility is derived from the mode and the selection rather than
+  // stored, so it can never get out of step with them. This flag exists only
+  // so the X button can dismiss it; picking the tool or another arrow clears
+  // it again.
+  const [arrowPanelDismissed, setArrowPanelDismissed] = useState(false);
   const [mode, setMode] = useState('select');
   const [activeShape, setActiveShape] = useState(null);
   const [connectFrom, setConnectFrom] = useState(null);
@@ -269,6 +300,15 @@ export default function FlowBuilderC() {
   const [canvasBg, setCanvasBg] = useState(null);
   const [sessionUserData, setSessionUserData] = useState(null);
   const [showShapeHint, setShowShapeHint] = useState(false);
+  // Bumped by the toolbar's Image button. Canvas watches this counter and
+  // opens the file picker itself, because that's where the scroll position and
+  // zoom needed to place the image in the visible area actually live. A
+  // counter rather than a boolean so picking a second image still registers.
+  const [insertImageRequest, setInsertImageRequest] = useState(0);
+  // Id of a text node that was just created and should open straight into a
+  // caret. Kept in component state rather than as a field on the node itself,
+  // so this transient "focus me" intent never ends up saved in the diagram.
+  const [autoEditNodeId, setAutoEditNodeId] = useState(null);
 
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -370,6 +410,8 @@ export default function FlowBuilderC() {
     setMode(nextMode);
     setActiveShape(null);
     setSelectedConnectionId(null);
+    // Choosing the arrow tool is itself a request to see its settings.
+    if (nextMode === 'arrow') setArrowPanelDismissed(false);
     if (nextMode === 'select' || nextMode === 'pan') {
       setConnectFrom(null);
     }
@@ -441,7 +483,6 @@ export default function FlowBuilderC() {
   }, [
     nodes,
     connections,
-    normalizeNode,
     pushHistory,
     handleEscape
   ]);
@@ -476,6 +517,11 @@ export default function FlowBuilderC() {
       }
 
       if (e.key.toLowerCase() === "v") {
+        // NOT preventDefault'd unconditionally any more: the browser's native
+        // paste event is what carries an image from another app, and Canvas
+        // listens for it. Only the in-app shape duplication is handled here,
+        // and only when there are actually copied shapes to duplicate.
+        if (!clipboardRef.current) return;
         e.preventDefault();
         handlePaste();
       }
@@ -593,7 +639,7 @@ export default function FlowBuilderC() {
       ];
       historyIdx.current = 0;
     },
-    [files, draftFiles]
+    [files, draftFiles, setCurrentFileId]
   );
 
   const handleLoadDiagram = useCallback((diagram) => {
@@ -855,14 +901,26 @@ export default function FlowBuilderC() {
       setConnections((prevConnections) => {
         let nextConnections = prevConnections;
 
-        // A free-drawn line is an annotation, not a flowchart step — it
-        // shouldn't automatically wire itself to whatever the last-created
-        // node happened to be the way a new rect/diamond/etc. does.
-        if (!skipAutoArrow && autoArrowEnabled && expandedPrevNodes.length > 0) {
-          const lastNodeId = expandedPrevNodes[expandedPrevNodes.length - 1].id;
-          const alreadyExists = prevConnections.some((connection) => connection.from === lastNodeId && connection.to === newNode.id);
+        // A text label, a free-drawn line or a pasted image is an annotation,
+        // not a flowchart step. It gets no automatic arrow — and, just as
+        // importantly, it is skipped when looking for the step a new shape
+        // should wire itself back to. Only guarding the target left a text
+        // label able to become the SOURCE of the next shape's arrow, which is
+        // the same wrong connection pointing the other way.
+        //
+        // Anyone who does want a line to or from a label still draws one with
+        // the connect tool.
+        if (!skipAutoArrow && autoArrowEnabled && !isAnnotationNode(newNode)) {
+          const previousStep = [...expandedPrevNodes]
+            .reverse()
+            .find((node) => !isAnnotationNode(node));
 
-          if (!alreadyExists) {
+          const lastNodeId = previousStep?.id;
+          const alreadyExists = lastNodeId && prevConnections.some(
+            (connection) => connection.from === lastNodeId && connection.to === newNode.id,
+          );
+
+          if (lastNodeId && !alreadyExists) {
             const key = `${lastNodeId}->${newNode.id}`;
             const isNew = !deletedConnectionsRef.current.has(key);
             nextConnections = [
@@ -887,7 +945,47 @@ export default function FlowBuilderC() {
   const handleCanvasCreateNode = useCallback((shape, position) => {
     if (readMode) return;
     setShowShapeHint(false);
-    appendNode(createNode(shape, position.x, position.y));
+
+    const newNode = createNode(shape, position.x, position.y);
+
+    // The Text tool should behave like the canvas double-click below: one
+    // click puts a caret down, rather than placing an invisible empty node
+    // that needs a further double-click before anything can be typed.
+    if (shape === 'text') {
+      newNode.texts = [{ id: `${newNode.id}-t0`, x: null, y: null, value: '' }];
+      setAutoEditNodeId(newNode.id);
+    }
+
+    appendNode(newNode);
+  }, [appendNode, readMode]);
+
+  // Images arriving from any of the three entry points — clipboard paste, a
+  // file dropped on the canvas, or the toolbar's Image button. Canvas has
+  // already decoded, downscaled and sized them (see imageSupport.js); this
+  // just turns the result into a node.
+  //
+  // The picture is stored inline on the node as a data URL (`src`), so it
+  // travels with the saved diagram and the localStorage draft without needing
+  // an upload step.
+  const handleCreateImageNode = useCallback((image) => {
+    if (readMode) return;
+
+    appendNode({
+      id: uid(),
+      shape: 'image',
+      x: image.x,
+      y: image.y,
+      w: image.w,
+      h: image.h,
+      src: image.src,
+      label: '',
+      strokeColor: DEFAULT_STROKE,
+      fillColor: DEFAULT_FILL,
+      fontFamily: DEFAULT_FONT_FAMILY,
+      fontSize: DEFAULT_FONT_SIZE,
+      collapsed: false,
+      collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
+    }, { skipAutoArrow: true });
   }, [appendNode, readMode]);
 
   // Free-hand line drawing: the user clicks-and-drags on the canvas with the
@@ -931,9 +1029,20 @@ export default function FlowBuilderC() {
     appendNode(newNode, { skipAutoArrow: true });
   }, [appendNode, readMode]);
 
+  // Double-clicking empty canvas: create the text node AND put the caret in
+  // it in one gesture. It used to take four clicks — two to create the node,
+  // two more on the node to start editing — because a fresh node carried no
+  // text block for Node.jsx to focus. It now ships with one empty block and
+  // is flagged for auto-focus.
   const handleCanvasCreateTextNode = useCallback((position) => {
     if (readMode) return;
-    const newNode = { ...createNode('text', position.x, position.y), collapsed: false, collapsedSides: { ...DEFAULT_COLLAPSED_SIDES } };
+    const base = createNode('text', position.x, position.y);
+    const newNode = {
+      ...base,
+      texts: [{ id: `${base.id}-t0`, x: null, y: null, value: '' }],
+      collapsed: false,
+      collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
+    };
     setNodes((prevNodes) => {
       const nextNodes = [...expandNodes(prevNodes), newNode];
       pushHistory(nextNodes, connectionsRef.current);
@@ -943,6 +1052,7 @@ export default function FlowBuilderC() {
     setSelectedIds([newNode.id]);
     setSelectedConnectionId(null);
     setFocusedBranchRootId(null);
+    setAutoEditNodeId(newNode.id);
   }, [expandNodes, pushHistory, readMode]);
 
   const handleQuickCreateFromNode = useCallback((sourceNodeId, position) => {
@@ -1027,6 +1137,18 @@ export default function FlowBuilderC() {
   // diagram. Keeping it current means none of that has to change.
   const handleTextsChange = useCallback((id, texts) => {
     setNodes((prev) => {
+      const target = prev.find((node) => node.id === id);
+
+      // A free text node with nothing left in it is invisible — it has no box
+      // of its own to show. Dropping it keeps abandoned double-clicks from
+      // littering the canvas with nodes nobody can see or click. Only applies
+      // to 'text'; clearing a rect's label must leave the rect standing.
+      if (target && target.shape === 'text' && texts.length === 0) {
+        const next = prev.filter((node) => node.id !== id);
+        pushHistory(next, connections);
+        return next;
+      }
+
       const next = prev.map((node) => (
         node.id === id
           ? {
@@ -1170,6 +1292,9 @@ export default function FlowBuilderC() {
     setSelectedConnectionId(connectionId);
     setSelectedId(null);
     setSelectedIds([]);
+    // Clicking an arrow is a request to style it, so a panel the user closed
+    // earlier comes back rather than staying hidden for the rest of the session.
+    if (connectionId) setArrowPanelDismissed(false);
   }, [readMode]);
 
   const handleUpdateNode = useCallback((updates) => {
@@ -1183,6 +1308,92 @@ export default function FlowBuilderC() {
       return next;
     });
   }, [connections, pushHistory, selectedId]);
+
+  // "Wrap text in a container" — turns a free-floating text node into a
+  // shape with that text as its label, the way Excalidraw does it.
+  //
+  // The new box is measured from what the text ACTUALLY occupies on screen
+  // rather than from the text node's nominal w/h: a text node keeps whatever
+  // width it was created with (180 by default), so sizing from that would
+  // leave a wide empty box around a short word.
+  const handleWrapTextInContainer = useCallback((nodeId) => {
+    if (readMode) return;
+
+    setNodes((prev) => {
+      let changed = false;
+
+      const next = prev.map((node) => {
+        if (node.id !== nodeId || node.shape !== 'text') return node;
+
+        let textW = 0;
+        let textH = 0;
+
+        try {
+          const el = document.querySelector(`[data-nodeid="${nodeId}"]`);
+          if (el) {
+            el.querySelectorAll('[data-textid]').forEach((block) => {
+              textW = Math.max(textW, block.offsetWidth);
+              textH = Math.max(textH, block.offsetHeight);
+            });
+          }
+        } catch (e) {
+          // Fall back to the node's own box below.
+        }
+
+        const w = Math.max(120, Math.ceil((textW || node.w) + CONTAINER_PADDING_X * 2));
+        const h = Math.max(56, Math.ceil((textH || node.h) + CONTAINER_PADDING_Y * 2));
+
+        // Grow the box around the text's current centre so the words don't
+        // appear to jump when the container materialises around them.
+        const x = Math.max(0, Math.round(node.x + node.w / 2 - w / 2));
+        const y = Math.max(0, Math.round(node.y + node.h / 2 - h / 2));
+
+        // A free text node may carry per-block x/y offsets from being placed
+        // by hand. Inside a container those would strand the text in a corner,
+        // so they're cleared — null means "centred", which is how a label on
+        // every other shape behaves.
+        const existingTexts = Array.isArray(node.texts) && node.texts.length
+          ? node.texts
+          : (node.label ? [{ id: `${node.id}-t0`, value: node.label }] : []);
+
+        changed = true;
+
+        return {
+          ...node,
+          shape: 'rounded',
+          x,
+          y,
+          w,
+          h,
+          texts: existingTexts.map((t) => ({ ...t, x: null, y: null })),
+        };
+      });
+
+      if (!changed) return prev;
+      pushHistory(next, connections);
+      return next;
+    });
+  }, [connections, pushHistory, readMode]);
+
+  // Z-order is just position in the nodes array — later entries render on top
+  // of earlier ones — so raising or lowering a shape is a move within it.
+  const handleChangeNodeLayer = useCallback((nodeId, direction) => {
+    if (readMode) return;
+
+    setNodes((prev) => {
+      const index = prev.findIndex((node) => node.id === nodeId);
+      if (index === -1) return prev;
+      if (direction === 'front' && index === prev.length - 1) return prev;
+      if (direction === 'back' && index === 0) return prev;
+
+      const node = prev[index];
+      const without = prev.filter((item) => item.id !== nodeId);
+      const next = direction === 'front' ? [...without, node] : [node, ...without];
+
+      pushHistory(next, connections);
+      return next;
+    });
+  }, [connections, pushHistory, readMode]);
 
   const handleDeleteNode = useCallback(() => {
     const idsToDelete = selectedIds.length > 0 ? selectedIds : (selectedId ? [selectedId] : []);
@@ -1349,10 +1560,14 @@ export default function FlowBuilderC() {
         }
       }
 
-      if (event.key === 'e' || event.key === 'E') handleModeChange('erase');
-      if (event.key === 'v' || event.key === 'V') handleModeChange('select');
-      if (event.key === 'c' || event.key === 'C') handleModeChange('connect');
-      if (event.key === 'h' || event.key === 'H') handleModeChange('pan');
+      // Plain-letter tool shortcuts: only when no modifier is held, so Ctrl+V
+      // (paste an image) and Ctrl+C aren't swallowed as "connect"/"erase".
+      if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (event.key === 'e' || event.key === 'E') handleModeChange('erase');
+        if (event.key === 'v' || event.key === 'V') handleModeChange('select');
+        if (event.key === 'c' || event.key === 'C') handleModeChange('connect');
+        if (event.key === 'h' || event.key === 'H') handleModeChange('pan');
+      }
 
       if (event.key === 'Escape') {
         handleModeChange('select');
@@ -1533,6 +1748,102 @@ export default function FlowBuilderC() {
     setVersionJson(compressedJson);
   };
 
+  // The arrow tool: the user drags from one shape to another, and that drag is
+  // turned into a connection between them, styled with whatever the arrow
+  // panel currently has set. Arrows made any other way (the connect tool, auto
+  // arrow) are untouched and stay the curved arrow they always were.
+  const handleCreateArrowConnection = useCallback((fromId, toId, fromAnchor, toAnchor) => {
+    if (readMode) return;
+    if (!fromId || !toId || fromId === toId) return;
+
+    setConnections((prev) => {
+      // A second arrow between the same two shapes is legitimate when it takes
+      // a different route (a feedback loop alongside the forward path, say), so
+      // only a near-identical attachment is rejected. "Near" rather than exact
+      // because the anchors now carry a position along the edge: two arrows
+      // half a pixel apart on the same border are a double-click, not intent.
+      const sameSpot = (a, b) => (
+        a && b && a.side === b.side && Math.abs((a.t ?? 0.5) - (b.t ?? 0.5)) < 0.02
+      );
+
+      const alreadyExists = prev.some((c) => (
+        c.from === fromId &&
+        c.to === toId &&
+        sameSpot(c.fromAnchor, fromAnchor) &&
+        sameSpot(c.toAnchor, toAnchor)
+      ));
+      if (alreadyExists) return prev;
+
+      const key = `${fromId}->${toId}`;
+      const isNew = !deletedConnectionsRef.current.has(key);
+      if (!isNew) deletedConnectionsRef.current.delete(key);
+
+      const next = [
+        ...prev,
+        {
+          id: uid(),
+          from: fromId,
+          to: toId,
+          label: '',
+          // Every styling choice from the panel is baked onto the connection
+          // at creation time rather than read live. Two arrows drawn an hour
+          // apart with different settings have to keep looking different.
+          ...arrowDefaults,
+          // Saved so the route keeps the shape the user drew even after the
+          // shapes are moved around later. Each anchor is a side plus how far
+          // along it the arrow attaches, which is what lets it sit anywhere on
+          // the outline instead of only at an edge midpoint.
+          fromAnchor,
+          toAnchor,
+          ...(isNew ? { isNew: true } : {}),
+        },
+      ];
+
+      pushHistory(nodesRef.current, next);
+      return next;
+    });
+
+    setMode('select');
+  }, [arrowDefaults, pushHistory, readMode]);
+
+  // One handler for both halves of the panel. With an arrow selected the patch
+  // lands on that arrow; with none, it only moves the defaults. Either way the
+  // defaults absorb the change, which is what makes the settings sticky — style
+  // one arrow and the next one you draw matches it.
+  const handleArrowStyleChange = useCallback((patch) => {
+    if (readMode) return;
+
+    setArrowDefaults((prev) => ({ ...prev, ...patch }));
+
+    if (!selectedConnectionId) return;
+
+    setConnections((prev) => {
+      const next = prev.map((connection) => (
+        connection.id === selectedConnectionId
+          ? {
+            ...connection,
+            ...patch,
+            // The legacy `style: 'elbow'` marker has to be dropped the moment
+            // arrowType is set, or getArrowType would keep reporting elbow and
+            // switching an old arrow to straight would silently do nothing.
+            ...(patch.arrowType ? { style: undefined } : {}),
+          }
+          : connection
+      ));
+
+      pushHistory(nodesRef.current, next);
+      return next;
+    });
+  }, [pushHistory, readMode, selectedConnectionId]);
+
+  const selectedConnection = connections.find((c) => c.id === selectedConnectionId) || null;
+
+  // The panel is shown whenever styling an arrow is plausibly what the user
+  // wants: they've picked the arrow tool, or they've clicked an existing arrow.
+  const showArrowPanel = !readMode
+    && !arrowPanelDismissed
+    && (mode === 'arrow' || Boolean(selectedConnection));
+
   const handleConnectionLabelChange = useCallback((id, label) => {
 
     setConnections(prev => {
@@ -1617,6 +1928,8 @@ export default function FlowBuilderC() {
           autoArrowEnabled={autoArrowEnabled}
           onToggleAutoArrow={() => setAutoArrowEnabled((prev) => !prev)}
 
+          onInsertImage={() => setInsertImageRequest((n) => n + 1)}
+
           isVersionViewMode={isVersionViewMode}
           isVersionMode={isVersionMode}
           onSubmitVersion={handleSubmitVersion}
@@ -1630,6 +1943,12 @@ export default function FlowBuilderC() {
             {connectFrom
               ? 'Click another shape to create the connection.'
               : 'Click a shape to start the connection.'}
+          </div>
+        )}
+
+        {mode === 'arrow' && !readMode && (
+          <div className="fc-connect-hint">
+            Drag from one shape to another to connect them. Set the look of the arrow in the panel on the left.
           </div>
         )}
 
@@ -1665,6 +1984,14 @@ export default function FlowBuilderC() {
             onCreateNode={handleCanvasCreateNode}
             onCreateLine={readMode ? () => { } : handleCanvasCreateLine}
             onCreateTextNode={readMode ? () => { } : handleCanvasCreateTextNode}
+            onCreateImage={readMode ? () => { } : handleCreateImageNode}
+            insertImageRequest={insertImageRequest}
+            onWrapTextInContainer={readMode ? () => { } : handleWrapTextInContainer}
+            onChangeNodeLayer={readMode ? () => { } : handleChangeNodeLayer}
+            onCreateArrowConnection={readMode ? () => { } : handleCreateArrowConnection}
+            arrowDefaults={arrowDefaults}
+            autoEditNodeId={autoEditNodeId}
+            onAutoEditConsumed={() => setAutoEditNodeId(null)}
             onNodeDragEnd={readMode ? () => { } : commitCurrentSnapshot}
             onToggle={handleToggleNode}
             onSelectNode={handleSelectNode}
@@ -1688,6 +2015,17 @@ export default function FlowBuilderC() {
             sessionUserData={sessionUserData}
             onConnectionLabelChange={handleConnectionLabelChange}
           />
+
+          {showArrowPanel && (
+            <ArrowPropertiesPanel
+              connection={selectedConnection}
+              arrowDefaults={arrowDefaults}
+              theme={theme}
+              onChange={handleArrowStyleChange}
+              onDelete={handleDeleteConnection}
+              onClose={() => setArrowPanelDismissed(true)}
+            />
+          )}
 
           <PropertiesPanel
             node={selectedNode}

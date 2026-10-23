@@ -511,7 +511,7 @@ export default function AssetlessTicketRequest() {
 
         const result = data?.data?.result?.[0];
 
-        if (result.ResponseCode === 2001) {
+        if (result.ResponseCode === 2002) {
 
             message.success(result.ResponseMessage);
 
@@ -661,7 +661,7 @@ export default function AssetlessTicketRequest() {
 
     return (
         <Base1>
-            <div id="kt_app_toolbar" className="app-toolbar py-3 py-lg-6">
+            {/* <div id="kt_app_toolbar" className="app-toolbar py-3 py-lg-6">
                 <div id="kt_app_toolbar_container" className="app-container container-xxl d-flex flex-stack">
                     <div className="page-title d-flex flex-column">
                         <Link
@@ -710,6 +710,198 @@ export default function AssetlessTicketRequest() {
                             // onClick={() => setTargetAsset({ id: 0, name: "", deptId: 0 })}
                             >
                                 <i className="fa-solid fa-plus me-2"></i>
+                                Raise Ticket
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div> */}
+            <div
+                id="kt_app_toolbar"
+                className="app-toolbar py-4 py-lg-5"
+            >
+                <div
+                    id="kt_app_toolbar_container"
+                    className="app-container container-xxl d-flex flex-stack"
+                    style={{
+                        background: "linear-gradient(135deg, #ffffff 0%, #f7faff 100%)",
+                        borderBottom: "1px solid #eef1f6",
+                    }}
+                >
+                    {/* ================= LEFT SECTION ================= */}
+                    <div className="page-title d-flex flex-column">
+
+                        {/* Back */}
+                        <Link
+                            to="/user-modules"
+                            className="text-muted text-hover-primary fw-semibold mb-3"
+                            style={{
+                                fontSize: "13px",
+                                width: "fit-content",
+                                textDecoration: "none",
+                            }}
+                        >
+                            <i className="fa-solid fa-arrow-left me-2"></i>
+                            Back to Modules
+                        </Link>
+
+                        {/* Title */}
+                        <div className="d-flex align-items-center">
+
+                            {/* Icon */}
+                            <div
+                                className="d-flex align-items-center justify-content-center me-3"
+                                style={{
+                                    width: "52px",
+                                    height: "52px",
+                                    borderRadius: "14px",
+                                    background:
+                                        "linear-gradient(135deg, rgba(13,110,253,0.14), rgba(13,110,253,0.05))",
+                                    border: "1px solid rgba(13,110,253,0.10)",
+                                    boxShadow:
+                                        "0 6px 18px rgba(13,110,253,0.08)",
+                                }}
+                            >
+                                <i
+                                    className="fa-solid fa-ticket"
+                                    style={{
+                                        fontSize: "21px",
+                                        color: "#0d6efd",
+                                    }}
+                                ></i>
+                            </div>
+
+                            {/* Heading */}
+                            <div>
+                                <div
+                                    className="text-muted fw-semibold mb-1"
+                                    style={{
+                                        fontSize: "10px",
+                                        letterSpacing: "0.5px",
+                                        textTransform: "uppercase",
+                                    }}
+                                >
+                                    Service Management
+                                </div>
+
+                                <h4
+                                    className="fw-bold mb-1"
+                                    style={{
+                                        fontSize: "21px",
+                                        color: "#181c32",
+                                        letterSpacing: "-0.3px",
+                                    }}
+                                >
+                                    Service Requests
+                                </h4>
+
+                                <div
+                                    className="text-muted"
+                                    style={{
+                                        fontSize: "11px",
+                                    }}
+                                >
+                                    Create, manage, and monitor service requests across
+                                    your organization.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* ================= RIGHT SECTION ================= */}
+                    <div
+                        className="d-flex align-items-center gap-2 p-2"
+                        style={{
+                            background: "rgba(255,255,255,0.85)",
+                            backdropFilter: "blur(10px)",
+                            border: "1px solid #e9edf3",
+                            borderRadius: "14px",
+                            boxShadow: "0 5px 18px rgba(0,0,0,0.05)",
+                        }}
+                    >
+                        {/* QR Code */}
+                        {showQRBtn && (
+                            <div
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                }}
+                            >
+                                <QRCodeCard />
+                            </div>
+                        )}
+
+                        {/* <Link
+                            to="/service-requests/track-ticket"
+                            className="btn btn-sm btn-light-info d-flex align-items-center text-decoration-none rounded-2"
+                        >
+                            <span
+                                className="d-flex align-items-center justify-content-center me-2"
+                                style={{
+                                    width: "28px",
+                                    height: "28px",
+                                    borderRadius: "8px",
+                                    background: "rgba(13,110,253,0.10)",
+                                }}
+                            >
+                                <i className="fa-solid fa-list-check"></i>
+                            </span>
+                            Track Ticket
+                        </Link> */}
+
+                        <Link
+                            to="/service-requests/my-tickets"
+                            className="btn btn-sm btn-light-primary d-flex align-items-center text-decoration-none rounded-2"
+                        >
+                            <span
+                                className="d-flex align-items-center justify-content-center me-2"
+                                style={{
+                                    width: "28px",
+                                    height: "28px",
+                                    borderRadius: "8px",
+                                    background: "rgba(13,110,253,0.10)",
+                                }}
+                            >
+                                <i className="fa-solid fa-list-check"></i>
+                            </span>
+
+                            My Tickets
+                        </Link>
+
+                        {/* Raise Ticket */}
+                        {showAddBtn && (
+                            <button
+                                type="button"
+                                className="d-flex align-items-center border-0"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#offcanvasRightAdd"
+                                style={{
+                                    height: "42px",
+                                    padding: "0 17px",
+                                    borderRadius: "10px",
+                                    background:
+                                        "linear-gradient(135deg, #0d6efd, #0b5ed7)",
+                                    color: "#ffffff",
+                                    fontWeight: "600",
+                                    fontSize: "13px",
+                                    boxShadow:
+                                        "0 5px 12px rgba(13,110,253,0.20)",
+                                    cursor: "pointer",
+                                    transition: "all 0.2s ease",
+                                }}
+                            >
+                                <span
+                                    className="d-flex align-items-center justify-content-center me-2"
+                                    style={{
+                                        width: "28px",
+                                        height: "28px",
+                                        borderRadius: "8px",
+                                        background: "rgba(255,255,255,0.15)",
+                                    }}
+                                >
+                                    <i className="fa-solid fa-plus"></i>
+                                </span>
+
                                 Raise Ticket
                             </button>
                         )}
@@ -985,7 +1177,7 @@ export default function AssetlessTicketRequest() {
                                         <th className="min-w-205px">Sub-category</th>
                                         <th className="min-w-100px text-center">Priority</th>
                                         <th className="min-w-100px text-center">Status</th>
-                                        <th className="min-w-100px">Aging</th>
+                                        {/* <th className="min-w-100px">Aging</th> */}
                                         <th className="min-w-80px">Action Req. By</th>
                                         <th className="min-w-40px">Actions</th>
                                     </tr>
@@ -1054,7 +1246,7 @@ export default function AssetlessTicketRequest() {
                                                             {item.Status}
                                                         </span>
                                                     </td>
-                                                    <td className="text-info">
+                                                    {/* <td className="text-info">
                                                         <Tooltip
                                                             title={getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
                                                             placement="topLeft"
@@ -1073,7 +1265,7 @@ export default function AssetlessTicketRequest() {
                                                                 {getAgingStatus(item.DueDate, item.Status, item.UpdatedOn)}
                                                             </span>
                                                         </Tooltip>
-                                                    </td>
+                                                    </td> */}
                                                     <td>
                                                         <div className="d-flex align-items-center gap-2">
                                                             <span className="d-inline-flex align-items-center justify-content-center rounded-circle bg-light-primary text-primary"
@@ -1215,17 +1407,21 @@ export default function AssetlessTicketRequest() {
 
                             {/* Compact field grid */}
                             <div className="row g-2 mb-1">
-                                <div className="col-4">
+                                <div className="col-3">
                                     <div className="text-muted" style={{ fontSize: "0.65rem" }}>Category</div>
                                     <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.ServiceType || "-"}</div>
                                 </div>
-                                <div className="col-4">
+                                <div className="col-3">
                                     <div className="text-muted" style={{ fontSize: "0.65rem" }}>Sub-category</div>
                                     <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.TicketType || "-"}</div>
                                 </div>
-                                <div className="col-4">
+                                <div className="col-3">
                                     <div className="text-muted" style={{ fontSize: "0.65rem" }}>Issue Type</div>
                                     <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.IssueType || "-"}</div>
+                                </div>
+                                <div className="col-3">
+                                    <div className="text-muted" style={{ fontSize: "0.65rem" }}>Mobile No</div>
+                                    <div className="fw-semibold" style={{ fontSize: "0.78rem" }}>{selectedTicket?.PhNo || "-"}</div>
                                 </div>
                             </div>
 
@@ -1252,7 +1448,7 @@ export default function AssetlessTicketRequest() {
                     </div>
 
                     {/* Existing Comments */}
-                    <div className="mb-4" style={{
+                    {/* <div className="mb-4" style={{
                         maxHeight: "250px",
                         overflowY: "auto",
                         paddingRight: "6px",
@@ -1329,7 +1525,6 @@ export default function AssetlessTicketRequest() {
                         )}
                     </div>
 
-                    {/* Add Comment */}
                     <div className="mb-3">
                         <label className="form-label fw-semibold">
                             {editingComment ? "Edit Comment" : "Add Comment"}
@@ -1407,7 +1602,7 @@ export default function AssetlessTicketRequest() {
                                 </>
                             )}
                         </button>
-                    </div>
+                    </div> */}
                 </Modal>
 
                 <style>

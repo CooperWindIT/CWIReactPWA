@@ -670,11 +670,6 @@ export default function AssetDashboard() {
                                     </li>
                                 </ul>
                             </div>
-
-                            <span className="menu-link bg-white shadow-sm me-2 cursor-pointer active">
-                                <span className="menu-title"><i className="fa-solid fa-border-all"></i> Dashboard</span>
-                                <span className="menu-arrow"></span>
-                            </span>
                         </div>
 
                         <div className="page-title d-md-none d-block">

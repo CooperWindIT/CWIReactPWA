@@ -65,9 +65,9 @@ export default function Dashboard() {
             const dashboardMenu = parsedMenu.find(
                 (item) => item.MenuName === "Dashboard"
             );
-            const visitorsMenu = parsedMenu.find(
-                (item) => item.MenuName === "Visitors"
-            );
+            // const visitorsMenu = parsedMenu.find(
+            //     (item) => item.MenuName === "Visitors"
+            // );
 
             let actionIds = [];
             if (dashboardMenu?.ActionsIds) {
@@ -75,11 +75,11 @@ export default function Dashboard() {
                     dashboardMenu.ActionsIds.split(",").map(Number)
                 );
             }
-            if (visitorsMenu?.ActionsIds) {
-                actionIds = actionIds.concat(
-                    visitorsMenu.ActionsIds.split(",").map(Number)
-                );
-            }
+            // if (visitorsMenu?.ActionsIds) {
+            //     actionIds = actionIds.concat(
+            //         visitorsMenu.ActionsIds.split(",").map(Number)
+            //     );
+            // }
 
             if (actionIds.length > 0) {
                 // Remove duplicates just in case
@@ -289,7 +289,7 @@ export default function Dashboard() {
     // Last day of current month
     const next10DaysDate = new Date();
     next10DaysDate.setDate(next10DaysDate.getDate() + 10);
-    const lastDay = next10DaysDate.toLocaleDateString("en-CA");    
+    const lastDay = next10DaysDate.toLocaleDateString("en-CA");
 
     const [filters, setFilters] = useState({
         FromDate: firstDay,
@@ -1261,23 +1261,17 @@ export default function Dashboard() {
                                                                         aria-controls="offcanvasRightView"
                                                                         onClick={() => canView && handleView(item)}
                                                                     >{item.AutoIncNo}</a></td>
-                                                                   <td>
-    <a className="text-gray-800 text-hover-primary mb-1 d-block">
-        {item.ManagerName}
-    </a>
-    <span className="text-muted fs-7">
-        Emp No: {item.ManagerEmpNo || "-"}
-    </span>
-</td>
+                                                                    <td>
+                                                                        <a className="text-gray-800 text-hover-primary mb-1 d-block">
+                                                                            {item.ManagerName}
+                                                                        </a>
+                                                                    </td>
 
-<td>
-    <a className="text-gray-800 text-hover-primary mb-1 d-block">
-        {item.EmployeeName}
-    </a>
-    <span className="text-muted fs-7">
-        Emp No: {item.EmployeeEmpNo || "-"}
-    </span>
-</td>
+                                                                    <td>
+                                                                        <a className="text-gray-800 text-hover-primary mb-1 d-block">
+                                                                            {item.EmployeeName}
+                                                                        </a>
+                                                                    </td>
                                                                     <td>
                                                                         {item.VisitorTypeName}
                                                                     </td>
@@ -1435,12 +1429,12 @@ export default function Dashboard() {
                                                 onPageChange={(page) => fetchVisitorsData(page)}
                                             /> */}
                                             <Pagination
-                                                    currentPage={currentPage}
-                                                    totalPages={totalPages}
-                                                    totalRecords={totalRecords || 0} // Or the total count from your API meta-data
-                                                    recordsPerPage={5} // This MUST match the 'limit' you use in your API call
-                                                    onPageChange={(page) => fetchVisitorsData(page)}
-                                                />
+                                                currentPage={currentPage}
+                                                totalPages={totalPages}
+                                                totalRecords={totalRecords || 0} // Or the total count from your API meta-data
+                                                recordsPerPage={5} // This MUST match the 'limit' you use in your API call
+                                                onPageChange={(page) => fetchVisitorsData(page)}
+                                            />
                                         </div>
 
                                         <div className="d-block d-md-none">

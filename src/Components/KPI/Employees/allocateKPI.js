@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import '../../Config/Loader.css';
 import Base1 from '../../Config/Base1';
 import { fetchWithAuth } from "../../../utils/api";
@@ -9,10 +9,15 @@ import { Dropdown, Menu, Select, message, Tooltip, Popconfirm } from 'antd';
 import { getDeptKPIs, getKPIs, getUsersByMngrId, saveEmployeeKPIs, getIsKPIsAvailable } from '../services/kpiServices';
 import { BASE_IMAGE_API_GET } from '../../Config/Config';
 
-const { Option } = Select;
+// Totals for a card, from its selected KPIs (every department together).
+const totalsOf = (kpis) => ({
+    totalPercentage: kpis.reduce((sum, item) => sum + Number(item.target || 0), 0),
+    totalWeightage: kpis.reduce((sum, item) => sum + Number(item.weightage || 0), 0),
+});
 
 export default function AllocateKPI() {
 
+    const { deptId } = useParams();
     const navigate = useNavigate();
     const location = useLocation();
     const [sessionUserData, setsessionUserData] = useState({});
@@ -24,7 +29,14 @@ export default function AllocateKPI() {
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [employeeCards, setEmployeeCards] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [adding, setAdding] = useState(false);
     const [deptKPIs, setDeptKPIs] = useState([]);
+    const [departments, setDepartments] = useState([]);
+    const [selectedMngDept, setSelectedMngDept] = useState(null);
+
+    const showOrgTab = sessionActionIds?.includes(37);
+    const showDeptTab = sessionActionIds?.includes(38);
+    const showDept = sessionActionIds?.includes(25);
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem("userData");
@@ -150,21 +162,114 @@ export default function AllocateKPI() {
         }
     };
 
+    const fetchDeptsByMngs = async () => {
+        try {
+            const response = await fetchWithAuth(
+                `ADMINRoutes/CWIGetDDLItems?OrgId=${sessionUserData?.OrgId}&UserId=${selectedEmployee?.Id}`,
+                {
+                    method: "GET",
+                    headers: { "Content-Type": "application/json" },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+
+            const data = await response.json();
+
+            const managerDeptsFilteredData = (data.ResultData || []).filter(
+                (item) => item.DDLName === "getdeptsByManager"
+            );
+
+            setDepartments(managerDeptsFilteredData);
+
+        } catch (error) {
+            console.error("Failed to fetch departments by manager:", error);
+            setDepartments([]);
+        }
+    };
+
+    useEffect(() => {
+        if (sessionUserData?.OrgId && selectedEmployee?.Id && showDept) {
+            fetchDeptsByMngs();
+        }
+    }, [sessionUserData?.OrgId, selectedEmployee?.Id, showDept]);
+
+    const fetchDeptsForMng = async () => {
+        try {
+            const response = await fetchWithAuth(
+                `ADMINRoutes/CWIGetDDLItems?OrgId=${sessionUserData?.OrgId}&UserId=${sessionUserData?.Id}`,
+                {
+                    method: "GET",
+                    headers: { "Content-Type": "application/json" },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error("Network response was not ok");
+            }
+
+            const data = await response.json();
+
+            const managerDeptsFilteredData = (data.ResultData || []).filter(
+                (item) => item.DDLName === "getdeptsByManager"
+            );
+
+            setDepartments(managerDeptsFilteredData);
+
+        } catch (error) {
+            console.error("Failed to fetch departments by manager:", error);
+            setDepartments([]);
+        }
+    };
+
+    useEffect(() => {
+        if (sessionUserData?.OrgId && sessionUserData?.Id) {
+            fetchDeptsForMng();
+        }
+    }, [sessionUserData?.OrgId, sessionUserData?.Id]);
 
 
     const fetchUsersByMngrId = async () => {
         try {
+            const orgId = sessionUserData?.OrgId;
+            const managerId = showDept ? 0 : sessionUserData?.Id;
+            const deptId = selectedMngDept || sessionUserData?.DeptId;
+
+            if (!orgId) return;
+
             const response = await getUsersByMngrId({
-                orgId: sessionUserData?.OrgId,
-                managerId: sessionUserData?.Id
+                orgId,
+                managerId,
+                deptId
             });
 
-            setEmployeesData(response?.data || []);
+            const users = Array.isArray(response?.data)
+                ? response.data
+                : [];
+
+            setEmployeesData(users);
 
         } catch (error) {
-            console.error(error);
+            console.error("getUsersByMngrId failed:", error);
+            setEmployeesData([]);
         }
     };
+
+    useEffect(() => {
+        if (!sessionUserData?.OrgId) return;
+
+        // With showDept the manager list doesn't depend on the department —
+        // the department is chosen after the manager.
+        fetchUsersByMngrId();
+    }, [
+        sessionUserData?.OrgId,
+        sessionUserData?.Id,
+        sessionUserData?.DeptId,
+        showDept ? null : selectedMngDept,
+        showDept
+    ]);
 
     const fetchDeptKPIs = async () => {
         try {
@@ -172,7 +277,7 @@ export default function AllocateKPI() {
             const response = await getDeptKPIs({
                 orgId: sessionUserData?.OrgId,
                 periodId: sessionUserData?.PeriodId,
-                deptId: sessionUserData?.DeptId,
+                deptId: selectedMngDept,
                 employeeId: sessionUserData?.Id,
             });
 
@@ -188,7 +293,7 @@ export default function AllocateKPI() {
         try {
             const response = await getKPIs({
                 orgId: sessionUserData?.OrgId,
-                deptId: 0,
+                deptId: selectedMngDept || sessionUserData?.DeptId,
                 kpiLevel: 1,
                 userId: sessionUserData?.Id,
             });
@@ -197,6 +302,33 @@ export default function AllocateKPI() {
         } catch (error) {
             console.error(error);
         }
+    };
+
+    // The KPIs of one department, fetched fresh when Add is pressed — so the
+    // card always gets the department that is selected right now, never a
+    // list that was still loading for the previous one.
+    const loadKPIsForDept = async (forDeptId) => {
+        if (showDept) {
+            const response = await getKPIs({
+                orgId: sessionUserData?.OrgId,
+                deptId: forDeptId,
+                kpiLevel: 1,
+                userId: sessionUserData?.Id,
+            });
+            const list = Array.isArray(response?.data) ? response.data : [];
+            setOrgKPIs(list);
+            return list;
+        }
+
+        const response = await getDeptKPIs({
+            orgId: sessionUserData?.OrgId,
+            periodId: sessionUserData?.PeriodId,
+            deptId: forDeptId,
+            employeeId: sessionUserData?.Id,
+        });
+        const list = Array.isArray(response?.data) ? response.data : [];
+        setDeptKPIs(list);
+        return list;
     };
 
     const fetchIsKPIAvail = async (empId) => {
@@ -227,48 +359,119 @@ export default function AllocateKPI() {
         }
     };
 
-    const addEmployeeCard = async () => {
+    const deptNameOf = (id, kpis = []) =>
+        departments.find((dept) => Number(dept.ItemId) === Number(id))?.ItemValue ||
+        kpis[0]?.DeptName ||
+        "";
 
+    // Add — one card per employee. Adding the same employee again with
+    // another department switches that card's dropdown to the new
+    // department's KPIs; KPIs already chosen from earlier departments stay in
+    // the table below.
+    const addEmployeeCard = async () => {
         if (!selectedEmployee) {
-            message.warning("Please select an employee.");
+            message.warning(`Please select ${showDept ? "a manager" : "an employee"}.`);
             return;
         }
 
-        const result = await fetchIsKPIAvail(selectedEmployee.Id);
-
-        if (!result.isAvailable) {
-            message.error(result.message);
+        if (showDept && !selectedMngDept) {
+            message.warning("Please select a department.");
             return;
         }
 
         const emp = employeesData.find(
-            x => x.Id === selectedEmployee.Id
+            item => Number(item.Id) === Number(selectedEmployee.Id)
         );
 
-        if (!emp) return;
-
-        if (employeeCards.some(x => x.employeeId === emp.Id)) {
-            message.warning("Employee already added.");
+        if (!emp) {
+            message.error("Selected employee not found.");
             return;
         }
 
-        setEmployeeCards(prev => [
-            ...prev,
-            {
-                employeeId: emp.Id,
-                employeeName: emp.Name,
-                roleName: emp.RoleName,
-                email: emp.Email,
-                imageUrl: emp.ImageURL,
-                designation: emp.DesignationName || "",
-                kpis: [],
-                totalPercentage: 0,
-                totalWeightage: 0
-            }
-        ]);
+        const forDeptId = showDept
+            ? selectedMngDept
+            : (selectedMngDept || sessionUserData?.DeptId);
 
-        setSelectedEmployee(undefined);
+        try {
+            setAdding(true);
+
+            const existingCard = employeeCards.find(
+                card => Number(card.employeeId) === Number(emp.Id)
+            );
+
+            // A new card first checks the employee can still be given KPIs.
+            if (!existingCard) {
+                const result = await fetchIsKPIAvail(emp.Id);
+
+                if (!result.isAvailable) {
+                    message.error(
+                        result.message || "Unable to allocate KPIs to this employee."
+                    );
+                    return;
+                }
+            }
+
+            const departmentKPIs = await loadKPIsForDept(forDeptId);
+
+            if (!departmentKPIs.length) {
+                message.warning("No KPIs available for this department.");
+                return;
+            }
+
+            const deptName = deptNameOf(forDeptId, departmentKPIs);
+
+            if (existingCard) {
+                setEmployeeCards(prev =>
+                    prev.map(card =>
+                        Number(card.employeeId) !== Number(emp.Id)
+                            ? card
+                            : {
+                                ...card,
+                                // The dropdown now offers this department only…
+                                currentDeptId: forDeptId,
+                                currentDeptName: deptName,
+                                availableKPIs: [...departmentKPIs],
+                                // …and everything chosen before stays as it is.
+                                kpis: [...(card.kpis || [])],
+                            }
+                    )
+                );
+
+                message.success(
+                    `${deptName || "Department"} KPIs loaded for ${emp.Name}.`
+                );
+                return;
+            }
+
+            setEmployeeCards(prev => [
+                ...prev,
+                {
+                    employeeId: emp.Id,
+                    employeeName: emp.Name,
+                    roleName: emp.RoleName,
+                    email: emp.Email,
+                    imageUrl: emp.ImageURL,
+                    designation: emp.DesignationName || "",
+                    currentDeptId: forDeptId,
+                    currentDeptName: deptName,
+                    availableKPIs: [...departmentKPIs],
+                    kpis: [],
+                    targetDescription: emp.TargetDescription || "",
+                    totalPercentage: 0,
+                    totalWeightage: 0
+                }
+            ]);
+
+            message.success("Employee added successfully.");
+        } catch (error) {
+            console.error(error);
+            message.error("Couldn't load the KPIs for this department.");
+        } finally {
+            setAdding(false);
+        }
     };
+
+
 
     const handleSubmit = async () => {
 
@@ -303,7 +506,8 @@ export default function AllocateKPI() {
                     KPIId: kpi.kpiId,
                     EmployeeId: employee.employeeId,
                     TargetValue: Number(kpi.target),
-                    Weightage: Number(kpi.weightage) // Assuming target % is the weightage
+                    Weightage: Number(kpi.weightage), // Assuming target % is the weightage
+                    TargetDescription: kpi.TargetDescription,
                 });
             });
         });
@@ -344,59 +548,85 @@ export default function AllocateKPI() {
     useEffect(() => {
         if (sessionUserData?.OrgId) {
             fetchMenuData();
-            fetchUsersByMngrId();
-            fetchKPIList();
-            fetchDeptKPIs();
         }
     }, [sessionUserData]);
 
+    useEffect(() => {
+        if (sessionUserData?.OrgId && (deptId || selectedMngDept)) {
+            if (showDept) {
+                fetchKPIList();
+            } else {
+                fetchDeptKPIs();
+            }
+        }
+    }, [sessionUserData, deptId, selectedMngDept]);
+
+
+    // The dropdown only shows — and only changes — the current department's
+    // KPIs. KPIs picked from earlier departments are kept untouched.
     const handleKPISelectionDropdown = (employeeId, selectedIds) => {
         setEmployeeCards(prev =>
-            prev.map(emp => {
-                if (emp.employeeId !== employeeId)
-                    return emp;
+            prev.map(employee => {
+                if (Number(employee.employeeId) !== Number(employeeId)) {
+                    return employee;
+                }
 
-                const newKPIs = selectedIds.map(id => {
-                    const existing = emp.kpis.find(x => x.kpiId === id);
-                    return existing || {
-                        kpiId: id,
-                        target: 0
+                const available = employee.availableKPIs || [];
+                const currentIds = new Set(available.map(kpi => Number(kpi.Id)));
+                const previousKPIs = employee.kpis || [];
+
+                // From other departments — not in this dropdown, so kept as is.
+                const fromOtherDepts = previousKPIs.filter(
+                    item => !currentIds.has(Number(item.kpiId))
+                );
+
+                const fromThisDept = selectedIds.map(id => {
+                    const existing = previousKPIs.find(
+                        item => Number(item.kpiId) === Number(id)
+                    );
+                    if (existing) return existing;
+
+                    const kpi = available.find(item => Number(item.Id) === Number(id)) || {};
+
+                    // The KPI's details travel with it, so its row still shows
+                    // once the dropdown has moved on to another department.
+                    return {
+                        kpiId: Number(id),
+                        kpiName: kpi.KPIName || "",
+                        uomName: kpi.UOMName || "",
+                        objectives: kpi.Objectives || "",
+                        deptId: employee.currentDeptId,
+                        deptName: employee.currentDeptName || kpi.DeptName || "",
+                        target: 0,
+                        weightage: 0,
+                        TargetDescription: ""
                     };
-
                 });
 
-                return {
-                    ...emp,
-                    kpis: newKPIs
-                };
+                const kpis = [...fromOtherDepts, ...fromThisDept];
 
+                return { ...employee, kpis, ...totalsOf(kpis) };
             })
         );
-
     };
 
-    const updateKPIField = (
-        employeeId,
-        kpiId,
-        field,
-        value
-    ) => {
-        const newValue = Number(value) || 0;
+    const NUMERIC_KPI_FIELDS = ["target", "weightage"];
+
+    const updateKPIField = (employeeId, kpiId, field, value) => {
+        const newValue = NUMERIC_KPI_FIELDS.includes(field)
+            ? Number(value) || 0
+            : value;
 
         setEmployeeCards(prev =>
-            (prev || []).map(emp => {
-
-                if (emp.employeeId !== employeeId)
-                    return emp;
+            prev.map(card => {
+                if (Number(card.employeeId) !== Number(employeeId)) return card;
 
                 if (field === "weightage") {
-                    const currentTotal = (emp.kpis || []).reduce(
-                        (sum, item) => {
-                            if (item.kpiId === kpiId)
-                                return sum;
-
-                            return sum + Number(item.weightage || 0);
-                        },
+                    const currentTotal = (card.kpis || []).reduce(
+                        (sum, item) =>
+                            Number(item.kpiId) === Number(kpiId)
+                                ? sum
+                                : sum + Number(item.weightage || 0),
                         0
                     );
 
@@ -404,90 +634,95 @@ export default function AllocateKPI() {
                         message.warning(
                             "Total Weightage cannot exceed 100%."
                         );
-                        return emp;
+                        return card;
                     }
                 }
 
-                const kpis = (emp.kpis || []).map(item =>
-                    item.kpiId === kpiId
-                        ? {
-                            ...item,
-                            [field]: newValue
-                        }
+                const kpis = (card.kpis || []).map(item =>
+                    Number(item.kpiId) === Number(kpiId)
+                        ? { ...item, [field]: newValue }
                         : item
                 );
 
-                return {
-                    ...emp,
-                    kpis,
-
-                    totalPercentage: kpis.reduce(
-                        (sum, item) =>
-                            sum + Number(item.target || 0),
-                        0
-                    ),
-
-                    totalWeightage: kpis.reduce(
-                        (sum, item) =>
-                            sum + Number(item.weightage || 0),
-                        0
-                    )
-                };
+                return { ...card, kpis, ...totalsOf(kpis) };
             })
         );
     };
 
     const removeKPI = (employeeId, kpiId) => {
         setEmployeeCards(prev =>
-            (prev || []).map(emp => {
+            prev.map(card => {
+                if (Number(card.employeeId) !== Number(employeeId)) return card;
 
-                if (emp.employeeId !== employeeId) {
-                    return emp;
-                }
-
-                // Remove selected KPI
-                const updatedKpis = (emp.kpis || []).filter(
-                    item => item.kpiId !== kpiId
+                const kpis = (card.kpis || []).filter(
+                    item => Number(item.kpiId) !== Number(kpiId)
                 );
 
-                // Recalculate Target
-                const totalPercentage = updatedKpis.reduce(
-                    (sum, item) =>
-                        sum + Number(item.target || 0),
-                    0
-                );
-
-                // Recalculate Weightage
-                const totalWeightage = updatedKpis.reduce(
-                    (sum, item) =>
-                        sum + Number(item.weightage || 0),
-                    0
-                );
-
-                return {
-                    ...emp,
-                    kpis: updatedKpis,
-                    totalPercentage,
-                    totalWeightage
-                };
+                return { ...card, kpis, ...totalsOf(kpis) };
             })
         );
     };
 
     const removeEmployeeCard = (employeeId) => {
         setEmployeeCards(prev =>
-            prev.filter(emp => emp.employeeId !== employeeId)
+            prev.filter(card => Number(card.employeeId) !== Number(employeeId))
         );
     };
 
-    const kpiList =
-        employeesData?.[0]?.RoleId === 5
-            ? orgKPIs
-            : deptKPIs;
+    // A selected KPI's details — stored on the row, with the card's current
+    // list as a fallback for rows saved before the details were kept.
+    const kpiDetailsOf = (employee, selected) => {
+        const fromList = (employee.availableKPIs || []).find(
+            x => Number(x.Id) === Number(selected.kpiId)
+        );
+        return {
+            name: selected.kpiName || fromList?.KPIName || "",
+            uom: selected.uomName || fromList?.UOMName || "",
+            objectives: selected.objectives || fromList?.Objectives || "",
+            dept: selected.deptName || fromList?.DeptName || "",
+        };
+    };
+
+    // What the dropdown shows as selected: only this department's KPIs.
+    const currentDeptSelection = employee => {
+        const currentIds = new Set(
+            (employee.availableKPIs || []).map(kpi => Number(kpi.Id))
+        );
+        return (employee.kpis || [])
+            .map(item => Number(item.kpiId))
+            .filter(id => currentIds.has(id));
+    };
 
     const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
-    const showOrgTab = sessionActionIds?.includes(37);
-    const showDeptTab = sessionActionIds?.includes(38);
+
+    // Picking another manager clears the department — each manager has his own.
+    const handleEmployeeChange = (option) => {
+        const employee = employeesData.find(
+            (e) => Number(e.Id) === Number(option?.value)
+        );
+        setSelectedEmployee(employee || null);
+        if (showDept) setSelectedMngDept(null);
+    };
+
+    const employeeOptions = employeesData
+        ?.filter((emp) => Number(emp.Id) !== Number(sessionUserData?.Id))
+        .map((emp) => ({
+            value: emp.Id,
+            label: `${emp.Name} (${emp.Email})`,
+        }));
+
+    const employeeValue = selectedEmployee
+        ? {
+            value: selectedEmployee.Id,
+            label: `${selectedEmployee.Name} (${selectedEmployee.Email})`,
+        }
+        : undefined;
+
+    const departmentOptions = departments?.map((dept) => ({
+        value: dept.ItemId,
+        label: dept.ItemValue,
+    }));
+
 
     return (
         <Base1>
@@ -723,9 +958,6 @@ export default function AllocateKPI() {
 
                 <div id="kt_app_content" className="app-content flex-column-fluid" style={{ marginTop: "-30px" }}>
                     <div id="kt_app_content_container" className="app-container container-xxl">
-                        {/* =========================================================
-    KPI NAVIGATION
-========================================================= */}
                         <div
                             className="kpi-navigation bg-white rounded-pill shadow-sm mb-3"
                             style={{ border: "1px solid #e9ecef" }}
@@ -759,38 +991,24 @@ export default function AllocateKPI() {
                                     <i className="bi bi-bullseye me-2"></i>
                                     Allocate KPI
                                 </Link>
-
                             </div>
                         </div>
 
-
-                        {/* =========================================================
-    EMPLOYEE KPI ALLOCATION
-========================================================= */}
                         <div className="card border-0 shadow-sm rounded-4 mb-5 employee-allocation-card">
-
-                            {/* =====================================================
-        DESKTOP HEADER
-    ===================================================== */}
                             <div className="d-none d-md-block">
-
                                 <div className="card-header bg-white border-0 pt-4 px-4">
-
                                     <div className="d-flex align-items-center w-100">
-
                                         <div className="flex-grow-1">
 
                                             <h3 className="fw-bold mb-1 d-flex align-items-center">
                                                 <i className="bi bi-person-workspace text-primary me-2 fs-3"></i>
                                                 Employee KPI Allocation
                                             </h3>
-
                                             <small className="text-muted">
                                                 Select employees and assign KPIs individually
                                             </small>
 
                                         </div>
-
                                         <div className="ms-auto d-flex align-items-center gap-3">
 
                                             <span className="premium-badge period-badge">
@@ -803,23 +1021,98 @@ export default function AllocateKPI() {
                                                 {employeeCards.length} Employee
                                                 {employeeCards.length !== 1 ? "s" : ""}
                                             </span>
-
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
 
+                            <div className="card-body d-none d-md-block px-4">
+                                <div className="row align-items-end g-4">
+                                    {!showDept && (
+                                        <div className="col-12 col-md-3">
+                                            <label className="form-label fw-semibold mb-2">
+                                                Department
+                                            </label>
+                                            <Select
+                                                size="large"
+                                                style={{ width: "100%" }}
+                                                placeholder="Select Department"
+                                                showSearch
+                                                optionFilterProp="label"
+                                                value={selectedMngDept}
+                                                onChange={(value) => setSelectedMngDept(value)}
+                                                options={departmentOptions}
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="col-md-4">
+                                        <label className="form-label fw-semibold mb-2">
+                                            {showDept ? "Manager" : "Employee"}
+                                        </label>
+
+                                        <Select
+                                            showSearch
+                                            size="large"
+                                            style={{ width: "100%" }}
+                                            placeholder={`Search ${showDept ? "Manager" : "Employee"}`}
+                                            value={employeeValue}
+                                            labelInValue
+                                            optionFilterProp="label"
+                                            filterOption={(input, option) =>
+                                                option?.label?.toLowerCase().includes(input.toLowerCase())
+                                            }
+                                            onChange={handleEmployeeChange}
+                                            options={employeeOptions}
+                                        />
+                                    </div>
+
+                                    {showDept && (
+                                        <div className="col-12 col-md-3">
+                                            <label className="form-label fw-semibold mb-2">
+                                                Department
+                                            </label>
+
+                                            <Select
+                                                size="large"
+                                                style={{ width: "100%" }}
+                                                placeholder={selectedEmployee ? "Select Department" : "Choose a manager first"}
+                                                disabled={!selectedEmployee}
+                                                showSearch
+                                                optionFilterProp="label"
+                                                value={selectedMngDept}
+                                                onChange={(value) => setSelectedMngDept(value)}
+                                                options={departmentOptions}
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Add Button */}
+                                    <div className="col-md-2">
+                                        <button
+                                            className="btn btn-primary w-100"
+                                            style={{
+                                                height: 40,
+                                                borderRadius: 10
+                                            }}
+                                            onClick={addEmployeeCard}
+                                            disabled={adding}
+                                        >
+                                            {adding ? (
+                                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                            ) : (
+                                                <i className="bi bi-plus-circle me-2"></i>
+                                            )}
+                                            Add
+                                        </button>
                                     </div>
 
                                 </div>
-
                             </div>
 
 
-                            {/* =====================================================
-        MOBILE HEADER
-    ===================================================== */}
                             <div className="d-block d-md-none">
-
                                 <div className="card-body p-3">
-
                                     {/* Title */}
                                     <div className="mobile-allocation-title">
 
@@ -870,24 +1163,36 @@ export default function AllocateKPI() {
                                         </div>
                                     </div>
 
+                                    {/* Department first unless a manager is chosen first */}
+                                    {!showDept && (
+                                        <div className="mt-4">
+                                            <label className="form-label fw-semibold mb-2">
+                                                Department
+                                            </label>
+                                            <Select
+                                                size="large"
+                                                style={{ width: "100%" }}
+                                                placeholder="Select Department"
+                                                showSearch
+                                                optionFilterProp="label"
+                                                value={selectedMngDept}
+                                                onChange={(value) => setSelectedMngDept(value)}
+                                                options={departmentOptions}
+                                            />
+                                        </div>
+                                    )}
+
                                     {/* Employee Selection */}
                                     <div className="mt-4">
                                         <label className="form-label fw-semibold mb-2">
-                                            Employee
+                                            {showDept ? 'Manager' : 'Employee'}
                                         </label>
                                         <Select
                                             showSearch
                                             size="large"
                                             style={{ width: "100%" }}
-                                            placeholder="Search Employee"
-                                            value={
-                                                selectedEmployee
-                                                    ? {
-                                                        value: selectedEmployee.Id,
-                                                        label: `${selectedEmployee.Name} (${selectedEmployee.Email})`,
-                                                    }
-                                                    : undefined
-                                            }
+                                            placeholder={`Search ${showDept ? 'Manager' : 'Employee'}`}
+                                            value={employeeValue}
                                             labelInValue
                                             optionFilterProp="label"
                                             filterOption={(input, option) =>
@@ -895,113 +1200,52 @@ export default function AllocateKPI() {
                                                     ?.toLowerCase()
                                                     .includes(input.toLowerCase())
                                             }
-                                            onChange={(option) => {
-
-                                                const employee =
-                                                    employeesData.find(
-                                                        (e) =>
-                                                            Number(e.Id) ===
-                                                            Number(option.value)
-                                                    );
-
-                                                setSelectedEmployee(employee);
-
-                                            }}
-                                            options={employeesData
-                                                ?.filter(
-                                                    (emp) =>
-                                                        Number(emp.Id) !==
-                                                        Number(sessionUserData?.Id)
-                                                )
-                                                .map((emp) => ({
-                                                    value: emp.Id,
-                                                    label: `${emp.Name} (${emp.Email})`,
-                                                }))}
+                                            onChange={handleEmployeeChange}
+                                            options={employeeOptions}
                                         />
                                     </div>
 
+                                    {showDept && (
+                                        <div className="mt-3">
+                                            <label className="form-label fw-semibold mb-2">
+                                                Department
+                                            </label>
+                                            <Select
+                                                size="large"
+                                                style={{ width: "100%" }}
+                                                placeholder={selectedEmployee ? "Select Department" : "Choose a manager first"}
+                                                disabled={!selectedEmployee}
+                                                showSearch
+                                                optionFilterProp="label"
+                                                value={selectedMngDept}
+                                                onChange={(value) => setSelectedMngDept(value)}
+                                                options={departmentOptions}
+                                            />
+                                        </div>
+                                    )}
+
                                     <button
                                         type="button"
-                                        className="btn btn-primary w-100 mt-2 mobile-add-btn"
+                                        className="btn btn-primary w-100 mt-3 mobile-add-btn"
                                         onClick={addEmployeeCard}
+                                        disabled={adding}
                                     >
-                                        <i className="bi bi-plus-circle me-2"></i>
+                                        {adding ? (
+                                            <span className="spinner-border spinner-border-sm me-2"></span>
+                                        ) : (
+                                            <i className="bi bi-plus-circle me-2"></i>
+                                        )}
                                         Add
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="card-body d-none d-md-block px-4">
-                                <div className="row align-items-end g-4">
-                                    <div className="col-md-4">
-                                        <label className="form-label fw-semibold">
-                                            Employee
-                                        </label>
-                                        <Select
-                                            showSearch
-                                            size="large"
-                                            style={{ width: "100%" }}
-                                            placeholder="Search Employee"
-                                            value={
-                                                selectedEmployee
-                                                    ? {
-                                                        value: selectedEmployee.Id,
-                                                        label: `${selectedEmployee.Name} (${selectedEmployee.Email})`,
-                                                    }
-                                                    : undefined
-                                            }
-                                            labelInValue
-                                            optionFilterProp="label"
-                                            filterOption={(input, option) =>
-                                                option?.label
-                                                    ?.toLowerCase()
-                                                    .includes(input.toLowerCase())
-                                            }
-                                            onChange={(option) => {
-
-                                                const employee =
-                                                    employeesData.find(
-                                                        (e) =>
-                                                            Number(e.Id) ===
-                                                            Number(option.value)
-                                                    );
-
-                                                setSelectedEmployee(employee);
-
-                                            }}
-                                            options={employeesData
-                                                ?.filter(
-                                                    (emp) =>
-                                                        Number(emp.Id) !==
-                                                        Number(sessionUserData?.Id)
-                                                )
-                                                .map((emp) => ({
-                                                    value: emp.Id,
-                                                    label: `${emp.Name} (${emp.Email})`,
-                                                }))}
-                                        />
-                                    </div>
-                                    <div className="col-md-2">
-                                        <button
-                                            className="btn btn-primary w-100"
-                                            style={{
-                                                height: 40,
-                                                borderRadius: 10
-                                            }}
-                                            onClick={addEmployeeCard}
-                                        >
-                                            <i className="bi bi-plus-circle me-2"></i>
-                                            Add
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
 
                         <div className="row">
-                            {employeeCards.map((employee, index) => (
+                            {employeeCards.map((employee) => (
                                 <div
-                                    className="col-md-6 mb-4"
+                                    className="col-md-12 mb-4"
                                     key={employee.employeeId}
                                 >
                                     <div className="card employee-kpi-card">
@@ -1237,8 +1481,8 @@ export default function AllocateKPI() {
 
                                                                 <h6
                                                                     className={`mb-0 fw-bold ${employee.totalWeightage === 100
-                                                                            ? "text-success"
-                                                                            : "text-warning"
+                                                                        ? "text-success"
+                                                                        : "text-warning"
                                                                         }`}
                                                                 >
                                                                     {employee.totalWeightage}%
@@ -1258,8 +1502,14 @@ export default function AllocateKPI() {
 
                                         <div className="card-body">
                                             <div className="mb-4">
-                                                <label className="form-label fw-bold d-flex align-items-center">
+                                                <label className="form-label fw-bold d-flex align-items-center flex-wrap gap-2">
                                                     Select KPI(s)
+                                                    {employee.currentDeptName && (
+                                                        <span className="kpi-dept-chip current">
+                                                            <i className="bi bi-diagram-3 me-1"></i>
+                                                            {employee.currentDeptName}
+                                                        </span>
+                                                    )}
                                                     <Tooltip
                                                         placement="right"
                                                         title={
@@ -1273,6 +1523,9 @@ export default function AllocateKPI() {
                                                                 <div className="mt-2">
                                                                     • If you assign multiple KPIs, distribute the total weightage across all selected KPIs so that the combined allocation equals <strong>100%</strong>.
                                                                 </div>
+                                                                <div className="mt-2">
+                                                                    • To add KPIs from another department, choose the same {showDept ? "manager" : "employee"} with that department and press <strong>Add</strong>. KPIs already chosen stay in the table.
+                                                                </div>
                                                                 <div className="mt-2 text-warning">
                                                                     <strong>Example:</strong> 40% + 30% + 30% = 100%
                                                                 </div>
@@ -1280,38 +1533,34 @@ export default function AllocateKPI() {
                                                         }
                                                     >
                                                         <i
-                                                            className="bi bi-info-circle-fill text-primary ms-2"
+                                                            className="bi bi-info-circle-fill text-primary"
                                                             style={{ cursor: "pointer" }}
                                                         />
                                                     </Tooltip>
                                                 </label>
 
+                                                {/* Only the current department's KPIs — options and
+                                                    selected values alike. */}
                                                 <Select
                                                     mode="multiple"
                                                     allowClear
                                                     showSearch
-                                                    size="large"
                                                     style={{ width: "100%" }}
-                                                    placeholder="Search and select KPI(s)"
+                                                    placeholder={`Search and select ${employee.currentDeptName || ""} KPI(s)`}
                                                     optionFilterProp="label"
-                                                    value={employee.kpis.map(x => x.kpiId)}
-                                                    onChange={(selectedIds) =>
+                                                    value={currentDeptSelection(employee)}
+                                                    onChange={selectedIds =>
                                                         handleKPISelectionDropdown(
                                                             employee.employeeId,
                                                             selectedIds
                                                         )
                                                     }
-                                                    maxTagCount={0}
-                                                    maxTagPlaceholder={(omittedValues) => (
-                                                        <span className="fw-semibold text-primary">
-                                                            {omittedValues.length} KPI{omittedValues.length > 1 ? "s" : ""} Selected
-                                                        </span>
-                                                    )}
-                                                    options={kpiList.map(kpi => ({
-                                                        value: kpi.Id,
+                                                    options={(employee.availableKPIs || []).map(kpi => ({
+                                                        value: Number(kpi.Id),
                                                         label: kpi.KPIName
                                                     }))}
                                                 />
+
                                             </div>
                                             <div className="table-responsive"
                                                 style={{
@@ -1324,13 +1573,16 @@ export default function AllocateKPI() {
                                                     <thead className="table-light fw-bold sticky-top">
                                                         <tr>
                                                             <th width="55" className='text-center'>#</th>
-                                                            <th>KPI</th>
-                                                            <th>UoM</th>
+                                                            <th width="150">KPI</th>
+                                                            <th width="55">UoM</th>
                                                             <th width="110" className="text-center">
                                                                 Target
                                                             </th>
                                                             <th width="110" className="text-center">
                                                                 Weight
+                                                            </th>
+                                                            <th width="300" className="text-center">
+                                                                Target Description
                                                             </th>
                                                             <th width="70" className="text-center">
                                                                 Action
@@ -1339,10 +1591,9 @@ export default function AllocateKPI() {
                                                     </thead>
                                                     <tbody>
                                                         {employee.kpis.map((selected, index) => {
-                                                            const kpi = kpiList.find(x => x.Id === selected.kpiId);
-                                                            if (!kpi) return null;
+                                                            const kpi = kpiDetailsOf(employee, selected);
                                                             return (
-                                                                <tr key={kpi.Id}>
+                                                                <tr key={selected.kpiId}>
                                                                     <td className="text-center">
                                                                         <span className="badge bg-light-secondary">
                                                                             {index + 1}
@@ -1352,7 +1603,7 @@ export default function AllocateKPI() {
                                                                         <div className="d-flex align-items-center">
 
                                                                             <Tooltip
-                                                                                title={kpi.KPIName}
+                                                                                title={kpi.name}
                                                                                 placement="topLeft"
                                                                             >
                                                                                 <span
@@ -1363,19 +1614,19 @@ export default function AllocateKPI() {
                                                                                         cursor: "pointer"
                                                                                     }}
                                                                                 >
-                                                                                    {kpi.KPIName?.length > 28
-                                                                                        ? `${kpi.KPIName.substring(0, 28)}...`
-                                                                                        : kpi.KPIName}
+                                                                                    {kpi.name?.length > 28
+                                                                                        ? `${kpi.name.substring(0, 28)}...`
+                                                                                        : kpi.name}
                                                                                 </span>
                                                                             </Tooltip>
 
-                                                                            {kpi.Objectives && (
+                                                                            {kpi.objectives && (
                                                                                 <Tooltip
                                                                                     title={
                                                                                         <div
                                                                                             className="quill-tooltip-content"
                                                                                             dangerouslySetInnerHTML={{
-                                                                                                __html: kpi.Objectives
+                                                                                                __html: kpi.objectives
                                                                                             }}
                                                                                         />
                                                                                     }
@@ -1393,8 +1644,13 @@ export default function AllocateKPI() {
                                                                             )}
 
                                                                         </div>
+                                                                        {kpi.dept && (
+                                                                            <span className="kpi-dept-chip mt-1">
+                                                                                {kpi.dept}
+                                                                            </span>
+                                                                        )}
                                                                     </td>
-                                                                    <td><span>{kpi.UOMName}</span></td>
+                                                                    <td><span>{kpi.uom}</span></td>
                                                                     <td>
                                                                         <input
                                                                             type="number"
@@ -1404,7 +1660,7 @@ export default function AllocateKPI() {
                                                                             onChange={(e) =>
                                                                                 updateKPIField(
                                                                                     employee.employeeId,
-                                                                                    kpi.Id,
+                                                                                    selected.kpiId,
                                                                                     "target",
                                                                                     e.target.value
                                                                                 )
@@ -1423,13 +1679,29 @@ export default function AllocateKPI() {
                                                                             onChange={(e) =>
                                                                                 updateKPIField(
                                                                                     employee.employeeId,
-                                                                                    kpi.Id,
+                                                                                    selected.kpiId,
                                                                                     "weightage",
                                                                                     e.target.value
                                                                                 )
                                                                             }
                                                                             onWheel={(e) => e.target.blur()}
                                                                             placeholder='0'
+                                                                        />
+                                                                    </td>
+                                                                    <td>
+                                                                        <input
+                                                                            type="text"
+                                                                            className="form-control form-control-sm"
+                                                                            value={selected.TargetDescription || ""}
+                                                                            onChange={(e) =>
+                                                                                updateKPIField(
+                                                                                    employee.employeeId,
+                                                                                    selected.kpiId,
+                                                                                    "TargetDescription",
+                                                                                    e.target.value
+                                                                                )
+                                                                            }
+                                                                            placeholder='Enter target description'
                                                                         />
                                                                     </td>
                                                                     <td className="text-center">
@@ -1439,7 +1711,7 @@ export default function AllocateKPI() {
                                                                                 onClick={() =>
                                                                                     removeKPI(
                                                                                         employee.employeeId,
-                                                                                        kpi.Id
+                                                                                        selected.kpiId
                                                                                     )
                                                                                 }
                                                                             >
@@ -1537,9 +1809,22 @@ export default function AllocateKPI() {
 
             <style>
                 {`
-                /* ==========================================
-   MOBILE EMPLOYEE HEADER
-========================================== */
+
+.kpi-dept-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 9px;
+    border-radius: 20px;
+    background: #f1f5f9;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.kpi-dept-chip.current {
+    background: #eef4ff;
+    color: #2563eb;
+}
 
 .mobile-weight-wrapper {
     margin-top: 12px;

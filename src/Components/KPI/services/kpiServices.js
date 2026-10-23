@@ -33,7 +33,7 @@ export const getKPIs = async ({ orgId, deptId, kpiLevel, userId }) => {
     return response.json();
 };
 
-export const getManagerKPIs = async ({ orgId, employeeId, periodId }) => {
+export const getManagerKPIs = async ({ orgId, deptId, employeeId, periodId }) => {
 
     const response = await fetchWithAuth("KPI/MasterAPI", {
         method: "POST",
@@ -45,7 +45,8 @@ export const getManagerKPIs = async ({ orgId, employeeId, periodId }) => {
             Action: "GetManagerKPIs",
             JsonData: {
                 EmployeeId: employeeId,
-                PeriodId: periodId
+                PeriodId: periodId,
+                DeptId: deptId,
             }
         })
     });
@@ -53,7 +54,7 @@ export const getManagerKPIs = async ({ orgId, employeeId, periodId }) => {
     return response.json();
 };
 
-export const getUsersByMngrId = async ({ orgId, managerId }) => {
+export const getUsersByMngrId = async ({ orgId, managerId, deptId }) => {
 
     const response = await fetchWithAuth("KPI/MasterAPI", {
         method: "POST",
@@ -65,12 +66,14 @@ export const getUsersByMngrId = async ({ orgId, managerId }) => {
             Action: "GetUsersByManagerId",
             JsonData: {
                 ManagerId: managerId,
+                DeptId: deptId,
             }
         })
     });
 
     return response.json();
 };
+
 export const getPerformancePeriods = async ({ orgId }) => {
 
     const response = await fetchWithAuth("KPI/MasterAPI", {

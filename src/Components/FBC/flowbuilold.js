@@ -48,6 +48,9 @@ function writeDraft(payload) {
     localStorage.setItem(getDraftStorageKey(), JSON.stringify({ ...payload, savedAt: Date.now() }));
   } catch (e) {
     // Quota exceeded or storage unavailable (e.g. private browsing) — fail silently.
+    // NOTE: images are stored inline as data URLs, so an image-heavy diagram is
+    // the most likely thing to hit the ~5MB localStorage cap and land here.
+    // imageSupport.js downscales to keep that unlikely.
   }
 }
 
@@ -81,9 +84,19 @@ function createNode(shape, x, y) {
     rounded: { w: 160, h: 72 },
     diamond: { w: 200, h: 120 },
     circle: { w: 120, h: 120 },
+    // Same rounded treatment as a circle, but free to be wider than it is
+    // tall — the resize handler only forces a square aspect for 'circle'.
+    oval: { w: 180, h: 110 },
     parallelogram: { w: 180, h: 82 },
     hexagon: { w: 180, h: 88 },
     cylinder: { w: 160, h: 88 },
+    // A line is modeled as a diagonal stroke drawn corner-to-corner inside
+    // its own bounding box (same x/y/w/h model as every other shape, so it
+    // reuses the existing move/resize handles for free). Defaulting the
+    // height to just 4px keeps a freshly-placed line looking flat/horizontal
+    // rather than a steep diagonal; dragging a corner handle up or down
+    // tilts it.
+    line: { w: 160, h: 4 },
     text: { w: 180, h: 42 },
   };
 
@@ -96,7 +109,14 @@ function createNode(shape, x, y) {
     y: Math.round(y - size.h / 2),
     w: size.w,
     h: size.h,
-    label: 'Text',
+    // Every shape starts with a blank label now — no more placeholder
+    // "Text" caption pre-filled on a freshly placed rect/diamond/etc. (or
+    // on a free text node). The user double-clicks a shape, or double-clicks
+    // empty canvas for a floating text node, to type a label wherever and
+    // whenever they actually want one (see Node.jsx's handleDoubleClick and
+    // Canvas.jsx's handleCanvasDoubleClick — neither depends on the label
+    // starting non-empty).
+    label: '',
     strokeColor: DEFAULT_STROKE,
     fillColor: DEFAULT_FILL,
     fontFamily: DEFAULT_FONT_FAMILY,
@@ -133,7 +153,7 @@ function createChildNodeFromSource(sourceNode, position) {
     fillColor: sourceNode.fillColor || DEFAULT_FILL,
     fontFamily: sourceNode.fontFamily || DEFAULT_FONT_FAMILY,
     fontSize: sourceNode.fontSize || DEFAULT_FONT_SIZE,
-    label: 'Text',
+    label: '',
     collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
   };
 }
@@ -147,6 +167,9 @@ function normalizeNode(node) {
     node.strokeColor === '#1f1f1f' ||
     node.strokeColor === '#ffffff';
 
+  // The spread of `...node` carries through everything this function doesn't
+  // name explicitly — including an image node's `src` and a line's
+  // x1/y1/x2/y2 — so loaded diagrams keep those intact.
   return {
     strokeColor: DEFAULT_STROKE,
     fillColor: DEFAULT_FILL,
@@ -225,6 +248,10 @@ export default function FlowBuilderC() {
   const historyIdx = useRef(-1);
   const nodesRef = useRef([]);
   const connectionsRef = useRef([]);
+  const hasRestoredDraftRef = useRef(false);
+  const lastHandledFileIdRef = useRef(undefined); // sentinel distinct from null
+  const restoredDraftFileIdRef = useRef(undefined); // sentinel: no draft restored yet
+  const draftDebounceRef = useRef(null);
 
   const [nodes, setNodes] = useState([]);
   const [selectedFlowChartName, setSelectedFlowChartName] = useState(null);
@@ -248,6 +275,11 @@ export default function FlowBuilderC() {
   const [canvasBg, setCanvasBg] = useState(null);
   const [sessionUserData, setSessionUserData] = useState(null);
   const [showShapeHint, setShowShapeHint] = useState(false);
+  // Bumped by the toolbar's Image button. Canvas watches this counter and
+  // opens the file picker itself, because that's where the scroll position and
+  // zoom needed to place the image in the visible area actually live. A
+  // counter rather than a boolean so picking a second image still registers.
+  const [insertImageRequest, setInsertImageRequest] = useState(0);
 
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -366,72 +398,71 @@ export default function FlowBuilderC() {
 
     setConnectFrom(null);
     setFocusedBranchRootId(null);
-}, [handleModeChange]);
+  }, [handleModeChange]);
 
 
-const handlePaste = useCallback(() => {
-  if (!clipboardRef.current) return;
+  const handlePaste = useCallback(() => {
+    if (!clipboardRef.current) return;
 
-  const idMap = {};
+    const idMap = {};
 
-  const pastedNodes = clipboardRef.current.nodes.map(node => {
+    const pastedNodes = clipboardRef.current.nodes.map(node => {
       const newId = uid();
 
       idMap[node.id] = newId;
 
       return normalizeNode({
-          ...structuredClone(node),
-          id: newId,
-          x: node.x + 40,
-          y: node.y + 40,
+        ...structuredClone(node),
+        id: newId,
+        x: node.x + 40,
+        y: node.y + 40,
       });
-  });
+    });
 
-  const pastedConnections =
+    const pastedConnections =
       clipboardRef.current.connections.map(conn => ({
-          ...structuredClone(conn),
-          id: uid(),
-          from: idMap[conn.from],
-          to: idMap[conn.to],
+        ...structuredClone(conn),
+        id: uid(),
+        from: idMap[conn.from],
+        to: idMap[conn.to],
       }));
 
-  const nextNodes = [...nodes, ...pastedNodes];
-  const nextConnections = [...connections, ...pastedConnections];
+    const nextNodes = [...nodes, ...pastedNodes];
+    const nextConnections = [...connections, ...pastedConnections];
 
-  setNodes(nextNodes);
-  setConnections(nextConnections);
+    setNodes(nextNodes);
+    setConnections(nextConnections);
 
-  /*
-   * First perform the same reset that happens when ESC is pressed.
-   */
-  handleEscape();
+    /*
+     * First perform the same reset that happens when ESC is pressed.
+     */
+    handleEscape();
 
-  /*
-   * Then select the newly pasted nodes.
-   */
-  const newSelectedIds = pastedNodes.map(n => n.id);
+    /*
+     * Then select the newly pasted nodes.
+     */
+    const newSelectedIds = pastedNodes.map(n => n.id);
 
-  setSelectedIds(newSelectedIds);
-  setSelectedId(newSelectedIds[0]);
-  setSelectedConnectionId(null);
+    setSelectedIds(newSelectedIds);
+    setSelectedId(newSelectedIds[0]);
+    setSelectedConnectionId(null);
 
-  pushHistory(nextNodes, nextConnections);
+    pushHistory(nextNodes, nextConnections);
 
-}, [
-  nodes,
-  connections,
-  normalizeNode,
-  pushHistory,
-  handleEscape
-]);
+  }, [
+    nodes,
+    connections,
+    pushHistory,
+    handleEscape
+  ]);
 
-useEffect(() => {
-  const handleKeyDown = (e) => {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
       // ESC
       if (e.key === "Escape") {
-          e.preventDefault();
-          handleEscape();
-          return;
+        e.preventDefault();
+        handleEscape();
+        return;
       }
 
       // Don't hijack native copy/paste while the user is typing in a
@@ -439,10 +470,10 @@ useEffect(() => {
       // this listener is only for duplicating selected shapes.
       const activeEl = document.activeElement;
       const isEditingText =
-          activeEl &&
-          (activeEl.tagName === "INPUT" ||
-              activeEl.tagName === "TEXTAREA" ||
-              activeEl.isContentEditable);
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.isContentEditable);
 
       if (isEditingText) return;
 
@@ -450,53 +481,27 @@ useEffect(() => {
       if (!(e.ctrlKey || e.metaKey)) return;
 
       if (e.key.toLowerCase() === "c") {
-          e.preventDefault();
-          handleCopy();
+        e.preventDefault();
+        handleCopy();
       }
 
       if (e.key.toLowerCase() === "v") {
-          e.preventDefault();
-          handlePaste();
+        // NOT preventDefault'd unconditionally any more: the browser's native
+        // paste event is what carries an image from another app, and Canvas
+        // listens for it. Only the in-app shape duplication is handled here,
+        // and only when there are actually copied shapes to duplicate.
+        if (!clipboardRef.current) return;
+        e.preventDefault();
+        handlePaste();
       }
-  };
+    };
 
-  window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
 
-  return () =>
+    return () =>
       window.removeEventListener("keydown", handleKeyDown);
 
-}, [handleCopy, handlePaste, handleEscape]);
-
-//   useEffect(() => {
-//     const handleKeyDown = (e) => {
-
-//         // ESC
-//         if (e.key === "Escape") {
-//             e.preventDefault();
-//             handleEscape();
-//             return;
-//         }
-
-//         // CTRL / CMD shortcuts
-//         if (!(e.ctrlKey || e.metaKey)) return;
-
-//         if (e.key.toLowerCase() === "c") {
-//             e.preventDefault();
-//             handleCopy();
-//         }
-
-//         if (e.key.toLowerCase() === "v") {
-//             e.preventDefault();
-//             handlePaste();
-//         }
-//     };
-
-//     window.addEventListener("keydown", handleKeyDown);
-
-//     return () =>
-//         window.removeEventListener("keydown", handleKeyDown);
-
-// }, [handleCopy, handlePaste, handleEscape]);
+  }, [handleCopy, handlePaste, handleEscape]);
 
   const undo = useCallback(() => {
     if (historyIdx.current <= 0) return;
@@ -532,7 +537,7 @@ useEffect(() => {
 
     setConnections(updatedConnections);
 
-    const savedInfo = await saveFileWithPdf(   // hook alias still named saveFileWithPdf
+    const savedInfo = await saveFileWithPdf(
       currentFileId,
       fileName,
       nodes,
@@ -540,9 +545,10 @@ useEffect(() => {
     );
 
     if (savedInfo) {
-      // Reload the file we just saved so local state has the server URL
       await loadFileFromServer(currentFileId);
     }
+
+    clearDraft(); // now safely persisted server-side; drop the local safety-net copy
 
     setToast('Saved!');
   }, [connections, currentFileId, fileName, nodes, saveFileWithPdf, loadFileFromServer]);
@@ -602,7 +608,7 @@ useEffect(() => {
       ];
       historyIdx.current = 0;
     },
-    [files, draftFiles]
+    [files, draftFiles, setCurrentFileId]
   );
 
   const handleLoadDiagram = useCallback((diagram) => {
@@ -638,52 +644,202 @@ useEffect(() => {
     historyIdx.current = 0;
   }, []);
 
+  // Keeps autosave's "flush on unload" handler reading the freshest state
+  // without needing to re-subscribe its window listeners on every change.
+  const latestDraftRef = useRef({
+    nodes: [],
+    connections: [],
+    fileName: 'Untitled diagram',
+    currentFileId: null,
+    readMode: false,
+  });
+
+  useEffect(() => {
+    latestDraftRef.current = { nodes, connections, fileName, currentFileId, readMode };
+  });
+
+  useEffect(() => {
+    const flushDraftNow = () => {
+      const { nodes, connections, fileName, currentFileId, readMode } = latestDraftRef.current;
+      if (readMode) return;
+      if (nodes.length === 0 && connections.length === 0 && fileName === 'Untitled diagram') return;
+      writeDraft({ fileId: currentFileId, fileName, nodes, connections });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') flushDraftNow();
+    };
+
+    window.addEventListener('beforeunload', flushDraftNow);
+    window.addEventListener('pagehide', flushDraftNow);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('beforeunload', flushDraftNow);
+      window.removeEventListener('pagehide', flushDraftNow);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []); // registered once; reads fresh state via the ref above
+
+  // Debounced autosave: writes the in-progress diagram to localStorage a
+  // short idle moment after each change, as a periodic safety net (e.g.
+  // a browser/tab crash where no unload event fires at all). The
+  // beforeunload/pagehide flush above is what actually guarantees no data
+  // loss on a normal reload/close.
+  useEffect(() => {
+    // Don't start autosaving until the initial load/restore pass below has
+    // run — otherwise we'd immediately stomp a real draft with an empty state.
+    if (!hasRestoredDraftRef.current) return;
+    // Nothing to protect in read-only / shared-view contexts.
+    if (readMode) return;
+
+    if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
+
+    draftDebounceRef.current = setTimeout(() => {
+      if (nodes.length === 0 && connections.length === 0 && fileName === 'Untitled diagram') {
+        clearDraft();
+        return;
+      }
+
+      writeDraft({
+        fileId: currentFileId,
+        fileName,
+        nodes,
+        connections,
+      });
+    }, 800);
+
+    return () => {
+      if (draftDebounceRef.current) clearTimeout(draftDebounceRef.current);
+    };
+  }, [nodes, connections, fileName, currentFileId, readMode]);
+
+  // getFile's identity can change across unrelated re-renders (e.g. once
+  // fetchBackendFiles() resolves inside useFiles()). Reading it through a
+  // ref — rather than depending on it directly — keeps the effect below
+  // from re-firing (and clobbering freshly restored/loaded state back to
+  // empty) whenever that happens.
+  const getFileRef = useRef(getFile);
+  useEffect(() => {
+    getFileRef.current = getFile;
+  });
+
+  // The ONE effect responsible for loading/restoring the diagram whenever
+  // currentFileId changes — including the very first mount, which is where
+  // draft recovery kicks in.
   useEffect(() => {
     if (skipFileLoadEffect.current) {
       skipFileLoadEffect.current = false;
+      hasRestoredDraftRef.current = true;
+      lastHandledFileIdRef.current = currentFileId;
       return;
     }
 
+    // In development, React StrictMode intentionally invokes effects twice
+    // on mount (setup → cleanup → setup) to surface missing cleanup logic.
+    // currentFileId doesn't actually change between those two synthetic
+    // passes — so once we've fully handled a given currentFileId once,
+    // treat an immediate repeat as a no-op instead of re-running load logic
+    // and wiping state (e.g. a just-restored draft) that was just set.
+    //
+    // restoredDraftFileIdRef covers a second, trickier case: when a
+    // restored draft belongs to an existing server file, we call
+    // setCurrentFileId(draft.fileId) below, which makes this same effect
+    // fire again with the NEW currentFileId. That follow-up invocation
+    // needs to also be a no-op (otherwise it would look up and reload the
+    // server's pre-edit copy right over the draft we just restored) — but
+    // it can't be, because currentFileId has genuinely changed value, so
+    // it wouldn't match lastHandledFileIdRef. Comparing against
+    // restoredDraftFileIdRef instead catches it directly, and — unlike a
+    // one-shot flag such as skipFileLoadEffect — can't be prematurely
+    // consumed by an intervening StrictMode replay that still has the old
+    // currentFileId in its closure.
+    if (
+      hasRestoredDraftRef.current &&
+      (lastHandledFileIdRef.current === currentFileId || restoredDraftFileIdRef.current === currentFileId)
+    ) {
+      return;
+    }
+    lastHandledFileIdRef.current = currentFileId;
+
+    let loadedNodes = [];
+    let loadedConnections = [];
+    let loadedName = "Untitled diagram";
+
     if (currentFileId) {
-      const file = getFile(currentFileId);
+      const file = getFileRef.current(currentFileId);
       if (file) {
-        const loadedNodes = (file.nodes || []).map(normalizeNode);
-        const loadedConnections = (file.connections || []).map((connection) => ({
+        loadedNodes = (file.nodes || []).map(normalizeNode);
+        loadedConnections = (file.connections || []).map((connection) => ({
           ...connection,
           isNew: false,
         }));
+        loadedName = file.name || "Untitled diagram";
+      }
+    }
 
-        setNodes(loadedNodes);
-        setConnections(loadedConnections);
-        setFileName(file.name || "Untitled diagram");
-        history.current = [snapshot(loadedNodes, loadedConnections)];
+    // Only ever attempt draft recovery once, right after the screen first
+    // mounts — this is what protects against an accidental refresh/reload/
+    // tab-close before Save was clicked. Later, deliberate file switches
+    // within the same session (New File, opening a different diagram) load
+    // normally and don't re-trigger this. Deliberately not gated on the
+    // draft's fileId matching currentFileId: whatever file the app would
+    // otherwise auto-select on load, recovering unsaved work takes priority
+    // at this one moment.
+    if (!hasRestoredDraftRef.current) {
+      hasRestoredDraftRef.current = true;
+      const draft = readDraft();
+
+      if (draft && Array.isArray(draft.nodes) && draft.nodes.length > 0) {
+        const draftNodes = draft.nodes.map(normalizeNode);
+        const draftConnections = (draft.connections || []).map((c) => ({ ...c, isNew: false }));
+
+        setNodes(draftNodes);
+        setConnections(draftConnections);
+        setFileName(draft.fileName || loadedName);
+        setSelectedId(null);
+        setSelectedIds([]);
+        setSelectedConnectionId(null);
+        history.current = [snapshot(draftNodes, draftConnections)];
         historyIdx.current = 0;
+        // Made deliberately more explicit than a typical short toast (e.g.
+        // "Saved!") — this one is telling the user something they could
+        // easily miss and act on wrongly (keep editing on top of a
+        // recovered draft without realizing it wasn't their last saved
+        // state), so it spells out what happened and what to do next
+        // instead of a terse "Restored!".
+        setToast("We recovered unsaved changes from your last session. Review the diagram, then click Save to keep them.");
+
+        // The draft may belong to an existing server diagram (draft.fileId),
+        // not just a brand-new/unsaved one. Remember which fileId this
+        // restore applies to (see restoredDraftFileIdRef above) before
+        // updating currentFileId to match — that's what keeps the follow-up
+        // invocation of this effect from reloading the server's pre-edit
+        // copy over what we just restored, and it's what makes Save
+        // afterwards correctly call EditDrafts instead of CreateDraft.
+        restoredDraftFileIdRef.current = draft.fileId || null;
+
+        if (draft.fileId && draft.fileId !== currentFileId) {
+          setCurrentFileId(draft.fileId);
+        }
+
         return;
       }
     }
 
-    setNodes([]);
-    setConnections([]);
-    setFileName("Untitled diagram");
+    setNodes(loadedNodes);
+    setConnections(loadedConnections);
+    setFileName(loadedName);
     setSelectedId(null);
     setSelectedIds([]);
     setSelectedConnectionId(null);
-    history.current = [snapshot([], [])];
+    history.current = [snapshot(loadedNodes, loadedConnections)];
     historyIdx.current = 0;
-  }, [currentFileId, getFile]);
+  }, [currentFileId]); // getFile deliberately excluded — see getFileRef above.
 
   const handleGridToggle = () => {
     setShowGrid((prev) => !prev);
   };
-
-  // const handleModeChange = useCallback((nextMode) => {
-  //   setMode(nextMode);
-  //   setActiveShape(null);
-  //   setSelectedConnectionId(null);
-  //   if (nextMode === 'select' || nextMode === 'pan') {
-  //     setConnectFrom(null);
-  //   }
-  // }, []);
 
   const handleShapeSelect = useCallback((shapeId) => {
     setActiveShape((prev) => {
@@ -704,7 +860,9 @@ useEffect(() => {
     collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
   })), []);
 
-  const appendNode = useCallback((newNode) => {
+  const appendNode = useCallback((newNode, options = {}) => {
+    const { skipAutoArrow = false } = options;
+
     setNodes((prevNodes) => {
       const expandedPrevNodes = expandNodes(prevNodes);
       const nextNodes = [...expandedPrevNodes, { ...newNode, collapsed: false, collapsedSides: { ...DEFAULT_COLLAPSED_SIDES } }];
@@ -712,7 +870,11 @@ useEffect(() => {
       setConnections((prevConnections) => {
         let nextConnections = prevConnections;
 
-        if (autoArrowEnabled && expandedPrevNodes.length > 0) {
+        // A free-drawn line or a pasted image is an annotation, not a
+        // flowchart step — it shouldn't automatically wire itself to whatever
+        // the last-created node happened to be the way a new rect/diamond/etc.
+        // does.
+        if (!skipAutoArrow && autoArrowEnabled && expandedPrevNodes.length > 0) {
           const lastNodeId = expandedPrevNodes[expandedPrevNodes.length - 1].id;
           const alreadyExists = prevConnections.some((connection) => connection.from === lastNodeId && connection.to === newNode.id);
 
@@ -742,6 +904,76 @@ useEffect(() => {
     if (readMode) return;
     setShowShapeHint(false);
     appendNode(createNode(shape, position.x, position.y));
+  }, [appendNode, readMode]);
+
+  // Images arriving from any of the three entry points — clipboard paste, a
+  // file dropped on the canvas, or the toolbar's Image button. Canvas has
+  // already decoded, downscaled and sized them (see imageSupport.js); this
+  // just turns the result into a node.
+  //
+  // The picture is stored inline on the node as a data URL (`src`), so it
+  // travels with the saved diagram and the localStorage draft without needing
+  // an upload step.
+  const handleCreateImageNode = useCallback((image) => {
+    if (readMode) return;
+
+    appendNode({
+      id: uid(),
+      shape: 'image',
+      x: image.x,
+      y: image.y,
+      w: image.w,
+      h: image.h,
+      src: image.src,
+      label: '',
+      strokeColor: DEFAULT_STROKE,
+      fillColor: DEFAULT_FILL,
+      fontFamily: DEFAULT_FONT_FAMILY,
+      fontSize: DEFAULT_FONT_SIZE,
+      collapsed: false,
+      collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
+    }, { skipAutoArrow: true });
+  }, [appendNode, readMode]);
+
+  // Free-hand line drawing: the user clicks-and-drags on the canvas with the
+  // Line tool active (see Canvas.jsx's drawingLine handling), and the two
+  // points they dragged between arrive here as absolute canvas coordinates.
+  // Unlike every other shape, a line is NOT placed as a fixed default box —
+  // its endpoints (x1,y1)-(x2,y2) are exactly what the user drew, at
+  // whatever angle and length they chose. x/y/w/h are still kept as the
+  // endpoints' bounding box purely so the rest of the app (selection-rect
+  // hit testing, connection routing, the properties panel, etc.) keeps
+  // working with every node the same way, regardless of shape.
+  const handleCanvasCreateLine = useCallback((x1, y1, x2, y2) => {
+    if (readMode) return;
+    setShowShapeHint(false);
+
+    const roundedX1 = Math.round(x1);
+    const roundedY1 = Math.round(y1);
+    const roundedX2 = Math.round(x2);
+    const roundedY2 = Math.round(y2);
+
+    const newNode = {
+      id: uid(),
+      shape: 'line',
+      x: Math.min(roundedX1, roundedX2),
+      y: Math.min(roundedY1, roundedY2),
+      w: Math.max(2, Math.abs(roundedX2 - roundedX1)),
+      h: Math.max(2, Math.abs(roundedY2 - roundedY1)),
+      x1: roundedX1,
+      y1: roundedY1,
+      x2: roundedX2,
+      y2: roundedY2,
+      label: '',
+      strokeColor: DEFAULT_STROKE,
+      fillColor: DEFAULT_FILL,
+      fontFamily: DEFAULT_FONT_FAMILY,
+      fontSize: DEFAULT_FONT_SIZE,
+      collapsed: false,
+      collapsedSides: { ...DEFAULT_COLLAPSED_SIDES },
+    };
+
+    appendNode(newNode, { skipAutoArrow: true });
   }, [appendNode, readMode]);
 
   const handleCanvasCreateTextNode = useCallback((position) => {
@@ -831,9 +1063,115 @@ useEffect(() => {
     });
   }, [appendNode, readMode]);
 
+  // Replaces a node's whole set of independently placed text blocks (see
+  // Node.jsx — a shape can hold several captions, each at its own spot).
+  //
+  // `label` is kept in sync as the joined text of every block, because plenty
+  // of the app still reads node.label rather than the blocks: label search
+  // (labelMatches above), the PDF export, and anything consuming a saved
+  // diagram. Keeping it current means none of that has to change.
+  const handleTextsChange = useCallback((id, texts) => {
+    setNodes((prev) => {
+      const next = prev.map((node) => (
+        node.id === id
+          ? {
+            ...node,
+            texts,
+            label: texts.map((t) => t.value).filter(Boolean).join(' '),
+          }
+          : node
+      ));
+      pushHistory(next, connections);
+      return next;
+    });
+  }, [connections, pushHistory]);
+
+  // Eraser: removes everything the user dragged the eraser across in one
+  // stroke (Canvas.jsx collects them and grays them out as a preview, then
+  // commits on mouse release). Deleting a node also takes its connections
+  // with it, same as the normal delete path — a connection dangling from a
+  // shape that no longer exists would never render anyway.
+  //
+  // One history entry per stroke, not per erased element, so a single undo
+  // brings the whole stroke back.
+  const handleEraseElements = useCallback((nodeIds, connectionIds) => {
+    if (readMode) return;
+    if (!nodeIds.length && !connectionIds.length) return;
+
+    const nodeIdSet = new Set(nodeIds);
+    const connectionIdSet = new Set(connectionIds);
+
+    setNodes((prevNodes) => {
+      const nextNodes = prevNodes.filter((node) => !nodeIdSet.has(node.id));
+
+      setConnections((prevConnections) => {
+        const nextConnections = prevConnections.filter((connection) => (
+          !connectionIdSet.has(connection.id) &&
+          !nodeIdSet.has(connection.from) &&
+          !nodeIdSet.has(connection.to)
+        ));
+
+        prevConnections.forEach((connection) => {
+          if (connectionIdSet.has(connection.id)) {
+            deletedConnectionsRef.current.add(`${connection.from}->${connection.to}`);
+          }
+        });
+
+        pushHistory(nextNodes, nextConnections);
+        return nextConnections;
+      });
+
+      return nextNodes;
+    });
+
+    setSelectedId(null);
+    setSelectedIds([]);
+    setSelectedConnectionId(null);
+  }, [pushHistory, readMode]);
+
+  // Grows a shape so the text inside it fits (Node.jsx measures what's
+  // needed). Only ever grows: a box the user deliberately dragged larger
+  // keeps that size, and text being deleted doesn't yank the shape smaller
+  // underneath them.
+  //
+  // Deliberately does NOT push a history entry — this is a layout consequence
+  // of typing, and the text edit that triggered it already recorded one.
+  // Returning `prev` untouched when nothing changed is what keeps the
+  // measure → resize → re-measure cycle from looping.
+  const handleAutoResizeNode = useCallback((id, size) => {
+    setNodes((prev) => {
+      let changed = false;
+
+      const next = prev.map((node) => {
+        if (node.id !== id) return node;
+
+        const nextH = Math.max(node.h, Math.round(size.h));
+        if (nextH === node.h) return node;
+
+        changed = true;
+        return { ...node, h: nextH };
+      });
+
+      return changed ? next : prev;
+    });
+  }, []);
+
+  // Setting a node's text wholesale (used by paste-into-selected-node): this
+  // collapses the node down to a single centered block, which is what an
+  // incoming pasted value should look like.
   const handleLabelChange = useCallback((id, label) => {
     setNodes((prev) => {
-      const next = prev.map((node) => (node.id === id ? { ...node, label } : node));
+      const next = prev.map((node) => (
+        node.id === id
+          ? {
+            ...node,
+            label,
+            texts: label
+              ? [{ id: `${id}-t0`, x: null, y: null, value: label }]
+              : [],
+          }
+          : node
+      ));
       pushHistory(next, connections);
       return next;
     });
@@ -919,15 +1257,6 @@ useEffect(() => {
     });
     setSelectedConnectionId((prev) => (prev === id ? null : prev));
   }, [nodes, pushHistory]);
-
-  // const commitCurrentSnapshot = useCallback(() => {
-  //   const currentNodes = nodesRef.current;
-  //   const currentConnections = connectionsRef.current;
-  //   const latest = history.current[historyIdx.current];
-  //   const nextSnap = snapshot(currentNodes, currentConnections);
-  //   if (latest && JSON.stringify(latest) === JSON.stringify(nextSnap)) return;
-  //   pushHistory(currentNodes, currentConnections);
-  // }, [pushHistory]);
 
   const expandAll = useCallback(() => {
     setNodes((prev) => prev.map((node) => ({
@@ -1065,9 +1394,14 @@ useEffect(() => {
         }
       }
 
-      if (event.key === 'v' || event.key === 'V') handleModeChange('select');
-      if (event.key === 'c' || event.key === 'C') handleModeChange('connect');
-      if (event.key === 'h' || event.key === 'H') handleModeChange('pan');
+      // Plain-letter tool shortcuts: only when no modifier is held, so Ctrl+V
+      // (paste an image) and Ctrl+C aren't swallowed as "connect"/"erase".
+      if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        if (event.key === 'e' || event.key === 'E') handleModeChange('erase');
+        if (event.key === 'v' || event.key === 'V') handleModeChange('select');
+        if (event.key === 'c' || event.key === 'C') handleModeChange('connect');
+        if (event.key === 'h' || event.key === 'H') handleModeChange('pan');
+      }
 
       if (event.key === 'Escape') {
         handleModeChange('select');
@@ -1101,8 +1435,6 @@ useEffect(() => {
       <path d="M4 20a8 8 0 0 1 8-8h8" />
     </svg>
   );
-
-  // const allExpanded = nodes.every(node => !node.collapsed);
 
   const handleToggleAll = () => {
     if (allExpanded) {
@@ -1254,18 +1586,18 @@ useEffect(() => {
 
     setConnections(prev => {
 
-        const next = prev.map(c =>
-            c.id === id
-                ? { ...c, label }
-                : c
-        );
+      const next = prev.map(c =>
+        c.id === id
+          ? { ...c, label }
+          : c
+      );
 
-        pushHistory(nodes, next);
+      pushHistory(nodes, next);
 
-        return next;
+      return next;
     });
 
-}, [nodes, pushHistory]);
+  }, [nodes, pushHistory]);
 
   return (
     <div className="fc-app" data-theme={theme}>
@@ -1279,7 +1611,6 @@ useEffect(() => {
         edmDocuments={edmDocuments}
         fetchEDMDocuments={fetchEDMDocuments}
         fetchSharedDrafts={fetchSharedDrafts}
-        // onLoadDocument={handleLoadDocument}
         onLoadDocument={handleLoadDiagram}
         onStartVersion={() => setIsVersionMode(true)}
         onViewVersion={() => setIsVersionViewMode(true)}
@@ -1332,6 +1663,11 @@ useEffect(() => {
           onSearchNext={handleSearchNext}
           onSearchPrev={handleSearchPrev}
 
+          autoArrowEnabled={autoArrowEnabled}
+          onToggleAutoArrow={() => setAutoArrowEnabled((prev) => !prev)}
+
+          onInsertImage={() => setInsertImageRequest((n) => n + 1)}
+
           isVersionViewMode={isVersionViewMode}
           isVersionMode={isVersionMode}
           onSubmitVersion={handleSubmitVersion}
@@ -1345,6 +1681,12 @@ useEffect(() => {
             {connectFrom
               ? 'Click another shape to create the connection.'
               : 'Click a shape to start the connection.'}
+          </div>
+        )}
+
+        {mode === 'erase' && !readMode && (
+          <div className="fc-connect-hint">
+            Hold the left mouse button and drag across anything you want to remove. Hold Alt to un-mark.
           </div>
         )}
 
@@ -1372,7 +1714,10 @@ useEffect(() => {
             onConnectionsChange={readMode ? () => { } : handleConnectionsChange}
             onNodeDrop={readMode ? () => { } : handleNodeDrop}
             onCreateNode={handleCanvasCreateNode}
+            onCreateLine={readMode ? () => { } : handleCanvasCreateLine}
             onCreateTextNode={readMode ? () => { } : handleCanvasCreateTextNode}
+            onCreateImage={readMode ? () => { } : handleCreateImageNode}
+            insertImageRequest={insertImageRequest}
             onNodeDragEnd={readMode ? () => { } : commitCurrentSnapshot}
             onToggle={handleToggleNode}
             onSelectNode={handleSelectNode}
@@ -1382,6 +1727,9 @@ useEffect(() => {
             onQuickCreateFromNode={readMode ? () => { } : handleQuickCreateFromNode}
             onFocusBranch={focusBranch}
             onLabelChange={readMode ? () => { } : handleLabelChange}
+            onTextsChange={readMode ? () => { } : handleTextsChange}
+            onAutoResize={readMode ? () => { } : handleAutoResizeNode}
+            onErase={readMode ? () => { } : handleEraseElements}
             onConnectionControlEnd={readMode ? () => { } : commitCurrentSnapshot}
             onDeleteConnection={readMode ? () => { } : handleDeleteConnection}
             readMode={readMode}
