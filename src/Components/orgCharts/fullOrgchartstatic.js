@@ -1955,7 +1955,7 @@ const OrganizationChart = () => {
     // here per explicit request rather than derived from any role/permission
     // field, so it won't automatically pick up new users — update this
     // array directly to add/remove who sees the link.
-    const showManageUsers = [2, 10, 3].includes(sessionUserData?.Id);
+    // const showManageUsers = [2, 10, 3].includes(sessionUserData?.Id);
 
     return (
         <div style={styles.wrapper} >
@@ -2034,14 +2034,14 @@ const OrganizationChart = () => {
                     )}
                 </div>
                 <div className="d-flex align-items-center gap-2">
-                {showManageUsers && (
+                {/* {showManageUsers && (
                     <Link
                         className="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2 premium-btn"
                         to="/users"
                     >
                         <i className="bi bi-people"></i> Manage Employees
                     </Link>
-                )}
+                )} */}
                 <button
                     type="button"
                     className="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm d-inline-flex align-items-center gap-2 premium-btn"

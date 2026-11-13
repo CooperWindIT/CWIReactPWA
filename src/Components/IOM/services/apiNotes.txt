@@ -1,0 +1,56 @@
+# IOM – Inward & Outward Management (was IIM) – API & UI notes
+
+Front-end: React (Metronic/Bootstrap), folder `src/Components/IIM/` (components, InwardRecords, OutwardRecords, items, services). API controller is still `IIM/...`.
+
+## Routes (module renamed → /iom/)
+- `/iom/items-list` (Inspection screen), `/iom/inwards-list`, `/iom/inward-view/:id`, `/iom/item-view/:itemId`, `/iom/outwards-list` (user mentioned `/iim/outwards-list` – both paths are matched for permissions)
+
+## Action IDs (from sessionStorage.menuData → ActionsIds)
+- Menu "Inwards": 1 = Register inward, 39 = Security (container photos screen, single date filter), 40 = View inward
+- Menu "Inspection" (was "Items", path /iom/items-list): 2 = Edit item, 41 = View item (barcodes). Lookup in `components/menuActions.js` (by path, then name).
+- Menu "Outwards": assumed same as Inwards → 1 = Register outward, 40 = View (TODO confirm)
+
+## APIs
+- `POST IIM/GetItems` – paginated items (`data.result`, `data.output.TotalCount`)
+- `POST IIM/GetInwards` – Params: OrgId, FromDate, ToDate, VehicleNumber, Status, **IsOutward (0 = inwards, 1 = outwards)**; result rows incl. TotalItems, TotalVerifiedQuantity (Qty column uses this, falls back to TotalDeclaredQuantity)
+- `POST file_upload/ManageInwards` – FormData
+  - NEW_INWARD: InwardRecordJson `{ ArrivalDate, VehicleNumber (UPPERCASE, A-Z0-9 only), DocFile:null, UserId, IsOutward: 0|1, Remarks? (outward only) }`, ItemsJson (multiple items), DocFile. Date: today … today+30 days
+  - Outward registration uses the same action with IsOutward 1 (`RegisterInwardModel isOutward`)
+  - UPDATE_IMAGE (security photo): InwardRecordJson `{"Id":1006,"UserId":101}`, ItemsJson "null", UnitsJson "null", DocFile (one image; camera capture or gallery)
+- `GET IIM/GetInwardRecordDetails?OrgId&InwardRecordId` → InwardRecord + InwardRecordItems (RecordItemId, ItemId, ItemCode, ItemName, PartNo, DeclaredQuantity, VerifiedQuantity, DifferenceQuantity)
+- `POST IIM/ManageInwards` – Action REVIEWED (review counts)
+- `POST IIM/ApproveToInventory`
+  - Update Inventory (Yes/No Swal confirm in InwardView): `{ OrgId, InwardRecordId, Action: "UPDATE_INVENTORY", UserId, LastSequenceNo, UnitsJson: [{ RecordItemId, Barcode }] }`
+  - Generate: `{ OrgId, InwardRecordId, Action: "GENERATE_BARCODES", UserId, UnitsJson: [{ UnitId }] }`
+- `GET IIM/GetInwardsbyItem?OrgId&ItemId`
+- `GET IIM/GetInventoryUnits?UnitStatus=ALL&InwardRecordId=&GenerationFilter=ALL|GENERATED|NOT_GENERATED&ItemId=`
+  - Rework tab: `GET IIM/GetInventoryUnits?OrgId=&ItemId=0` (0 = all items)
+  - "not found" result = empty list, no error popup
+
+## Outwards screen (`OutwardRecords/OutwardsList.jsx`)
+- Same layout as Inward Records, orange theme (`.ow-theme`, `.ow-modal`) to tell it apart from blue inwards
+- Status badges (counts from loaded page): Pending loading, Partially loaded, Loading completed, Pending security, Dispatched (+ Draft, Cancelled labels). Status keys assumed: DRAFT, PENDING_LOADING, PARTIALLY_LOADED, LOADING_COMPLETED, PENDING_SECURITY, DISPATCHED, CANCELLED
+- "Waiting for your review" banner for LOADING_COMPLETED; loading progress uses LoadedQuantity / TotalLoadedQuantity vs total qty (field names to confirm)
+- View = side drawer with items from GetInwardRecordDetails
+
+## Inward view
+- Review Count / Update Inventory buttons sit under the Items table; Generate Barcodes / Print Labels top right
+- Items table paged 8 per page + search; Total shows Short and Excess separately; Swal variance shows number (0 when matched)
+- History steps: registered → reviewed → inventory updated → barcodes generated
+
+## Unit statuses (confirmed)
+PENDING_INSPECTION · READYTO_DISPATCH (no underscore between READY and TO) · REWORK_REQUIRED
+- Item view → View Barcodes: # row number column (no serial), status filter = coloured badges with counts; empty rework reason/image = N/A
+
+## Rules
+- Barcode format `INW{inward number}{first 4 letters of item name}{serial 3 digits}` e.g. INW1005BUSH001; serial continuous across items of the inward
+- Images open in in-page `ImagePreviewModal`, not a new tab
+- Top nav: `className="app-toolbar iim-nav"`; content wrapper `pt-0 mb-5`; all IOM screens mobile responsive (`.ir-stack` tables → cards)
+- Vehicle number inputs are forced to UPPERCASE
+
+## QC Inspection standalone app (HTML/JS/Bootstrap, `qc-inspection/`)
+- Public services (no auth), base `https://qacwiapi.cooperwind.online/public` (QA)
+- `GET GetUnitsForInspection?OrgId=` – downloaded once at (dummy) sign-in; "Fetch latest units" button reloads
+- Pass: `POST UpdateUnitInspection?OrgId=` JSON `{ OrgId, Barcode, Action: "PASSED", ReworkReason: null, UserId }`
+- Fail: `POST InspectionFailed` FormData `OrgId, Barcode, Action=FAILED, ReworkReason, UserId, ImageUrl(file)`
+- Multiple scan = coming soon; live camera needs HTTPS (photo fallback otherwise); logo at assets/images/cwilogo.png

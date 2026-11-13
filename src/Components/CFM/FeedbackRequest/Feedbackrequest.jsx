@@ -14,24 +14,20 @@
 // so when Suppliers / Employees go live only their `ready` flag (and their
 // APIs) need adding.
 //
-// View Form opens the request's form in a pop-up, drawn by the same
-// FeedbackFormPreview the setup screen's "Review form" step uses — so it is
-// exactly what the customer sees, with any answers they have given.
+// Each row has two actions:
+//   View  — opens ViewFeedbackRequest: the form with the customer's answers,
+//           the team's comments and "Email customer", on one screen
+//   Edit  — opens the setup screen (draft requests only)
 //
 // Wired to the live APIs:
 //   CFM/GetCustomers            { OrgId }
 //   CFM/GetRequests             { OrgId, JsonData: { CustomerId } }
 //   CFM/GetAvailablePeriods     { OrgId, JsonData: { CustomerId, Year } }
-//   CFM/GetPublicFeedbackForm   { OrgId, JsonData: { PublicCode } }
-//   Portal/GetMasterTypes       (question types, to pick stars / yes-no / text)
-//
-// Comments (the chat icon on each row) opens FeedbackCommentsModal: the
-// team's comment thread, plus "Reply to customer" once feedback is in.
 // =============================================================
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Select, Button, Table, Tag, Tooltip, Empty, Modal, Spin, message } from "antd";
+import { Select, Button, Table, Tag, Tooltip, Empty, message } from "antd";
 
 import Base1 from "../../Config/Base1";
 import { BASE_IMAGE_API_GET } from "../../Config/Config";
@@ -42,24 +38,11 @@ import {
     getCustomers,
     getFeedbackRequests,
     getAvailablePeriods,
-    getPublicFeedbackForm,
-    getMasterTypes,
     REQUEST_STATUS,
     REQUEST_STATUS_FLOW,
     normalizeStatus,
-    isLockedStatus,
     readRows,
-    readObject,
-    readResult,
-    orgBrandingOf,
 } from "../Services/cfmServices";
-
-import FeedbackFormPreview, { kindResolver, hasAnswer } from "./FeedbackFormPreview";
-import FeedbackCommentsModal, {
-    commentCountOf,
-    hasCustomerFeedback,
-    meOf,
-} from "./FeedbackCommentsModal";
 
 // Who the feedback is collected from. Only `ready` types are wired to APIs;
 // the rest show a "Coming soon" panel. Flip `ready` when one goes live.
@@ -108,6 +91,10 @@ const EDIT_ROUTE = "/cfm/feedback-request/edit";
 // The create screen — same layout as edit, registered as its own route.
 const CREATE_ROUTE = "/cfm/feedback-request/create";
 
+// The view screen (form + comments + email customer), without :publicCode.
+// Must match the <Route> registered for ViewFeedbackRequest.
+const VIEW_ROUTE = "/cfm/feedback-request/view";
+
 // "October 2026" -> { month: "oct", year: 2026 }, tolerant of "Oct 2026" and
 // any extra words, so the month filter doesn't depend on the exact wording
 // the API happens to use.
@@ -127,33 +114,6 @@ const initialsOf = (name) =>
         .map((word) => word[0])
         .join("")
         .toUpperCase();
-
-// One item off GetPublicFeedbackForm, in the shape FeedbackFormPreview draws.
-// Tolerant of the few names the text and type have gone by.
-const toPreviewRow = (item, index) => ({
-    key: item.RequestItemId ?? item.Id ?? `item-${index}`,
-    ContentText: item.ContentText ?? item.Content ?? item.Question ?? "",
-    TypeId: item.TypeId ?? item.ContentTypeId,
-    TypeName: item.TypeName || "",
-    IsRequired: Boolean(Number(item.IsRequired)),
-    DisplayOrder: Number(item.DisplayOrder) || index + 1,
-    Answer: item.Answer ?? null,
-});
-
-// Items normally arrive as an array; a JSON string is unpacked too.
-const itemsOf = (form) => {
-    const raw = form?.Items;
-    if (Array.isArray(raw)) return raw;
-    if (typeof raw === "string" && raw.trim()) {
-        try {
-            const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed : [];
-        } catch {
-            return [];
-        }
-    }
-    return [];
-};
 
 // "2026-10-03T00:21:02.937Z" -> "03-10-2026"
 const formatDate = (raw) => {
@@ -196,6 +156,7 @@ export default function FeedbackRequest() {
 
     const [requests, setRequests] = useState([]);
     const [requestsLoading, setRequestsLoading] = useState(false);
+    const [sessionActionIds, setSessionActionIds] = useState([]);
 
     // The customer the list on screen actually belongs to. Kept apart from
     // `customerId` so switching the dropdown can't relabel a list that was
@@ -221,6 +182,32 @@ export default function FeedbackRequest() {
             navigate("/");
         }
     }, [navigate]);
+
+      useEffect(() => {
+            const sessionMenuData = sessionStorage.getItem("menuData");
+            try {
+                const parsedMenu = JSON.parse(sessionMenuData);
+                // Find Dashboard and Visitors menus
+                const dashboardMenu = parsedMenu.find(
+                    (item) => item.MenuName === "Feedback Request"
+                );
+    
+                let actionIds = [];
+                if (dashboardMenu?.ActionsIds) {
+                    actionIds = actionIds.concat(
+                        dashboardMenu.ActionsIds.split(",").map(Number)
+                    );
+                }
+    
+                if (actionIds.length > 0) {
+                    // Remove duplicates just in case
+                    const uniqueActionIds = [...new Set(actionIds)];
+                    setSessionActionIds(uniqueActionIds);
+                }
+            } catch (err) {
+                console.error("Error parsing menuData:", err);
+            }
+        }, []);
 
     // -------------------------------------------------------------
     // CUSTOMERS
@@ -443,92 +430,25 @@ export default function FeedbackRequest() {
     // ROW ACTIONS
     // -------------------------------------------------------------
 
-    // View Form: the request's public form, in a pop-up. `viewing` holds the
-    // row clicked plus what came back; master types are fetched once and
-    // kept, since every form needs them to tell stars from yes/no from text.
-    const [viewing, setViewing] = useState(null);
-    const [masterTypes, setMasterTypes] = useState(null);
+    // The customer record rides along in route state so the next screen can
+    // show the logo without fetching the whole customer list again.
+    const customerOf = (record) =>
+        customers.find((item) => Number(item.Id) === Number(record?.CustomerId));
 
-    const handleViewForm = async (record) => {
+    // View: the form with the answers, the comments and "Email customer".
+    const handleView = (record) => {
         if (!record.PublicCode) {
             message.warning("This request has no public code to open.");
             return;
         }
 
-        const code = String(record.PublicCode);
-        setViewing({ code, record, loading: true, form: null, rows: [], error: "" });
-
-        const orgId = sessionUserData.OrgId;
-
-        const [formResponse, typeResponse] = await Promise.all([
-            getPublicFeedbackForm({ orgId, publicCode: code }).catch((error) => {
-                console.error("GetPublicFeedbackForm failed:", error);
-                return null;
-            }),
-            masterTypes ? null : getMasterTypes({ orgId }).catch(() => null),
-        ]);
-
-        const types = masterTypes || readRows(typeResponse);
-        if (!masterTypes && typeResponse) setMasterTypes(types);
-
-        const form = readObject(formResponse);
-        const items = itemsOf(form);
-        const found = Boolean(form && (form.RequestId || items.length));
-
-        const { kindOf } = kindResolver(types);
-
-        const rows = items
-            .map(toPreviewRow)
-            .sort((a, b) => a.DisplayOrder - b.DisplayOrder)
-            .map((row) => ({ ...row, kind: kindOf(row.TypeId, row.TypeName) }));
-
-        let error = "";
-
-        if (!found) {
-            const result = readResult(formResponse);
-            const isDraft = normalizeStatus(record.Status) === REQUEST_STATUS.DRAFT;
-
-            // A draft with nothing on it yet makes the server fail (it can't
-            // parse an empty item list) — say what that means instead of
-            // showing the raw error.
-            error = isDraft
-                ? "This draft has no questions on its form yet. Add them in Edit setup, then view it here."
-                : (!result.ok && result.message) ||
-                  `Couldn't open the form for code ${code}. Please try again.`;
-        }
-
-        // Only land the answer if the pop-up is still showing this request.
-        setViewing((prev) =>
-            prev && prev.code === code
-                ? { ...prev, loading: false, form: found ? form : null, rows, error }
-                : prev
-        );
-    };
-
-    const closeView = () => setViewing(null);
-
-    // -------------------------------------------------------------
-    // COMMENTS & REPLY
-    // -------------------------------------------------------------
-
-    const [commentsFor, setCommentsFor] = useState(null);
-    const [commentsTab, setCommentsTab] = useState("comments");
-    // Bumped when a comment is posted, so the counts on the rows refresh.
-    const [, setCommentsTick] = useState(0);
-
-    const me = meOf(sessionUserData);
-    const org = orgBrandingOf(sessionUserData, BASE_IMAGE_API_GET);
-
-    const openComments = (record, tab = "comments") => {
-        setCommentsTab(tab);
-        setCommentsFor(record);
-    };
-
-    const logoUrlOf = (record) => {
-        const owner = customers.find((item) => Number(item.Id) === Number(record?.CustomerId));
-        return owner?.LogoImgURL && !brokenLogos[owner.Id]
-            ? `${BASE_IMAGE_API_GET}${encodeURI(owner.LogoImgURL)}`
-            : "";
+        navigate(`${VIEW_ROUTE}/${encodeURIComponent(record.PublicCode)}`, {
+            state: {
+                publicCode: record.PublicCode,
+                request: record,
+                customer: customerOf(record),
+            },
+        });
     };
 
     // -------------------------------------------------------------
@@ -536,8 +456,6 @@ export default function FeedbackRequest() {
     // what the customer has — Edit setup is switched off from then on.
     const canEditSetup = (record) => normalizeStatus(record?.Status) === REQUEST_STATUS.DRAFT;
 
-    // The customer record rides along in route state so the edit screen can
-    // show the logo without fetching the whole customer list again.
     const handleEditSetup = (record) => {
         if (!canEditSetup(record)) return;
 
@@ -552,9 +470,7 @@ export default function FeedbackRequest() {
                 // The row itself, so the edit screen can still open a draft
                 // whose saved form the server can't return yet.
                 request: record,
-                customer: customers.find(
-                    (item) => Number(item.Id) === Number(record.CustomerId)
-                ),
+                customer: customerOf(record),
             },
         });
     };
@@ -638,167 +554,51 @@ export default function FeedbackRequest() {
         },
         {
             title: "Actions",
-            width: 180,
+            width: 130,
             align: "center",
             render: (_value, record) => (
                 <div className="d-flex align-items-center justify-content-center gap-2">
-                    <Tooltip title="View form">
+                    <Tooltip title="View form, comments & reply">
                         <button
                             type="button"
                             className="fbr-icon-btn view"
-                            onClick={() => handleViewForm(record)}
+                            onClick={() => handleView(record)}
                         >
                             <i className="bi bi-eye"></i>
                         </button>
                     </Tooltip>
-
-                    <Tooltip
-                        title={
-                            canEditSetup(record)
-                                ? "Edit setup"
-                                : "Only draft requests can be edited"
-                        }
-                    >
-                        {/* The span keeps the tooltip working on a disabled button. */}
-                        <span className="d-inline-flex">
-                            <button
-                                type="button"
-                                className="fbr-icon-btn edit"
-                                disabled={!canEditSetup(record)}
-                                onClick={() => handleEditSetup(record)}
-                            >
-                                <i className="bi bi-sliders"></i>
-                            </button>
-                        </span>
-                    </Tooltip>
-
-                    <Tooltip
-                        title={
-                            hasCustomerFeedback(record)
-                                ? "Comments & reply to customer"
-                                : "Comments"
-                        }
-                    >
-                        <button
-                            type="button"
-                            className="fbr-icon-btn comments"
-                            onClick={() => openComments(record)}
+                    {showEditBtn && (
+                        <Tooltip
+                            title={
+                                canEditSetup(record)
+                                    ? "Edit setup"
+                                    : "Only draft requests can be edited"
+                            }
                         >
-                            <i className="bi bi-chat-dots"></i>
-                            {commentCountOf(record, me) > 0 && (
-                                <span className="fbr-icon-count">
-                                    {commentCountOf(record, me)}
-                                </span>
-                            )}
-                        </button>
-                    </Tooltip>
+                            {/* The span keeps the tooltip working on a disabled button. */}
+                            <span className="d-inline-flex">
+                                <button
+                                    type="button"
+                                    className="fbr-icon-btn edit"
+                                    disabled={!canEditSetup(record)}
+                                    onClick={() => handleEditSetup(record)}
+                                >
+                                    <i className="bi bi-sliders"></i>
+                                </button>
+                            </span>
+                        </Tooltip>
+                    )}
                 </div>
             ),
         },
     ];
 
     // -------------------------------------------------------------
-    // VIEW FORM — pop-up body
-    // -------------------------------------------------------------
-
-    const viewModalBody = () => {
-        if (viewing.loading) {
-            return (
-                <div className="fbr-view-state">
-                    <Spin size="large" />
-                    <div className="fbr-view-state-text">
-                        Opening the {viewing.record.Period} form…
-                    </div>
-                </div>
-            );
-        }
-
-        if (viewing.error) {
-            return (
-                <div className="fbr-view-state">
-                    <span className="fbr-view-state-icon">
-                        <i className="bi bi-file-earmark-x"></i>
-                    </span>
-                    <h4>Form not available</h4>
-                    <p>{viewing.error}</p>
-                </div>
-            );
-        }
-
-        const { form, record, rows } = viewing;
-
-        const owner = customers.find(
-            (item) => Number(item.Id) === Number(form.CustomerId ?? record.CustomerId)
-        );
-
-        const name = form.CustomerName || owner?.CustomerName || customerName;
-
-        const logoSrc =
-            owner?.LogoImgURL && !brokenLogos[owner.Id]
-                ? `${BASE_IMAGE_API_GET}${encodeURI(owner.LogoImgURL)}`
-                : null;
-
-        const statusKey = normalizeStatus(form.Status || record.Status);
-        const meta = statusMeta(statusKey);
-        const answered = rows.filter(hasAnswer).length;
-
-        // Once anything is answered, or the request is no longer open, the
-        // form is a record of what was sent — nothing on it can be typed into.
-        const locked =
-            answered > 0 || isLockedStatus(statusKey) || statusKey === "SUBMITTED";
-
-        const respondent = form.RespondentName || record.RespondentName;
-        const submittedOn = form.SubmittedOn || record.SubmittedOn;
-
-        return (
-            <FeedbackFormPreview
-                key={viewing.code}
-                customerName={name}
-                logoSrc={logoSrc}
-                onLogoError={() =>
-                    owner && setBrokenLogos((prev) => ({ ...prev, [owner.Id]: true }))
-                }
-                periodText={form.Period || record.Period}
-                rows={rows}
-                badge={
-                    <span className={`fbr-view-status ${meta.tone}`}>
-                        <i className={`bi ${meta.icon} me-1`}></i>
-                        {meta.label}
-                    </span>
-                }
-                meta={[
-                    { key: "code", icon: "bi-hash", text: `Code ${viewing.code}` },
-                    {
-                        key: "count",
-                        icon: "bi-list-check",
-                        text: `${rows.length} question${rows.length === 1 ? "" : "s"}`,
-                    },
-                    ...(answered
-                        ? [{ key: "answered", icon: "bi-check2-all", text: `${answered} answered` }]
-                        : []),
-                    ...(respondent
-                        ? [{ key: "who", icon: "bi-person", text: respondent }]
-                        : []),
-                    ...(submittedOn
-                        ? [{ key: "when", icon: "bi-calendar-check", text: formatDate(submittedOn) }]
-                        : []),
-                ]}
-                foot={
-                    answered
-                        ? `Read-only — these are the answers the ${one} submitted.`
-                        : locked
-                        ? `Read-only — this request is ${meta.label.toLowerCase()} and was not answered.`
-                        : `This is the form the ${one} sees. Nothing typed here is saved.`
-                }
-                emptyText="No questions on this form yet — add them in Edit setup."
-                readOnly={locked}
-            />
-        );
-    };
-
-    // -------------------------------------------------------------
     // RENDER
     // -------------------------------------------------------------
+
+    const showAddBtn = sessionActionIds?.includes(1);
+    const showEditBtn = sessionActionIds?.includes(3);
 
     return (
         <Base1>
@@ -972,18 +772,20 @@ export default function FeedbackRequest() {
 
                                         <div className="col-12 col-lg-7">
                                             <div className="fbr-actions-row">
-                                                <div className="fbr-actions">
-                                                    <Button
-                                                        size="large"
-                                                        type="primary"
-                                                        className="fbr-btn-primary"
-                                                        disabled={!customerId}
-                                                        onClick={handleCreateRequest}
-                                                    >
-                                                        <i className="bi bi-plus-lg me-2 text-white"></i>
-                                                        Create Request
-                                                    </Button>
-                                                </div>
+                                                {showAddBtn && (
+                                                    <div className="fbr-actions">
+                                                        <Button
+                                                            size="large"
+                                                            type="primary"
+                                                            className="fbr-btn-primary"
+                                                            disabled={!customerId}
+                                                            onClick={handleCreateRequest}
+                                                        >
+                                                            <i className="bi bi-plus-lg me-2 text-white"></i>
+                                                            Create Request
+                                                        </Button>
+                                                    </div>
+                                                )}
 
                                                 {/* The chosen customer, so it's obvious who
                                                     everything below belongs to. */}
@@ -1046,113 +848,38 @@ export default function FeedbackRequest() {
 
                             {mode === "load" && (
                                 <>
-                                    {/* Period on the left half, counts on the right */}
-                                    <div className="row g-4 fbr-overview">
-                                        <div className="col-12 col-lg-6">
-                                            {/* Period filter */}
-                                            <div className="fbr-card h-100 mb-0">
-                                                <div className="fbr-card-head">
-                                                    <span className="fbr-card-badge">
-                                                        <i className="bi bi-funnel text-white"></i>
+                                    {/* Counts — one row */}
+                                    <div className="fbr-stats">
+                                        {statusCounts.map((status) => (
+                                            <div
+                                                className={`fbr-stat ${status.tone}`}
+                                                key={status.key}
+                                            >
+                                                <span className="fbr-stat-icon">
+                                                    <i className={`bi ${status.icon} text-white`}></i>
+                                                </span>
+
+                                                <div className="fbr-stat-text">
+                                                    <span className="fbr-stat-count">
+                                                        {status.count}
                                                     </span>
-
-                                                    <div className="flex-grow-1">
-                                                        <h3 className="fbr-card-title">Period</h3>
-                                                        <div className="fbr-card-sub">
-                                                            Narrow the list to a year, or to one month
-                                                            within it.
-                                                        </div>
-                                                    </div>
-
-                                                    {filterIsOn && (
-                                                        <button
-                                                            type="button"
-                                                            className="fbr-clear-btn"
-                                                            onClick={() => {
-                                                                setLoadYear(thisYear);
-                                                                setLoadMonth(ALL_MONTHS);
-                                                            }}
-                                                        >
-                                                            <i className="bi bi-x-circle me-1"></i>
-                                                            Clear filter
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                <div className="fbr-card-body">
-                                                    <div className="row g-3 align-items-end">
-                                                        <div className="col-5">
-                                                            <label className="fbr-label">Year</label>
-
-                                                            <Select
-                                                                size="large"
-                                                                style={{ width: "100%" }}
-                                                                value={loadYear}
-                                                                onChange={setLoadYear}
-                                                                options={YEARS.map((value) => ({
-                                                                    value,
-                                                                    label: String(value),
-                                                                }))}
-                                                            />
-                                                        </div>
-
-                                                        <div className="col-7">
-                                                            <label className="fbr-label">Month</label>
-
-                                                            <Select
-                                                                size="large"
-                                                                style={{ width: "100%" }}
-                                                                value={loadMonth}
-                                                                onChange={setLoadMonth}
-                                                                loading={periodsLoading}
-                                                                options={loadMonthOptions}
-                                                                notFoundContent={
-                                                                    periodsLoading
-                                                                        ? "Loading…"
-                                                                        : "No months returned"
-                                                                }
-                                                            />
-                                                        </div>
-                                                    </div>
+                                                    <span className="fbr-stat-label">
+                                                        {status.label}
+                                                    </span>
                                                 </div>
                                             </div>
-                                        </div>
+                                        ))}
 
-                                        <div className="col-12 col-lg-6">
-                                            {/* Counts */}
-                                            <div className="fbr-stats">
-                                                {statusCounts.map((status) => (
-                                                    <div
-                                                        className={`fbr-stat ${status.tone}`}
-                                                        key={status.key}
-                                                    >
-                                                        <span className="fbr-stat-icon">
-                                                            <i className={`bi ${status.icon} text-white`}></i>
-                                                        </span>
+                                        <div className="fbr-stat total">
+                                            <span className="fbr-stat-icon">
+                                                <i className="bi bi-collection text-white"></i>
+                                            </span>
 
-                                                        <div className="fbr-stat-text">
-                                                            <span className="fbr-stat-count">
-                                                                {status.count}
-                                                            </span>
-                                                            <span className="fbr-stat-label">
-                                                                {status.label}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-
-                                                <div className="fbr-stat total">
-                                                    <span className="fbr-stat-icon">
-                                                        <i className="bi bi-collection text-white"></i>
-                                                    </span>
-
-                                                    <div className="fbr-stat-text">
-                                                        <span className="fbr-stat-count">
-                                                            {visibleRequests.length}
-                                                        </span>
-                                                        <span className="fbr-stat-label">Total</span>
-                                                    </div>
-                                                </div>
+                                            <div className="fbr-stat-text">
+                                                <span className="fbr-stat-count">
+                                                    {visibleRequests.length}
+                                                </span>
+                                                <span className="fbr-stat-label">Total</span>
                                             </div>
                                         </div>
                                     </div>
@@ -1164,9 +891,9 @@ export default function FeedbackRequest() {
                                                 <i className="bi bi-list-check text-white"></i>
                                             </span>
 
-                                            <div className="flex-grow-1">
+                                            <div className="flex-grow-1 min-w-0">
                                                 <h3 className="fbr-card-title">
-                                                    {party.singular} Feedback Requests
+                                                    {party.singular} Feedback Request Details
                                                 </h3>
                                                 <div className="fbr-card-sub">
                                                     {customerName || `This ${one}`} ·{" "}
@@ -1178,20 +905,68 @@ export default function FeedbackRequest() {
                                                 </div>
                                             </div>
 
-                                            <Tooltip title="Refresh">
-                                                <button
-                                                    type="button"
-                                                    className="fbr-icon-btn refresh"
-                                                    onClick={() => handleLoadRequests()}
-                                                    disabled={requestsLoading}
-                                                >
-                                                    <i
-                                                        className={`bi bi-arrow-clockwise ${
-                                                            requestsLoading ? "fbr-spin" : ""
-                                                        }`}
-                                                    ></i>
-                                                </button>
-                                            </Tooltip>
+                                            {/* Period filter + refresh */}
+                                            <div className="fbr-head-tools">
+                                                {filterIsOn && (
+                                                    <Tooltip title="Show this year, all months">
+                                                        <button
+                                                            type="button"
+                                                            className="fbr-clear-btn"
+                                                            onClick={() => {
+                                                                setLoadYear(thisYear);
+                                                                setLoadMonth(ALL_MONTHS);
+                                                            }}
+                                                        >
+                                                            <i className="bi bi-x-circle me-1"></i>
+                                                            Clear
+                                                        </button>
+                                                    </Tooltip>
+                                                )}
+
+                                                <Select
+                                                    size="large"
+                                                    className="fbr-filter-year"
+                                                    value={loadYear}
+                                                    onChange={(value) => {
+                                                        setLoadYear(value);
+                                                        // The months differ per year.
+                                                        setLoadMonth(ALL_MONTHS);
+                                                    }}
+                                                    options={YEARS.map((value) => ({
+                                                        value,
+                                                        label: String(value),
+                                                    }))}
+                                                    prefix={<i className="bi bi-calendar3 fbr-filter-icon"></i>}
+                                                />
+
+                                                <Select
+                                                    size="large"
+                                                    className="fbr-filter-month"
+                                                    value={loadMonth}
+                                                    onChange={setLoadMonth}
+                                                    loading={periodsLoading}
+                                                    options={loadMonthOptions}
+                                                    popupMatchSelectWidth={180}
+                                                    notFoundContent={
+                                                        periodsLoading ? "Loading…" : "No months returned"
+                                                    }
+                                                />
+
+                                                <Tooltip title="Refresh">
+                                                    <button
+                                                        type="button"
+                                                        className="fbr-icon-btn refresh"
+                                                        onClick={() => handleLoadRequests()}
+                                                        disabled={requestsLoading}
+                                                    >
+                                                        <i
+                                                            className={`bi bi-arrow-clockwise ${
+                                                                requestsLoading ? "fbr-spin" : ""
+                                                            }`}
+                                                        ></i>
+                                                    </button>
+                                                </Tooltip>
+                                            </div>
                                         </div>
 
                                         <div className="fbr-table-wrap">
@@ -1237,77 +1012,6 @@ export default function FeedbackRequest() {
 
                 </div>
             </div>
-
-            {/* ================= VIEW FORM ================= */}
-
-            <Modal
-                open={Boolean(viewing)}
-                onCancel={closeView}
-                width={940}
-                style={{ top: 28 }}
-                destroyOnHidden
-                title={null}
-                className={`fbr-view-modal ${
-                    viewing && !viewing.loading && !viewing.error ? "on-dark" : ""
-                }`}
-                footer={
-                    viewing && !viewing.loading
-                        ? [
-                              <Button key="close" className="fbr-view-close" onClick={closeView}>
-                                  Close
-                              </Button>,
-                              hasCustomerFeedback(viewing.record) && (
-                                  <Button
-                                      key="reply"
-                                      className="fbr-view-close"
-                                      onClick={() => {
-                                          const record = viewing.record;
-                                          closeView();
-                                          openComments(record, "reply");
-                                      }}
-                                  >
-                                      <i className="bi bi-reply me-2"></i>
-                                      Reply to {one}
-                                  </Button>
-                              ),
-                              canEditSetup(viewing.record) && (
-                                  <Button
-                                      key="edit"
-                                      type="primary"
-                                      className="fbr-btn-primary fbr-view-edit"
-                                      onClick={() => {
-                                          const record = viewing.record;
-                                          closeView();
-                                          handleEditSetup(record);
-                                      }}
-                                  >
-                                      <i className="bi bi-sliders me-2"></i>
-                                      Edit setup
-                                  </Button>
-                              ),
-                          ]
-                        : null
-                }
-            >
-                {viewing && viewModalBody()}
-            </Modal>
-
-            {/* ================= COMMENTS & REPLY ================= */}
-
-            <FeedbackCommentsModal
-                open={Boolean(commentsFor)}
-                record={commentsFor}
-                defaultTab={commentsTab}
-                customer={customers.find(
-                    (item) => Number(item.Id) === Number(commentsFor?.CustomerId ?? loadedCustomerId)
-                )}
-                customerLogoUrl={logoUrlOf(commentsFor || { CustomerId: loadedCustomerId })}
-                sessionUserData={sessionUserData}
-                org={org}
-                statusLabel={commentsFor ? statusMeta(commentsFor.Status).label : ""}
-                onChange={() => setCommentsTick((tick) => tick + 1)}
-                onClose={() => setCommentsFor(null)}
-            />
 
             {/* ================= STYLES ================= */}
 
@@ -1644,10 +1348,11 @@ export default function FeedbackRequest() {
 
                 /* ----- Status counts ----- */
 
+                /* All the counts side by side in one row. */
                 .fbr-stats {
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-                    gap: 12px;
+                    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+                    gap: 14px;
                     margin-bottom: 18px;
                 }
 
@@ -1943,44 +1648,6 @@ export default function FeedbackRequest() {
 
                 .fbr-icon-btn:active:not(:disabled) { transform: translateY(0) scale(.94); }
 
-                .fbr-icon-btn.comments {
-                    position: relative;
-                    width: 36px;
-                    height: 36px;
-                    border-radius: 11px;
-                    font-size: 15px;
-                    color: #d97706;
-                    border-color: #fde68a;
-                    background: linear-gradient(135deg, #fffbeb, #fff7ed);
-                    animation: fbrPop .35s cubic-bezier(.34, 1.56, .64, 1) .12s backwards;
-                }
-
-                .fbr-icon-btn.comments:hover {
-                    color: #ffffff;
-                    border-color: transparent;
-                    background: linear-gradient(135deg, #f59e0b, #f97316);
-                    transform: translateY(-2px);
-                    box-shadow: 0 10px 18px rgba(245, 158, 11, .35);
-                }
-
-                .fbr-icon-count {
-                    position: absolute;
-                    top: -7px;
-                    right: -7px;
-                    min-width: 18px;
-                    height: 18px;
-                    padding: 0 5px;
-                    border-radius: 999px;
-                    display: grid;
-                    place-items: center;
-                    font-size: 10.5px;
-                    font-weight: 800;
-                    color: #ffffff;
-                    background: #ef4444;
-                    box-shadow: 0 0 0 2px #ffffff;
-                }
-
-
                 /* A draft still needs setting up, so its Edit button glows. */
                 .fbr-row-draft .fbr-icon-btn.edit {
                     animation:
@@ -2022,8 +1689,8 @@ export default function FeedbackRequest() {
                 }
 
                 .fbr-icon-btn.refresh {
-                    width: 44px;
-                    height: 44px;
+                    width: 40px;
+                    height: 40px;
                     border-radius: 11px;
                     color: #46566a;
                     font-size: 15px;
@@ -2112,20 +1779,27 @@ export default function FeedbackRequest() {
                 }
 
 
-                /* Same 18px below as between every other card. */
-                .fbr-overview { margin-bottom: 18px; }
+                /* ----- Period filter (in the list header) ----- */
 
-                /* ----- Counts: a 2 x 2 block the height of the Period card ----- */
-
-                .col-lg-6 > .fbr-stats {
-                    height: 100%;
-                    margin-bottom: 0;
-                    grid-template-columns: repeat(2, minmax(0, 1fr));
-                    grid-auto-rows: 1fr;
+                .fbr-head-tools {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    flex: none;
                 }
 
+                .fbr-filter-year { width: 120px; }
 
-                /* ----- Period filter ----- */
+                .fbr-filter-month { width: 160px; }
+
+                .fbr-head-tools .ant-select-selector,
+                .fbr-head-tools .ant-select-outlined .ant-select-selector {
+                    border-radius: 11px !important;
+                }
+
+                .fbr-filter-icon { color: #8190a0; font-size: 13px; }
+
+                .fbr-head-tools .fbr-clear-btn { height: 40px; }
 
                 .fbr-clear-btn {
                     flex: none;
@@ -2205,95 +1879,20 @@ export default function FeedbackRequest() {
                 }
 
 
-                /* ----- View form pop-up ----- */
-
-                .fbr-view-modal .ant-modal-content,
-                .fbr-view-modal .ant-modal-container {
-                    padding: 0;
-                    overflow: hidden;
-                    border-radius: 22px;
-                }
-
-                .fbr-view-modal .ant-modal-body { padding: 0; }
-
-                .fbr-view-modal .efr-preview { border: 0; border-radius: 0; }
-
-                /* Room for the close button beside the status. */
-                .fbr-view-modal .efr-preview-hero { padding-right: 150px; }
-
-                .fbr-view-modal .efr-preview-badge { top: 20px; right: 64px; }
-
-                .fbr-view-modal .ant-modal-close {
-                    top: 16px;
-                    right: 16px;
-                    z-index: 5;
-                    border-radius: 10px;
-                }
-
-                .fbr-view-modal.on-dark .ant-modal-close { color: rgba(255, 255, 255, .8); }
-
-                .fbr-view-modal.on-dark .ant-modal-close:hover {
-                    color: #ffffff;
-                    background: rgba(255, 255, 255, .14);
-                }
-
-                .fbr-view-modal .ant-modal-footer {
-                    margin: 0;
-                    padding: 14px 20px;
-                    border-top: 1px solid #e8eef5;
-                    background: #ffffff;
-                }
-
-                .fbr-view-close { height: 40px; padding: 0 20px; border-radius: 11px; font-weight: 600; }
-
-                .fbr-view-status {
-                    display: inline-flex;
-                    align-items: center;
-                    padding: 5px 12px;
-                    border-radius: 999px;
-                    font-size: 12px;
-                    font-weight: 700;
-                    background: rgba(255, 255, 255, .14);
-                    color: #ffffff;
-                }
-
-                .fbr-view-status.draft   { background: rgba(168, 85, 247, .25); color: #e9d5ff; }
-                .fbr-view-status.open    { background: rgba(16, 185, 129, .22); color: #a7f3d0; }
-                .fbr-view-status.sent    { background: rgba(56, 189, 248, .22); color: #bae6fd; }
-                .fbr-view-status.received { background: rgba(16, 185, 129, .22); color: #a7f3d0; }
-                .fbr-view-status.closed  { background: rgba(249, 115, 22, .22); color: #fed7aa; }
-                .fbr-view-status.neutral { background: rgba(236, 72, 153, .22); color: #fbcfe8; }
-
-                .fbr-view-state {
-                    padding: 64px 28px 56px;
-                    text-align: center;
-                }
-
-                .fbr-view-state-text { margin-top: 14px; font-size: 13.5px; color: #8190a0; }
-
-                .fbr-view-state-icon {
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 62px;
-                    height: 62px;
-                    border-radius: 18px;
-                    background: linear-gradient(135deg, #fff7ed, #ffedd5);
-                    color: #ea580c;
-                    font-size: 26px;
-                    margin-bottom: 14px;
-                }
-
-                .fbr-view-state h4 { margin: 0 0 6px; font-size: 17px; font-weight: 700; color: #12263f; }
-
-                .fbr-view-state p { max-width: 440px; margin: 0 auto; font-size: 13.5px; color: #6b7a8d; }
-
-
                 /* ----- Phone ----- */
 
                 @media (max-width: 991.98px) {
 
                     .fbr-actions { width: 100%; }
+
+                    /* The filters drop under the title on narrower screens. */
+                    .fbr-card-head:has(.fbr-head-tools) { flex-wrap: wrap; }
+
+                    .fbr-card-head:has(.fbr-head-tools) > .flex-grow-1 { flex: 1 1 0; }
+
+                    .fbr-head-tools { width: 100%; }
+
+                    .fbr-filter-year, .fbr-filter-month { flex: 1 1 0; width: auto; min-width: 0; }
 
                     .fbr-actions .ant-btn { flex: 1 1 160px; justify-content: center; }
 
@@ -2319,11 +1918,6 @@ export default function FeedbackRequest() {
                     .fbr-stat-icon { width: 36px; height: 36px; border-radius: 11px; font-size: 15px; }
 
                     .fbr-stat-count { font-size: 19px; }
-
-                    .fbr-view-modal .efr-preview-hero { padding-right: 18px; padding-top: 58px; }
-
-                    .fbr-view-modal .efr-preview-badge { right: auto; left: 18px; top: 18px; }
-
                 }
 
             `}</style>

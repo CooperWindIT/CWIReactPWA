@@ -7,10 +7,10 @@
 // a solid colour behind every gradient (Outlook ignores gradients) and
 // absolute image URLs (a mailbox can't see localhost or relative paths).
 //
-// No company is written in here: the sender's name and email come from the
-// logged-in organisation (OrgName, OrgEmail), so every client gets their own
-// branding. The sender is shown by name only; the one picture is the
-// customer's own logo.
+// No company is written in here: the sender's name, logo and email come from
+// the logged-in organisation (OrgName, OrgURL, OrgEmail), so every client
+// gets their own branding. The organisation's logo sits top-left; the
+// customer's logo is in the header badge.
 // =============================================================
 
 export const defaultEmailMessage = (orgName) =>
@@ -46,6 +46,16 @@ const paragraphs = (text) =>
         )
         .join("");
 
+// The sending organisation's logo (OrgURL) in the top-left of the email.
+// If the mail app holds pictures back, the alt text — the organisation's
+// name — shows in the same blue, so it still reads as a brand.
+const orgBrand = ({ orgName, orgLogoUrl, font }) =>
+    orgLogoUrl
+        ? `<img src="${esc(orgLogoUrl)}" alt="${esc(orgName || "Logo")}" height="40" style="display:block;height:40px;width:auto;max-width:200px;border:0;font-family:${font};font-size:20px;font-weight:800;color:#0271ae;">`
+        : orgName
+        ? `<span style="font-family:${font};font-size:20px;font-weight:800;letter-spacing:.5px;color:#0271ae;">${esc(orgName)}</span>`
+        : "";
+
 // Roughly 20 seconds a question, never less than 2 minutes.
 const minutesFor = (count) => Math.max(2, Math.ceil((Number(count) || 0) / 3));
 
@@ -58,6 +68,7 @@ export const buildFeedbackEmailHtml = ({
     publicCode = "",
     message,
     orgName = "",
+    orgLogoUrl = "",
     customerLogoUrl = "",
 }) => {
     const body = message ?? defaultEmailMessage(orgName);
@@ -84,9 +95,7 @@ export const buildFeedbackEmailHtml = ({
               initialsOf(customerName, "C")
           )}</div>`;
 
-    const orgMark = orgName
-        ? `<span style="font-family:${font};font-size:20px;font-weight:800;letter-spacing:.5px;color:#0271ae;">${esc(orgName)}</span>`
-        : "";
+    const orgMark = orgBrand({ orgName, orgLogoUrl, font });
 
     const stat = (label, value) => `
         <td width="33.33%" align="center" style="padding:16px 6px;">

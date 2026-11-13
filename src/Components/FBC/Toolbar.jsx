@@ -3,6 +3,7 @@ import styles from './Toolbar.module.css';
 import { ArrowsAltOutlined, SearchOutlined, ShrinkOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { Input, Popover, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
+import LastSaved from './LastSaved';
 
 const SHAPE_TOOLS = [
   { id: 'rect', label: 'Rectangle', short: '2' },
@@ -155,6 +156,11 @@ export default function Toolbar({
   autoArrowEnabled,
   onToggleAutoArrow,
 
+  // When this diagram was last written to the server, shown beside Search.
+  lastSavedAt,
+  draftSavedAt,
+  theme,
+
   isVersionMode,
   onSubmitVersion,
   isVersionEditMode,
@@ -258,19 +264,19 @@ export default function Toolbar({
             </ToolButton>
 
             <Tooltip title="Arrow — drag from one shape to another">
-  <span style={{ display: 'inline-block' }}>
-    <ToolButton
-      active={mode === 'arrow'}
-      label="Arrow"
-      // Clicking the active tool drops back to select, so the user can get out
-      // of arrow mode without hunting for the pointer button.
-      onClick={() => onModeChange(mode === 'arrow' ? 'select' : 'arrow')}
-      disabled={readMode}
-    >
-      <ArrowToolIcon />
-    </ToolButton>
-  </span>
-</Tooltip>
+              <span style={{ display: 'inline-block' }}>
+                <ToolButton
+                  active={mode === 'arrow'}
+                  label="Arrow"
+                  // Clicking the active tool drops back to select, so the user
+                  // can get out of arrow mode without hunting for the pointer.
+                  onClick={() => onModeChange(mode === 'arrow' ? 'select' : 'arrow')}
+                  disabled={readMode}
+                >
+                  <ArrowToolIcon />
+                </ToolButton>
+              </span>
+            </Tooltip>
 
             <Tooltip
               title={
@@ -368,6 +374,12 @@ export default function Toolbar({
           </div>
 
           <div className={styles.toolRail}>
+            {/* Always rendered, even before the first save — it says "Not
+                saved yet" in that case. Hiding it left a blank gap in the
+                toolbar that looked like something had failed to load. */}
+            <LastSaved savedAt={lastSavedAt} draftSavedAt={draftSavedAt} theme={theme} />
+            <div className={styles.sep} />
+
             <Popover
               content={content}
               trigger="click"

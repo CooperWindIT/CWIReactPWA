@@ -26,7 +26,7 @@ const Base1 = ({ children }) => {
     const navigate = useNavigate();
     const currentPath = window.location.pathname;
     const location = useLocation();
-    const shouldHideSidebar = ["/vms/", "/edm/", "/faq", "/kpi/", "/service-requests"].some(path => location.pathname.includes(path));
+    const shouldHideSidebar = ["/vms/", "/edm/", "/faq", "/kpi/", "/service-requests", "/iom/"].some(path => location.pathname.includes(path));
     const searchParams = new URLSearchParams(location.search);
     const reportId = searchParams.get("reportId");
 
@@ -405,12 +405,7 @@ const Base1 = ({ children }) => {
                     data-kt-sticky-activate="{default: true, lg: true}" data-kt-sticky-name="app-header-minimize" data-kt-sticky-offset="{default: '200px', lg: '0'}" data-kt-sticky-animation="false">
                     <div className="app-container container-fluid d-flex align-items-stretch justify-content-between" id="kt_app_header_container">
                         <div className="d-flex align-items-center d-lg-none ms-n3 me-1 me-md-2" title="Show sidebar menu">
-                            <div className="btn btn-icon btn-active-color-primary w-35px h-35px" id="kt_app_sidebar_mobile_toggle"
-                            // style={{
-                            //     pointerEvents: (shouldHideSidebar || reportId === '3') ? 'none' : 'auto',
-                            //     opacity: (shouldHideSidebar || reportId === '3') ? 0.3 : 1
-                            // }}
-                            >
+                            <div className="btn btn-icon btn-active-color-primary w-35px h-35px" id="kt_app_sidebar_mobile_toggle">
                                 <i className="ki-duotone ki-abstract-14 fs-2 fs-md-1 text-white"
                                     data-bs-toggle="offcanvas"
                                     data-bs-target="#offcanvasLeftNav"
@@ -517,8 +512,7 @@ const Base1 = ({ children }) => {
 
                 <div className="app-wrapper flex-row flex-row-fluid pt-20" id="kt_app_wrapper">
                     {!(
-                        shouldHideSidebar ||
-                        ["3", "19", "21", "22"].includes(reportId)
+                        shouldHideSidebar || ["3", "19", "21", "22"].includes(reportId)
                     ) && (
                             <div id="kt_app_sidebar" className="app-sidebar flex-column" data-kt-drawer="true" style={{ width: '210px' }}>
                                 <div className="app-sidebar-menu overflow-hidden flex-column-fluid bg-white shadow-sm">

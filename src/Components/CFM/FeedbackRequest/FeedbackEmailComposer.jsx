@@ -166,27 +166,34 @@ export default function FeedbackEmailComposer({
         publicCode,
         message: body,
         orgName,
+        orgLogoUrl: org.logoUrl || "",
     };
 
     // What the screen shows: the customer's logo straight from the image server.
     const html = useMemo(
         () => buildFeedbackEmailHtml({ ...templateData, customerLogoUrl }),
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [customerName, greetingName, periodText, questionCount, feedbackUrl, publicCode, body, orgName, customerLogoUrl]
+        [customerName, greetingName, periodText, questionCount, feedbackUrl, publicCode, body, orgName, org.logoUrl, customerLogoUrl]
     );
 
     // What gets sent. With EMAIL_INLINE_IMAGES on, the customer's logo
     // travels inside the email (a cid: image) instead of being linked, so
     // Outlook and Gmail show it without the reader having to allow "blocked
     // content". The server downloads the Url and attaches it under the Cid.
-    const inlineImages =
-        EMAIL_INLINE_IMAGES && customerLogoUrl
-            ? [{ Cid: "customer-logo", Url: customerLogoUrl }]
-            : [];
+    const inlineImages = EMAIL_INLINE_IMAGES
+        ? [
+              customerLogoUrl && { Cid: "customer-logo", Url: customerLogoUrl },
+              org.logoUrl && { Cid: "org-logo", Url: org.logoUrl },
+          ].filter(Boolean)
+        : [];
 
     const htmlToSend = () =>
         inlineImages.length
-            ? buildFeedbackEmailHtml({ ...templateData, customerLogoUrl: "cid:customer-logo" })
+            ? buildFeedbackEmailHtml({
+                  ...templateData,
+                  customerLogoUrl: customerLogoUrl ? "cid:customer-logo" : "",
+                  orgLogoUrl: org.logoUrl ? "cid:org-logo" : "",
+              })
             : html;
 
     // The side preview redraws a beat after typing stops, not on every key.

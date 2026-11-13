@@ -1,17 +1,31 @@
 import jsPDF from "jspdf";
 import logo from "../../Assests/Images/logo.jpg";
+import {
+  ARROW_TYPE,
+  ARROWHEAD,
+  ARROW_HEAD_LEN,
+  ARROW_HEAD_W,
+  CONNECTION_WIDTH,
+  STROKE_STYLE,
+  resolveArrowStyle,
+  getConnectionAnchors,
+  anchorPoint,
+  getElbowPoints,
+  trimForArrow,
+  polylineMidpoint,
+} from "../connectionRouting";
 
 // ─── text helpers ───────────────────────────────────────────────────────────
 
 function toAsciiText(value) {
   return String(value ?? "")
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[̀-ͯ]/g, "")
     .replace(/[""]/g, '"')
     .replace(/['']/g, "'")
     .replace(/[–—]/g, "-")
     .replace(/…/g, "...")
-    .replace(/\u00A0/g, " ")
+    .replace(/ /g, " ")
     .replace(/[^\x20-\x7E\n]/g, "");
 }
 
@@ -90,6 +104,44 @@ function sampleQuadratic(p0, cp, p1, steps = 24) {
   return pts;
 }
 
+// The canvas eases every elbow corner (see buildPolylinePath). Sampling the
+// same easing here keeps a printed arrow looking like the one on screen
+// instead of a harder, squarer version of it.
+function roundPolylineCorners(points, radius) {
+  if (points.length < 3 || radius <= 0) return points;
+
+  const out = [points[0]];
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const prev = points[i - 1];
+    const corner = points[i];
+    const next = points[i + 1];
+
+    const inLen = Math.hypot(corner.x - prev.x, corner.y - prev.y);
+    const outLen = Math.hypot(next.x - corner.x, next.y - corner.y);
+    if (inLen < 0.01 || outLen < 0.01) {
+      out.push(corner);
+      continue;
+    }
+
+    const r = Math.min(radius, inLen / 2, outLen / 2);
+    const enter = {
+      x: corner.x + ((prev.x - corner.x) / inLen) * r,
+      y: corner.y + ((prev.y - corner.y) / inLen) * r,
+    };
+    const exit = {
+      x: corner.x + ((next.x - corner.x) / outLen) * r,
+      y: corner.y + ((next.y - corner.y) / outLen) * r,
+    };
+
+    out.push(enter);
+    out.push(...sampleQuadratic(enter, corner, exit, 6).slice(1));
+  }
+
+  out.push(points[points.length - 1]);
+  return out;
+}
+
 function hexToRgb(hex) {
   const h = (hex || "").replace("#", "");
   if (h.length !== 6) return [255, 255, 255];
@@ -100,6 +152,13 @@ function hexToRgb(hex) {
   ];
 }
 
+// "theme-auto" means "whatever colour the canvas theme is using". A PDF page
+// is always white, so it resolves to the dark ink here regardless of which
+// theme the diagram was drawn in.
+function resolveInk(color, fallback = "#1f1f1f") {
+  if (!color || color === "theme-auto") return fallback;
+  return color;
+}
 
 function loadImageAsDataUrl(src) {
   return new Promise((resolve, reject) => {
@@ -117,9 +176,15 @@ function loadImageAsDataUrl(src) {
       canvas.height = img.naturalHeight || img.height;
 
       const ctx = canvas.getContext("2d");
+
+      // Flatten onto white before re-encoding. A transparent PNG otherwise
+      // composites against black, which turns a logo or a cut-out picture
+      // into a dark slab on a white page.
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0);
 
-      const isPng = src.toLowerCase().includes(".png");
+      const isPng = /^data:image\/png/i.test(src) || src.toLowerCase().includes(".png");
       resolve({
         dataUrl: canvas.toDataURL(isPng ? "image/png" : "image/jpeg", 1.0),
         format: isPng ? "PNG" : "JPEG",
@@ -146,72 +211,225 @@ function drawPolyline(doc, points, style) {
   doc.lines(segs, points[0].x, points[0].y, [1, 1], style, true);
 }
 
-function drawArrowHead(doc, tip, angle, color = "#1f1f1f", scale = 1) {
-  const headLen = Math.max(3, 7 * scale);
-  const p1 = {
-    x: tip.x - headLen * Math.cos(angle - Math.PI / 6),
-    y: tip.y - headLen * Math.sin(angle - Math.PI / 6),
-  };
-  const p2 = {
-    x: tip.x - headLen * Math.cos(angle + Math.PI / 6),
-    y: tip.y - headLen * Math.sin(angle + Math.PI / 6),
-  };
+function setDash(doc, strokeStyle, strokeWidth) {
+  if (typeof doc.setLineDashPattern !== "function") return;
 
-  doc.setFillColor(...hexToRgb(color));
-  doc.triangle(tip.x, tip.y, p1.x, p1.y, p2.x, p2.y, "F");
+  if (strokeStyle === STROKE_STYLE.DASHED) {
+    doc.setLineDashPattern([strokeWidth * 2.8, strokeWidth * 2.2], 0);
+    return;
+  }
+
+  if (strokeStyle === STROKE_STYLE.DOTTED) {
+    // jsPDF won't render a true zero-length dash the way an SVG round cap
+    // does, so a very short dash stands in for the dot.
+    doc.setLineDashPattern([strokeWidth * 0.3, strokeWidth * 2.2], 0);
+    return;
+  }
+
+  doc.setLineDashPattern([], 0);
 }
 
-function drawConnection(doc, conn, from, to, scale = 1) {
-  const toCenter = getNodeCenter(to);
-  const fromCenter = getNodeCenter(from);
-  const start = getEdgePoint(from, toCenter);
-  const end = getEdgePoint(to, fromCenter);
+// Draws whichever head shape the arrow was given. `angle` is the direction the
+// line is travelling AT that end, so the head points the way the arrow goes.
+function drawArrowHead(doc, tip, angle, type, color, size, lineWidth) {
+  if (!type || type === ARROWHEAD.NONE) return;
+
+  const len = Math.max(3, size);
+  const halfW = Math.max(2, size * (ARROW_HEAD_W / ARROW_HEAD_LEN) * 0.5);
+
+  const back = { x: tip.x - len * Math.cos(angle), y: tip.y - len * Math.sin(angle) };
+  const perp = { x: -Math.sin(angle), y: Math.cos(angle) };
+
+  const left = { x: back.x + perp.x * halfW, y: back.y + perp.y * halfW };
+  const right = { x: back.x - perp.x * halfW, y: back.y - perp.y * halfW };
+
+  if (typeof doc.setLineDashPattern === "function") doc.setLineDashPattern([], 0);
+
+  if (type === ARROWHEAD.ARROW) {
+    // Open barb: two strokes, no fill.
+    doc.setDrawColor(...hexToRgb(color));
+    doc.setLineWidth(Math.max(0.4, lineWidth));
+    doc.line(tip.x, tip.y, left.x, left.y);
+    doc.line(tip.x, tip.y, right.x, right.y);
+    return;
+  }
+
+  if (type === ARROWHEAD.TRIANGLE_OUTLINE) {
+    doc.setDrawColor(...hexToRgb(color));
+    doc.setLineWidth(Math.max(0.4, lineWidth));
+    doc.triangle(tip.x, tip.y, left.x, left.y, right.x, right.y, "S");
+    return;
+  }
+
+  doc.setFillColor(...hexToRgb(color));
+  doc.triangle(tip.x, tip.y, left.x, left.y, right.x, right.y, "F");
+}
+
+function angleBetween(from, to) {
+  return Math.atan2(to.y - from.y, to.x - from.x);
+}
+
+// Works out the arrow's route in CANVAS coordinates, mirroring what
+// Connections.jsx draws, and hands back the point list. Routing here rather
+// than in page coordinates matters: the elbow router's stub length and corner
+// radius are fixed pixel values, so routing a shrunk-down copy of the diagram
+// would give stubs that are proportionally too long for the page.
+function routeConnection(conn, fromNode, toNode) {
+  const style = resolveArrowStyle(conn);
+
+  if (style.arrowType === ARROW_TYPE.ELBOW) {
+    return getElbowPoints(conn, fromNode, toNode);
+  }
+
+  const anchors = getConnectionAnchors(conn);
+  const start = anchors.from
+    ? anchorPoint(fromNode, anchors.from)
+    : getEdgePoint(fromNode, getNodeCenter(toNode));
+  const end = anchors.to
+    ? anchorPoint(toNode, anchors.to)
+    : getEdgePoint(toNode, getNodeCenter(fromNode));
+
+  if (style.arrowType === ARROW_TYPE.STRAIGHT) return [start, end];
 
   const cp = conn.controlPoint || {
     x: (start.x + end.x) / 2,
     y: (start.y + end.y) / 2,
   };
 
-  const dx = end.x - cp.x;
-  const dy = end.y - cp.y;
-  const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const shortenBy = 8;
+  return sampleQuadratic(start, cp, end, 24);
+}
 
-  const endShort =
-    len > shortenBy
-      ? { x: end.x - (dx / len) * shortenBy, y: end.y - (dy / len) * shortenBy }
-      : end;
+function drawConnection(doc, conn, fromNode, toNode, ctx) {
+  const { fitScale, toPage } = ctx;
+  const style = resolveArrowStyle(conn);
 
-  const pts = sampleQuadratic(start, cp, endShort);
+  const hasStart = style.startArrowhead !== ARROWHEAD.NONE;
+  const hasEnd = style.endArrowhead !== ARROWHEAD.NONE;
 
-  doc.setDrawColor(31, 31, 31);
-  doc.setLineWidth(Math.max(0.5, 1 * scale));
+  const canvasPoints = trimForArrow(routeConnection(conn, fromNode, toNode), {
+    start: hasStart,
+    end: hasEnd,
+  });
+  if (canvasPoints.length < 2) return;
+
+  const isElbow = style.arrowType === ARROW_TYPE.ELBOW;
+  const shaped = isElbow ? roundPolylineCorners(canvasPoints, 8) : canvasPoints;
+  const pts = shaped.map(toPage);
+
+  const color = resolveInk(style.stroke);
+  const lineWidth = Math.max(0.4, style.strokeWidth * fitScale);
+
+  doc.setDrawColor(...hexToRgb(color));
+  doc.setLineWidth(lineWidth);
+  if (typeof doc.setLineJoin === "function") doc.setLineJoin("round");
+  if (typeof doc.setLineCap === "function") doc.setLineCap("round");
+  setDash(doc, style.strokeStyle, lineWidth);
 
   for (let i = 1; i < pts.length; i++) {
     doc.line(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
   }
 
-  const angle = Math.atan2(end.y - cp.y, end.x - cp.x);
-  drawArrowHead(doc, end, angle, "#1f1f1f", scale);
+  if (typeof doc.setLineDashPattern === "function") doc.setLineDashPattern([], 0);
+
+  // Heads are sized off the line weight, exactly as they are on screen, so a
+  // heavy arrow doesn't end in a pinhead.
+  const headSize = ARROW_HEAD_LEN * (style.strokeWidth / CONNECTION_WIDTH) * fitScale;
+
+  if (hasEnd) {
+    const tip = pts[pts.length - 1];
+    drawArrowHead(doc, tip, angleBetween(pts[pts.length - 2], tip), style.endArrowhead, color, headSize, lineWidth);
+  }
+
+  if (hasStart) {
+    const tip = pts[0];
+    drawArrowHead(doc, tip, angleBetween(pts[1], tip), style.startArrowhead, color, headSize, lineWidth);
+  }
 
   if (conn.label) {
+    const mid = polylineMidpoint(pts);
+    const fontSize = Math.max(6, 8 * fitScale);
+
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(Math.max(6, 8 * scale));
-    doc.setTextColor(85, 85, 85);
+    doc.setFontSize(fontSize);
 
     const labelLines = splitSafeText(doc, conn.label, 60);
-    doc.text(labelLines, cp.x, cp.y - 4, { align: "center" });
+    const textW = Math.max(...labelLines.map((l) => doc.getTextWidth(l)));
+    const lineH = fontSize * 1.25;
+    const boxW = textW + 6;
+    const boxH = labelLines.length * lineH + 2;
+
+    // Knock the line out behind the text, the way the canvas draws an opaque
+    // pill under a connection label. Without it the arrow runs straight
+    // through the lettering.
+    doc.setFillColor(255, 255, 255);
+    doc.rect(mid.x - boxW / 2, mid.y - boxH / 2, boxW, boxH, "F");
+
+    doc.setTextColor(85, 85, 85);
+    doc.text(labelLines, mid.x, mid.y - boxH / 2 + lineH * 0.8, { align: "center" });
   }
 }
 
-function drawNodeShape(doc, node) {
+// ─── node shapes ────────────────────────────────────────────────────────────
+
+function drawPlaceholderBox(doc, node) {
+  doc.setDrawColor(150, 150, 150);
+  doc.setLineWidth(0.6);
+  doc.rect(node.x, node.y, node.w, node.h, "S");
+}
+
+// `prepared` is the re-encoded copy produced by loadImageAsDataUrl.
+//
+// Handing jsPDF the data URL stored on the node does NOT reliably work: its
+// built-in PNG decoder rejects plenty of perfectly valid files ("Error while
+// decompressing the data"), and that failure is what left a blank bordered
+// box where the picture should have been. Round-tripping through a canvas
+// first — the same thing the logo already did — produces an encoding jsPDF
+// always accepts.
+function drawImageNode(doc, node, prepared) {
+  if (!node.src || !prepared?.dataUrl) {
+    drawPlaceholderBox(doc, node);
+    return;
+  }
+
+  // Letterbox inside the node's box, matching the canvas's object-fit:
+  // contain. Stretching to the box would distort a photo whose node has been
+  // resized by hand.
+  let drawW = node.w;
+  let drawH = node.h;
+
+  if (prepared.width && prepared.height) {
+    const ratio = prepared.width / prepared.height;
+    if (node.w / node.h > ratio) {
+      drawH = node.h;
+      drawW = node.h * ratio;
+    } else {
+      drawW = node.w;
+      drawH = node.w / ratio;
+    }
+  }
+
+  const dx = node.x + (node.w - drawW) / 2;
+  const dy = node.y + (node.h - drawH) / 2;
+
+  try {
+    doc.addImage(prepared.dataUrl, prepared.format || "JPEG", dx, dy, drawW, drawH);
+  } catch (e) {
+    // One unreadable picture shouldn't take the whole export down.
+    drawPlaceholderBox(doc, node);
+  }
+}
+
+function drawNodeShape(doc, node, scale = 1, images) {
   const { x, y, w, h, shape, fillColor, strokeColor } = node;
 
   // Plain text labels (no shape) should never get a box drawn around
-  // them — only actual shape nodes (rectangle, diamond, circle, etc.)
-  // get a border/fill. This is what was wrapping floating text labels
-  // like "Sample text" in a rectangle.
+  // them — only actual shape nodes get a border/fill.
   if (shape === "text") return;
+
+  if (shape === "image") {
+    drawImageNode(doc, node, images?.get(node.id));
+    return;
+  }
 
   const cx = x + w / 2;
   const cy = y + h / 2;
@@ -221,17 +439,31 @@ function drawNodeShape(doc, node) {
       ? "#ffffff"
       : fillColor;
 
-  const stroke =
-    !strokeColor || strokeColor === "theme-auto" ? "#1f1f1f" : strokeColor;
+  const stroke = resolveInk(strokeColor);
 
   doc.setFillColor(...hexToRgb(fill));
   doc.setDrawColor(...hexToRgb(stroke));
-  doc.setLineWidth(1);
+  doc.setLineWidth(Math.max(0.6, 1.4 * scale));
+  if (typeof doc.setLineJoin === "function") doc.setLineJoin("round");
 
-  const style = shape === "text" ? "S" : "FD";
+  const style = "FD";
 
-  if (shape === "rectangle" || shape === "process" || !shape) {
-    doc.roundedRect(x, y, w, h, 4, 4, style);
+  // A free-drawn line carries its own endpoints and is not a box at all.
+  if (shape === "line") {
+    doc.setLineCap && doc.setLineCap("round");
+    const x1 = typeof node.x1 === "number" ? node.x1 : x;
+    const y1 = typeof node.y1 === "number" ? node.y1 : y;
+    const x2 = typeof node.x2 === "number" ? node.x2 : x + w;
+    const y2 = typeof node.y2 === "number" ? node.y2 : y + h;
+    doc.line(x1, y1, x2, y2);
+    return;
+  }
+
+  if (shape === "rounded") {
+    // The radius has to be capped against the box, or a short wide shape
+    // comes out as a lozenge instead of a rounded rectangle.
+    const r = Math.min(10 * scale, w / 4, h / 4);
+    doc.roundedRect(x, y, w, h, r, r, style);
   } else if (shape === "diamond") {
     drawPolyline(doc, [
       { x: cx, y },
@@ -239,7 +471,7 @@ function drawNodeShape(doc, node) {
       { x: cx, y: y + h },
       { x, y: cy },
     ], style);
-  } else if (shape === "circle" || shape === "ellipse") {
+  } else if (shape === "circle" || shape === "oval" || shape === "ellipse") {
     doc.ellipse(cx, cy, w / 2, h / 2, style);
   } else if (shape === "parallelogram") {
     const skew = w * 0.15;
@@ -284,6 +516,7 @@ function drawNodeShape(doc, node) {
 
     doc.ellipse(cx, y + ry, w / 2, ry, style);
   } else {
+    // 'rect', 'rectangle', 'process' and anything unrecognised.
     doc.rect(x, y, w, h, style);
   }
 }
@@ -298,11 +531,9 @@ function computeNodeLabelLayout(doc, node, scale = 1) {
   const maxTextW = Math.max(w - 16, 20);
 
   const baseFontSize = 10 * scale;
-  // Floor is now a fixed *legible* minimum, not scale-dependent — we no
-  // longer rely on shrinking text into oblivion to make it "fit"; instead
-  // the box grows around it. This is the actual fix for text getting cut
-  // off: previously the only way to fit more text was a smaller font
-  // down to a tiny floor, and anything past that got truncated.
+  // Floor is a fixed *legible* minimum, not scale-dependent — we no longer
+  // rely on shrinking text into oblivion to make it "fit"; instead the box
+  // grows around it.
   const legibleFontSize = Math.max(6, 7 * scale);
 
   let fontSize = Math.max(baseFontSize, legibleFontSize);
@@ -320,8 +551,6 @@ function computeNodeLabelLayout(doc, node, scale = 1) {
   } while (fontSize >= legibleFontSize);
 
   const neededH = lines.length * lineH + 6;
-  // Box grows to fit if the legible-size text still doesn't fit in the
-  // original height — no more truncation in the normal case.
   const finalH = Math.max(h, neededH);
 
   return { fontSize, lines, lineH, finalH };
@@ -332,12 +561,18 @@ function computeNodeLabelLayout(doc, node, scale = 1) {
 function drawNodeLabel(doc, node, layout) {
   const { x, y, w, h, shape, strokeColor } = node;
   const { fontSize, lines, lineH } = layout;
+
+  // A picture has no caption to draw, and a free-drawn line has nowhere
+  // sensible to put one.
+  if (shape === "image" || shape === "line") return;
+
   const cx = x + w / 2;
   const cy = y + h / 2;
 
-  const stroke =
-    !strokeColor || strokeColor === "theme-auto" ? "#1f1f1f" : strokeColor;
-  const textColor = shape === "text" ? stroke : "#1f1f1f";
+  // On the canvas a shape's text takes the shape's own stroke colour (see
+  // --node-stroke in Node.module.css). Forcing it to black here is what made
+  // a red box come out with black lettering in the PDF.
+  const textColor = resolveInk(strokeColor);
 
   doc.setTextColor(...hexToRgb(textColor));
   doc.setFont("helvetica", "normal");
@@ -401,8 +636,7 @@ function drawHeader(doc, pageW, margin, opts = {}) {
 
   if (logoDataUrl) {
     // Fit the logo into its cell using "contain" sizing (preserve aspect
-    // ratio) instead of stretching it to the box's exact width/height —
-    // that stretching is what was distorting the logo before.
+    // ratio) instead of stretching it to the box's exact width/height.
     const pad = 6;
     const boxW = logoW - pad * 2;
     const boxH = totalH - pad * 2;
@@ -501,6 +735,23 @@ export async function exportDiagramAsPdf({ name, nodes = [], connections = [], m
     logoNaturalH: logoData?.height,
   });
 
+  // Pictures have to be decoded and re-encoded before the drawing pass can
+  // start, since drawing is synchronous and decoding an image is not. One
+  // failure is skipped rather than rejecting the whole export.
+  const images = new Map();
+  await Promise.all(
+    nodes
+      .filter((n) => n.shape === "image" && n.src)
+      .map(async (n) => {
+        try {
+          const prepared = await loadImageAsDataUrl(n.src);
+          if (prepared) images.set(n.id, prepared);
+        } catch (e) {
+          // Leave it unset; drawImageNode falls back to a placeholder box.
+        }
+      })
+  );
+
   const availW = pageW - margin * 2;
   const availH = pageH - contentTop - margin;
 
@@ -513,13 +764,39 @@ export async function exportDiagramAsPdf({ name, nodes = [], connections = [], m
   const offsetX = margin + (availW - drawW) / 2 - minX * fitScale;
   const offsetY = contentTop + (availH - drawH) / 2 - minY * fitScale;
 
-  const transformed = nodes.map((n) => ({
+  // The two directions between diagram space and page space. Connections are
+  // routed in diagram space and then brought forward with toPage; see
+  // routeConnection for why that way round.
+  const toPage = (p) => ({ x: p.x * fitScale + offsetX, y: p.y * fitScale + offsetY });
+  const toDiagram = (n) => ({
     ...n,
-    x: n.x * fitScale + offsetX,
-    y: n.y * fitScale + offsetY,
-    w: n.w * fitScale,
-    h: n.h * fitScale,
-  }));
+    x: (n.x - offsetX) / fitScale,
+    y: (n.y - offsetY) / fitScale,
+    w: n.w / fitScale,
+    h: n.h / fitScale,
+  });
+
+  const transformed = nodes.map((n) => {
+    const next = {
+      ...n,
+      x: n.x * fitScale + offsetX,
+      y: n.y * fitScale + offsetY,
+      w: n.w * fitScale,
+      h: n.h * fitScale,
+    };
+
+    // A free-drawn line's stroke comes from its own endpoints, not its box,
+    // so those have to be carried through the same transform or the line
+    // stays behind where the box used to be.
+    if (n.shape === "line" && typeof n.x1 === "number") {
+      next.x1 = n.x1 * fitScale + offsetX;
+      next.y1 = n.y1 * fitScale + offsetY;
+      next.x2 = n.x2 * fitScale + offsetX;
+      next.y2 = n.y2 * fitScale + offsetY;
+    }
+
+    return next;
+  });
 
   // Measure each label first, then grow any node whose box is too small
   // to hold its full text at a legible size — keeping it vertically
@@ -536,27 +813,20 @@ export async function exportDiagramAsPdf({ name, nodes = [], connections = [], m
     return n;
   });
 
-  const nodeMap = Object.fromEntries(grown.map((n) => [n.id, n]));
+  // Routing reads these, so they have to reflect any growth above —
+  // otherwise an arrow would meet a box where it used to be, not where it
+  // is now being drawn.
+  const diagramNodes = Object.fromEntries(grown.map((n) => [n.id, toDiagram(n)]));
 
   connections.forEach((conn) => {
-    const from = nodeMap[conn.from];
-    const to = nodeMap[conn.to];
+    const from = diagramNodes[conn.from];
+    const to = diagramNodes[conn.to];
     if (!from || !to) return;
 
-    const scaledConn = conn.controlPoint
-      ? {
-        ...conn,
-        controlPoint: {
-          x: conn.controlPoint.x * fitScale + offsetX,
-          y: conn.controlPoint.y * fitScale + offsetY,
-        },
-      }
-      : conn;
-
-    drawConnection(doc, scaledConn, from, to, fitScale);
+    drawConnection(doc, conn, from, to, { fitScale, toPage });
   });
 
-  grown.forEach((node) => drawNodeShape(doc, node));
+  grown.forEach((node) => drawNodeShape(doc, node, fitScale, images));
   grown.forEach((node) => drawNodeLabel(doc, node, layouts.get(node.id)));
   return doc;
 }

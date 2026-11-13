@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import Base1 from "../Config/Base1";
 
 const Help1 = () => {
@@ -14,7 +14,6 @@ const Help1 = () => {
     const [dataLoading, setDataLoading] = useState(false);
     const [moduleName, setModuleName] = useState("");
     const [sessionModuleId, setSessionModuleId] = useState(null);
-    const navigationPath = sessionStorage.getItem("navigationPath") || "/";
 
     useEffect(() => {
         const userDataString = sessionStorage.getItem('userData');
@@ -77,20 +76,20 @@ const Help1 = () => {
                 .map((item) => ({ ...item }))
                 .filter((item) => {
                     const searchTerm = (search || "").toLowerCase();
-        
+
                     // Safely handle null values
                     const question = (item.Question || "").toLowerCase();
                     const answer = (item.Answer || "").toLowerCase();
-        
+
                     const matchesCurrent =
                         question.includes(searchTerm) ||
                         answer.includes(searchTerm);
-        
+
                     // Recursively check children
                     if (item.children && item.children.length > 0) {
                         item.children = searchTree(item.children);
                     }
-        
+
                     // Keep parent if current item or any child matches
                     return (
                         matchesCurrent ||
@@ -205,7 +204,7 @@ const Help1 = () => {
                                             <i className="fa-solid fa-expand"></i>
                                         </button> */}
 
-                                        {renderMedia(`https://services.cooperwind.online/uploads/QACWIDocs/${faq.FilePath}`)}
+                                        {renderMedia(`https://services.cooperwind.online/uploads/CWIImages/${faq.FilePath}`)}
                                     </div>
                                 </div>
                             )}
@@ -253,22 +252,20 @@ const Help1 = () => {
                 <div className="faq-content-shell">
                     <div className="containe">
                         <div className="mb-4">
-                            <button
-                                className="btn btn-white rounded-pill px-4 d-flex align-items-center border custom-back-btn"
-                                onClick={() => navigate(navigationPath)}
+                            <Link
+                                className="btn btn-white rounded-pill px-4 py-2 d-inline-flex align-items-center gap-2 custom-back-btn"
+                                to="/user-modules"
                                 style={{
                                     transition: "all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1)",
                                     fontWeight: "600",
                                     color: "#4f46e5",
                                     background: "#fff",
-                                    overflow: "hidden",
-                                    position: "relative",
-                                    border: "1px solid #e0e7ff"
+                                    border: "1px solid #e0e7ff",
                                 }}
                             >
                                 <i className="fa-solid fa-arrow-left back-icon"></i>
-                                <span className="btn-text">Back to Module</span>
-                            </button>
+                                <span className="btn-text">Back to Modules</span>
+                            </Link>
                         </div>
 
                         <div className="text-center mb-5">

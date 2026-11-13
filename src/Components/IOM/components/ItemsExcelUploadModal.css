@@ -1,0 +1,113 @@
+/* Upload items from Excel */
+.ir-modal.xu-modal { max-width: 520px; }
+
+.xu-step { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.xu-step + .xu-step { border-top: 1px dashed #eaecf0; }
+.xu-step-no {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #eef2ff; color: #2f5bea; font-weight: 700; font-size: 13px;
+}
+.xu-step-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.xu-step-text b { font-size: 14px; color: #101828; }
+.xu-step-text small { font-size: 12px; color: #667085; }
+.xu-dl { flex-shrink: 0; }
+.xu-dl i { color: #12805c; }
+
+.xu-drop {
+    width: 100%; margin-top: 4px; padding: 22px 16px; border-radius: 14px;
+    border: 1.5px dashed #c7d2fe; background: #f8f9ff; color: #344054;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    transition: border-color .15s, background .15s;
+}
+.xu-drop i { font-size: 26px; color: #2f5bea; margin-bottom: 4px; }
+.xu-drop b { font-size: 14px; }
+.xu-drop small { font-size: 12px; color: #667085; }
+.xu-drop:hover, .xu-drop.over { border-color: #2f5bea; background: #eef2ff; }
+
+.xu-file {
+    margin-top: 4px; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; border: 1px solid #e4e7ec; border-radius: 12px; background: #fff;
+}
+.xu-file-icon {
+    width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #e7f6ef; color: #12805c; font-size: 18px;
+}
+.xu-file-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.xu-file-text b { font-size: 13.5px; color: #101828; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xu-file-text small { font-size: 12px; color: #667085; }
+.xu-remove { border: none; background: none; color: #98a2b3; width: 30px; height: 30px; border-radius: 8px; }
+.xu-remove:hover { background: #fef3f2; color: #c4320a; }
+
+.xu-result { margin-top: 14px; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; }
+.xu-result.ok { background: #e7f6ef; color: #0b6447; }
+.xu-result.err { background: #fef3f2; color: #b42318; }
+.xu-result-msg { display: flex; gap: 8px; align-items: flex-start; font-weight: 600; }
+.xu-result-msg i { margin-top: 2px; }
+
+/* header button on the Items screen */
+.it-upload-btn i { margin-right: 2px; }
+
+@media (max-width: 576px) {
+    .xu-step { flex-wrap: wrap; }
+    .xu-dl { width: 100%; justify-content: center; }
+}
+
+
+/* wrapper only provides the ir-page colour variables – no layout */
+.xu-root { display: contents; }
+
+/* Upload button – fixed colours so it never depends on page variables */
+.xu-modal .xu-submit { background: #2f5bea; color: #fff; border: none; }
+.xu-modal .xu-submit:hover:not(:disabled) { background: #1d3fb8; }
+.xu-modal .xu-submit:disabled { background: #2f5bea; color: #fff; opacity: .45; cursor: not-allowed; }
+
+/* wider when the preview is shown */
+.ir-modal.xu-modal.xu-wide { max-width: 900px; }
+.xu-modal { max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.xu-modal .ir-modal-body { overflow-y: auto; }
+
+.xu-preview { margin-top: 14px; }
+.xu-preview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.xu-preview-head b { font-size: 14px; color: #101828; }
+.xu-preview-head span { font-size: 12.5px; color: #667085; font-weight: 600; }
+.xu-preview-msg { display: flex; gap: 8px; align-items: flex-start; margin: 8px 0; padding: 9px 12px; border-radius: 10px; background: #f8f9ff; color: #475467; font-size: 13px; }
+.xu-preview-msg.warn { background: #fff8eb; color: #b54708; }
+.xu-preview-msg i { margin-top: 2px; }
+.xu-preview-more { margin-top: 6px; font-size: 12px; color: #667085; }
+
+.xu-table-wrap { border: 1px solid #e4e7ec; border-radius: 12px; overflow: auto; max-height: 300px; }
+.xu-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.xu-table th {
+    position: sticky; top: 0; z-index: 1; background: #fef3c7; color: #101828;
+    font-weight: 700; text-align: left; padding: 9px 12px; white-space: nowrap; border-bottom: 1px solid #fde68a;
+}
+.xu-table td { padding: 8px 12px; border-bottom: 1px solid #f2f4f7; color: #344054; white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.xu-table tbody tr:last-child td { border-bottom: none; }
+.xu-table tbody tr:hover td { background: #fafbff; }
+.xu-table th:first-child, .xu-idx { width: 44px; color: #98a2b3; font-weight: 700; }
+.xu-table td.xu-empty { background: #fff4e5; }
+.xu-dash { color: #d0d5dd; }
+
+/* upload result */
+.xu-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.xu-stat {
+    background: #fff; border-radius: 10px; padding: 10px 12px;
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center;
+}
+.xu-stat i { grid-row: span 2; font-size: 18px; }
+.xu-stat b { font-size: 20px; line-height: 1.1; color: #101828; }
+.xu-stat small { font-size: 12px; color: #667085; font-weight: 600; }
+.xu-stat.added i { color: #12805c; }
+.xu-stat.updated i { color: #2f5bea; }
+.xu-stat.dup i { color: #98a2b3; }
+.xu-stat.dup.has i, .xu-stat.dup.has b { color: #b54708; }
+.xu-dups { margin-top: 10px; background: #fff; border-radius: 10px; padding: 10px 12px; }
+.xu-dups small { display: block; font-size: 12px; color: #b54708; font-weight: 600; margin-bottom: 6px; }
+.xu-dup-codes { display: flex; flex-wrap: wrap; gap: 6px; }
+.xu-dup-codes span { font-family: "JetBrains Mono", SFMono-Regular, Consolas, monospace; font-size: 12px; background: #fff8eb; color: #93370d; border: 1px solid #fedf89; border-radius: 6px; padding: 3px 8px; }
+@media (max-width: 576px) {
+    .xu-stat { grid-template-columns: 1fr; text-align: center; padding: 8px; }
+    .xu-stat i { grid-row: auto; margin-bottom: 2px; }
+}

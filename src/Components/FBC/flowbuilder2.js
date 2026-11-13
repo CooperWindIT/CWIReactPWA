@@ -5,6 +5,8 @@ import Canvas from './Canvas';
 import PropertiesPanel from './PropertiesPanel';
 import ArrowPropertiesPanel from './ArrowPropertiesPanel';
 import Toast from './Toast';
+import LastSaved from './LastSaved';
+import FAQButton from '../Config/FAQBtn';
 import { useFiles } from './hooks/useFiles';
 import { uid, snapshot } from './Geometry';
 import { DEFAULT_ARROW_STYLE } from './connectionRouting';
@@ -60,12 +62,55 @@ function readDraft() {
 
 function writeDraft(payload) {
   try {
-    localStorage.setItem(getDraftStorageKey(), JSON.stringify({ ...payload, savedAt: Date.now() }));
+    // Returned so the caller can show when the draft was last written. Doing
+    // it here rather than at the call site keeps the stored timestamp and the
+    // displayed one the same number.
+    const savedAt = Date.now();
+    localStorage.setItem(getDraftStorageKey(), JSON.stringify({ ...payload, savedAt }));
+    return savedAt;
   } catch (e) {
     // Quota exceeded or storage unavailable (e.g. private browsing) — fail silently.
     // NOTE: images are stored inline as data URLs, so an image-heavy diagram is
     // the most likely thing to hit the ~5MB localStorage cap and land here.
     // imageSupport.js downscales to keep that unlikely.
+    return null;
+  }
+}
+
+// When the diagram was last saved to the server.
+//
+// Kept separately from the draft, and deliberately NOT cleared with it: the
+// draft is wiped the moment a save succeeds, which is exactly when this
+// becomes worth showing. Stored against the file id so opening a different
+// diagram doesn't inherit the previous one's save time.
+const LAST_SAVED_KEY_PREFIX = 'fc_last_saved_';
+
+function getLastSavedStorageKey() {
+  return getDraftStorageKey().replace(DRAFT_KEY_PREFIX, LAST_SAVED_KEY_PREFIX);
+}
+
+function readLastSaved(fileId) {
+  try {
+    const raw = localStorage.getItem(getLastSavedStorageKey());
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed || typeof parsed.savedAt !== 'number') return null;
+    // A stored time belongs to one diagram. Showing it against another would
+    // claim a save that never happened for the file on screen.
+    if ((parsed.fileId || null) !== (fileId || null)) return null;
+    return parsed.savedAt;
+  } catch (e) {
+    return null;
+  }
+}
+
+function writeLastSaved(fileId, savedAt) {
+  try {
+    localStorage.setItem(
+      getLastSavedStorageKey(),
+      JSON.stringify({ fileId: fileId || null, savedAt }),
+    );
+  } catch (e) {
+    // Storage unavailable — the timestamp just won't survive a reload.
   }
 }
 
@@ -277,6 +322,14 @@ export default function FlowBuilderC() {
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState(null);
 
+  // When this diagram was last saved to the server, shown in the toolbar.
+  const [lastSavedAt, setLastSavedAt] = useState(null);
+
+  // When the local draft was last written. Separate from lastSavedAt because
+  // a draft living in this browser is not the same promise as a diagram
+  // stored on the server, and the toolbar says which one it is showing.
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
+
   // The arrow styling panel. `arrowDefaults` is sticky in the Excalidraw
   // sense: whatever was last chosen becomes the starting point for the next
   // arrow drawn, so a user who wants ten dashed green arrows sets it once.
@@ -316,9 +369,25 @@ export default function FlowBuilderC() {
   const [searchWholeWord, setSearchWholeWord] = useState(false);
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [focusedBranchRootId, setFocusedBranchRootId] = useState(null);
-  const [isVersionMode, setIsVersionMode] = useState(false);
-  const [isVersionViewMode, setIsVersionViewMode] = useState(false);
-  const [isVersionEditMode, setIsVersionEditMode] = useState(false);
+  // Which version workflow the editor is in, if any: 'add', 'edit', 'view',
+  // or null for ordinary editing.
+  //
+  // This used to be three separate booleans, and every one of them was only
+  // ever set to true — nothing, anywhere, set any of them back. So the Save
+  // button latched: once you had clicked Edit Version it read "Submit Edit
+  // Version" for the rest of the session, through Create New and through Add
+  // Version, because the toolbar tests isVersionEditMode first and it was
+  // still true. One field can only hold one of these at a time, which is what
+  // the three flags were trying and failing to express.
+  const [versionMode, setVersionMode] = useState(null);
+
+  const isVersionMode = versionMode === 'add';
+  const isVersionViewMode = versionMode === 'view';
+  const isVersionEditMode = versionMode === 'edit';
+
+  // Leaving a version workflow — opening a different document, starting a new
+  // one, or finishing a submission — puts the editor back to plain Save.
+  const exitVersionMode = useCallback(() => setVersionMode(null), []);
   const [versionJson, setVersionJson] = useState(null);
   const [sharedWriteAccess, setSharedWriteAccess] = useState(true);
   const [isViewMode, setIsViewMode] = useState(false);
@@ -405,6 +474,17 @@ export default function FlowBuilderC() {
     if (latest && JSON.stringify(latest) === JSON.stringify(nextSnap)) return;
     pushHistory(currentNodes, currentConnections);
   }, [pushHistory]);
+
+  // Reopening a diagram should still show when it was last saved, so the
+  // stored timestamp is read back whenever the open file changes. readLastSaved
+  // returns null unless the stored id matches, which is what stops a freshly
+  // opened diagram inheriting the previous one's save time.
+  useEffect(() => {
+    setLastSavedAt(readLastSaved(currentFileId));
+
+    const draft = readDraft();
+    setDraftSavedAt(typeof draft?.savedAt === 'number' ? draft.savedAt : null);
+  }, [currentFileId]);
 
   const handleModeChange = useCallback((nextMode) => {
     setMode(nextMode);
@@ -577,9 +657,18 @@ export default function FlowBuilderC() {
 
     if (savedInfo) {
       await loadFileFromServer(currentFileId);
+
+      // Recorded only on a confirmed save. If the server call comes back
+      // empty the timestamp deliberately stays where it was, so the toolbar
+      // keeps showing the last save that actually happened rather than
+      // vouching for one that didn't.
+      const savedAt = Date.now();
+      setLastSavedAt(savedAt);
+      writeLastSaved(currentFileId, savedAt);
     }
 
     clearDraft(); // now safely persisted server-side; drop the local safety-net copy
+    setDraftSavedAt(null);
 
     setToast('Saved!');
   }, [connections, currentFileId, fileName, nodes, saveFileWithPdf, loadFileFromServer]);
@@ -590,6 +679,10 @@ export default function FlowBuilderC() {
   const handleNewFile = useCallback(() => {
     if (currentFileId) saveFile(currentFileId, fileName, nodes, connections);
     const file = newFile();
+
+    // A brand new diagram is not a version of anything, so whatever version
+    // workflow was running is over.
+    exitVersionMode();
 
     setNodes([]);
     setConnections([]);
@@ -604,7 +697,7 @@ export default function FlowBuilderC() {
     setCurrentFileId(file.id);
     history.current = [snapshot([], [])];
     historyIdx.current = 0;
-  }, [connections, currentFileId, fileName, newFile, nodes, saveFile, setCurrentFileId]);
+  }, [connections, currentFileId, exitVersionMode, fileName, newFile, nodes, saveFile, setCurrentFileId]);
 
   const handleLoadFile = useCallback(
     (fileId) => {
@@ -645,6 +738,16 @@ export default function FlowBuilderC() {
   const handleLoadDiagram = useCallback((diagram) => {
     if (!diagram) return;
 
+    // NOTE: this deliberately does NOT clear versionMode.
+    //
+    // Opening a document is part of entering a version workflow, not a way
+    // out of one — the Edit Version and View Version buttons load the
+    // document as well as setting the mode. Clearing here raced with that
+    // and wiped the mode the button had just set, so every workflow fell
+    // straight back to plain Save.
+    //
+    // The mode is cleared where a workflow actually ends: Create New, and
+    // submitting.
     skipFileLoadEffect.current = true;
 
     setNodes((diagram.nodes || []).map(normalizeNode));
@@ -729,9 +832,15 @@ export default function FlowBuilderC() {
     draftDebounceRef.current = setTimeout(() => {
       if (nodes.length === 0 && connections.length === 0 && fileName === 'Untitled diagram') {
         clearDraft();
+        setDraftSavedAt(null);
         return;
       }
 
+      // Deliberately does NOT update draftSavedAt. The autosave runs 800ms
+      // after every keystroke and drag, so feeding it to the toolbar pinned
+      // the label at "just now" for the whole session — a clock that only
+      // ever reads the current time answers nothing. What the label shows is
+      // the state this page loaded with; it moves again only on a real Save.
       writeDraft({
         fileId: currentFileId,
         fileName,
@@ -1730,6 +1839,9 @@ export default function FlowBuilderC() {
     );
 
     setVersionJson(compressedJson);
+    // The submission is handed off; the editor goes back to ordinary Save
+    // rather than offering to submit the same version again.
+    exitVersionMode();
   };
 
   const handleSubmitEditVersion = () => {
@@ -1746,6 +1858,9 @@ export default function FlowBuilderC() {
     );
 
     setVersionJson(compressedJson);
+    // The submission is handed off; the editor goes back to ordinary Save
+    // rather than offering to submit the same version again.
+    exitVersionMode();
   };
 
   // The arrow tool: the user drags from one shape to another, and that drag is
@@ -1874,9 +1989,9 @@ export default function FlowBuilderC() {
         fetchEDMDocuments={fetchEDMDocuments}
         fetchSharedDrafts={fetchSharedDrafts}
         onLoadDocument={handleLoadDiagram}
-        onStartVersion={() => setIsVersionMode(true)}
-        onViewVersion={() => setIsVersionViewMode(true)}
-        onStartEditVersion={() => setIsVersionEditMode(true)}
+        onStartVersion={() => setVersionMode('add')}
+        onViewVersion={() => setVersionMode('view')}
+        onStartEditVersion={() => setVersionMode('edit')}
         versionJson={versionJson}
         onSharedPermission={setSharedWriteAccess}
 
@@ -1924,6 +2039,10 @@ export default function FlowBuilderC() {
           activeSearchIndex={activeSearchNodeId ? activeSearchIndex : -1}
           onSearchNext={handleSearchNext}
           onSearchPrev={handleSearchPrev}
+
+          lastSavedAt={lastSavedAt}
+          draftSavedAt={draftSavedAt}
+          theme={theme}
 
           autoArrowEnabled={autoArrowEnabled}
           onToggleAutoArrow={() => setAutoArrowEnabled((prev) => !prev)}
@@ -2053,6 +2172,7 @@ export default function FlowBuilderC() {
             <RedoIcon />
           </button>
 
+          <FAQButton />
         </div>
       </div>
 

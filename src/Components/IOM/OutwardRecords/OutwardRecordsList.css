@@ -1,0 +1,119 @@
+/* =========================================================
+   Outward Records – extras on top of InwardRecordsPremium.css
+   ========================================================= */
+
+/* status badges */
+.ow-badge {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px;
+}
+.ow-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.ow-grey   { background: #f2f4f7; color: #475467; }
+.ow-amber  { background: #fff4e5; color: #b54708; }
+.ow-orange { background: #fff1e7; color: #c4320a; }
+.ow-blue   { background: #eef2ff; color: #2f5bea; }
+.ow-violet { background: #f4f0ff; color: #6941c6; }
+.ow-green  { background: #e7f6ef; color: #12805c; }
+.ow-red    { background: #fef3f2; color: #b42318; }
+
+.ow-record-icon { background: #fff4e5 !important; color: #b54708 !important; }
+
+/* loading progress */
+.ow-progress { display: flex; align-items: center; gap: 10px; min-width: 170px; }
+.ow-progress-bar { flex: 1; height: 7px; border-radius: 999px; background: #eaecf0; overflow: hidden; }
+.ow-progress-bar span { display: block; height: 100%; border-radius: 999px; background: #2f5bea; transition: width .3s ease; }
+.ow-progress-bar span.done { background: #12805c; }
+.ow-progress-text { font-size: 12.5px; font-weight: 600; color: #475467; white-space: nowrap; }
+
+/* review banner */
+.ow-banner {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: linear-gradient(90deg, #eef2ff 0%, #f8faff 100%);
+    border: 1px solid #c7d2fe; border-radius: 14px;
+    padding: 12px 16px; margin-bottom: 14px; color: #1d3fb8; font-size: 14px;
+}
+.ow-banner > span:nth-child(2) { flex: 1; min-width: 200px; }
+.ow-banner-icon {
+    width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #2f5bea; color: #fff;
+}
+
+/* items in the details drawer */
+.ow-item-list { display: grid; gap: 8px; }
+.ow-item {
+    display: flex; align-items: center; gap: 12px;
+    border: 1px solid #eaecf0; border-radius: 12px; padding: 10px 12px; background: #fff;
+}
+.ow-item-icon {
+    width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #eef2ff; color: #2f5bea; font-size: 13px;
+}
+.ow-item-name { font-weight: 700; font-size: 13.5px; color: #101828; }
+.ow-item-qty { text-align: right; line-height: 1.1; }
+.ow-item-qty b { display: block; font-size: 16px; color: #101828; }
+.ow-item-qty small { font-size: 11px; color: #667085; }
+
+@media (max-width: 576px) {
+    .ow-progress { min-width: 0; width: 60%; }
+    .ow-banner .ir-btn-soft { width: 100%; justify-content: center; }
+}
+
+/* =========================================================
+   Orange theme – tells Outwards apart from Inwards (blue)
+   ========================================================= */
+.ow-theme {
+    --ir-primary: #e8590c;
+    --ir-primary-dark: #c2410c;
+    --ir-primary-soft: #fff1e7;
+}
+.ow-theme .ir-header-icon {
+    background: linear-gradient(135deg, #fb923c 0%, #c2410c 100%) !important;
+    box-shadow: 0 8px 20px rgba(232, 89, 12, 0.3) !important;
+}
+.ow-theme .ir-btn-primary {
+    background: linear-gradient(135deg, #fb923c 0%, #c2410c 100%) !important;
+    box-shadow: 0 6px 16px rgba(232, 89, 12, 0.3) !important;
+}
+.ow-theme .ir-search:focus-within,
+.ow-theme .ir-range:focus-within { border-color: #e8590c !important; box-shadow: 0 0 0 3px rgba(232, 89, 12, .12) !important; }
+.ow-theme .ir-page-btn:hover:not(:disabled) { border-color: #e8590c; color: #e8590c; }
+
+/* banner + progress in orange */
+.ow-theme .ow-banner {
+    background: linear-gradient(90deg, #fff4ec 0%, #fffaf6 100%);
+    border-color: #fed7b5; color: #9a3412;
+}
+.ow-theme .ow-banner-icon { background: #e8590c; }
+.ow-theme .ow-progress-bar span { background: #e8590c; }
+.ow-theme .ow-progress-bar span.done { background: #12805c; }
+
+/* top strip so the page is recognisable at a glance */
+.ow-theme .ir-card { border-top: 3px solid #fb923c; }
+
+/* drawer accents */
+.rw-overlay .ow-item-icon { background: #fff1e7; color: #c2410c; }
+
+/* Register Outward modal (same form as inward) */
+.ow-modal .modal-header {
+    background: linear-gradient(135deg, #fff4ec 0%, #ffffff 70%);
+    border-bottom: 2px solid #fed7b5;
+}
+.ow-modal .modal-title { color: #9a3412; }
+.ow-modal .btn-primary {
+    background: linear-gradient(135deg, #fb923c 0%, #c2410c 100%) !important;
+    border-color: #c2410c !important;
+}
+.ow-modal .btn-primary:hover { background: #c2410c !important; }
+.ow-modal .form-control:focus { border-color: #fb923c; box-shadow: 0 0 0 3px rgba(232, 89, 12, .12); }
+.ow-modal .text-primary { color: #e8590c !important; }
+
+/* security – verify (photo) */
+.ow-theme .ir-photo-option:hover { border-color: #e8590c; background: #fff7f1; }
+.ow-theme .ir-photo-option.primary { border-color: #e8590c; background: #fff7f1; }
+.ow-theme .ir-photo-option-icon { background: #fff1e7; color: #e8590c; }
+.ow-theme .ir-photo-option.primary .ir-photo-option-icon {
+    background: linear-gradient(135deg, #fb923c, #c2410c); color: #fff;
+    box-shadow: 0 6px 14px rgba(232, 89, 12, .3);
+}

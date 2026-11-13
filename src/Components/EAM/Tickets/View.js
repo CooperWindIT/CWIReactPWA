@@ -56,8 +56,6 @@ export default function EAMTicketView() {
     const [isDirectAssign, setIsDirectAssign] = useState(null);
     const [approveSubmitLoading, SetApproveSubmitLoading] = useState(null);
     const [assetTypeId, setAssetTypeId] = useState(null);
-    const [closeData, setCloseData] = useState([]);
-    const [editData, setEditData] = useState([]);
     const [ticketData, setTicketData] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editTicketId, setEditTicketId] = useState(null);

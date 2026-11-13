@@ -56,13 +56,43 @@ const FAB_STYLES = `
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
-.fcPropsFab {
+
+/* The wrapper carries the position, not the button.
+   Two reasons. The button animates its own transform to float up and down,
+   and a transform on a positioned element makes it the containing block for
+   anything fixed inside it — so a button that both animates and positions
+   itself fights with the tooltip anchored to it. And antd's Tooltip needs a
+   real, hoverable element: a disabled button has pointer events switched off
+   and never fires hover, which is exactly when the "select a shape first"
+   hint is worth showing. */
+.fcPropsFabDock {
+  /* The support button owns the bottom-right corner. These four numbers
+     describe IT, and the properties button is placed from them, so the pair
+     stays stacked if it ever moves — correct these to match and nothing else
+     needs touching. */
+  --support-right: 24px;
+  --support-bottom: 24px;
+  --support-size: 64px;
+  --stack-gap: 14px;
+  --fab-size: 52px;
+
   position: fixed;
-  right: 26px;
-  bottom: 26px;
+  /* Centred on the support button rather than flush to the same edge: the two
+     are different sizes, so matching the right edge would leave them looking
+     a few pixels out of line. */
+  right: calc(var(--support-right) + (var(--support-size) - var(--fab-size)) / 2);
+  left: auto;
+  bottom: calc(var(--support-bottom) + var(--support-size) + var(--stack-gap));
   z-index: 60;
-  width: 52px;
-  height: 52px;
+  width: var(--fab-size);
+  height: var(--fab-size);
+  display: inline-flex;
+  line-height: 0;
+}
+
+.fcPropsFab {
+  width: 100%;
+  height: 100%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -80,6 +110,7 @@ const FAB_STYLES = `
 }
 .fcPropsFab:hover { transform: scale(1.08); }
 .fcPropsFab:active { transform: scale(0.96); }
+
 /* Nothing selected: stays put and stops calling for attention, since there's
    nothing for it to open yet. */
 .fcPropsFab.fcPropsFabIdle {
@@ -88,8 +119,12 @@ const FAB_STYLES = `
   animation: none;
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.25);
   opacity: 0.75;
+  /* The cursor goes on the dock as well, because a disabled button doesn't
+     receive pointer events and so never shows one of its own. */
   cursor: not-allowed;
 }
+.fcPropsFabDock:has(.fcPropsFabIdle) { cursor: not-allowed; }
+
 @media (prefers-reduced-motion: reduce) {
   .fcPropsFab { animation: none; }
 }
@@ -143,15 +178,20 @@ export default function PropertiesPanel({ node, onUpdate, onDelete, onClose, rea
           title={hasNode ? 'Edit shape properties' : 'Select a shape first, then open its properties'}
           placement="left"
         >
-          <button
-            type="button"
-            className={['fcPropsFab', hasNode ? '' : 'fcPropsFabIdle'].join(' ')}
-            onClick={() => hasNode && setOpen(true)}
-            disabled={!hasNode}
-            aria-label="Open shape properties"
-          >
-            <SlidersIcon />
-          </button>
+          {/* The tooltip attaches to this span rather than to the button.
+              With it on the button, the hint never appeared in the one case
+              it was written for — a disabled button fires no mouse events. */}
+          <span className="fcPropsFabDock">
+            <button
+              type="button"
+              className={['fcPropsFab', hasNode ? '' : 'fcPropsFabIdle'].join(' ')}
+              onClick={() => hasNode && setOpen(true)}
+              disabled={!hasNode}
+              aria-label="Open shape properties"
+            >
+              <SlidersIcon />
+            </button>
+          </span>
         </Tooltip>
       </>
     );

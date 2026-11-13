@@ -60,11 +60,20 @@ import FeedbackContent from './Components/CFM/FeedbackContent/feedbackContent';
 import FeedbackRequest from './Components/CFM/FeedbackRequest/Feedbackrequest';
 import EditFeedbackRequest from './Components/CFM/FeedbackRequest/EditFeedbackRequest';
 import CreateFeedbackRequest from './Components/CFM/FeedbackRequest/CreateFeedbackrequest';
+import ViewFeedbackRequest from "./Components/CFM/FeedbackRequest/ViewFeedbackRequest";
 import JobsList from './Components/PAM/Jobs/JobsList';
 import UsersList from './Components/PAM/Users/List';
 import PAMDashboard from './Components/PAM/Dashboard/Dashboard';
 import Contents from './Components/PAM/WebsiteContents/ContentsList';
 import ContentTypes from './Components/PAM/WebsiteContentTypes/ContentTypesList';
+import ItemsList from './Components/IOM/items/ItemsList';
+import InwardList from './Components/IOM/InwardRecords/InwardRecordsList';
+import InwardView from './Components/IOM/InwardRecords/InwardView';
+import ItemView from './Components/IOM/items/ItemView';
+import OutwardRecordsList from "./Components/IOM/OutwardRecords/OutwardRecordsList";
+import OutwardView from './Components/IOM/OutwardRecords/OutwardView';
+import IOMDashboard from './Components/IOM/dashboard/Dashboard';
+
 
 
 function App() {
@@ -154,7 +163,7 @@ function App() {
               {/* Customer Feedback Module */}
               <Route path="/cfm/dashboard" element={<CFMDashboard />} />
               <Route path="/cfm/feedback-content" element={<FeedbackContent />} />
-
+              <Route path="/cfm/feedback-request/view/:publicCode" element={<ViewFeedbackRequest />} />
               <Route path="/cfm/feedback-request" element={<FeedbackRequest />} />
               <Route path="/cfm/feedback-request/create" element={<CreateFeedbackRequest />} />
               <Route path="/cfm/feedback-request/edit/:publicCode" element={<EditFeedbackRequest />} />
@@ -167,6 +176,14 @@ function App() {
               <Route path="/pam/content-types" element={<ContentTypes />} />
               <Route path="/pam/customers" element={<Customers />} />
 
+              {/* iom */}
+              <Route path="/iom/dashboard" element={<IOMDashboard />} />
+              <Route path="/iom/items-list" element={<ItemsList />} />
+              <Route path="/iom/inwards-list" element={<InwardList />} />
+              <Route path="/iom/inward-view/:id" element={<InwardView />} />
+              <Route path="/iom/item-view/:itemId" element={<ItemView />} />
+              <Route path="/iom/outwards-list" element={<OutwardRecordsList />} />
+              <Route path="/iom/outward-view/:id" element={<OutwardView />} />
             </Routes>
           }
         />

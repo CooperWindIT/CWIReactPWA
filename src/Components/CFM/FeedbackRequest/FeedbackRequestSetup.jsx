@@ -1368,13 +1368,13 @@ export default function FeedbackRequestSetup({ mode = "edit" }) {
                             </div>
                         )}
 
-                        <div className="efr-context-item">
+                        {/* <div className="efr-context-item">
                             <div className="efr-context-label">On the form</div>
                             <div className="efr-context-value">
                                 {selectedRows.length}
                                 <span className="efr-context-of"> / {allRows.length}</span>
                             </div>
-                        </div>
+                        </div> */}
                     </div>
 
                     {isClosed && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import Base1 from './../../Config/Base';
+import Base1 from './../../Config/Base1';
 import { Popover } from 'antd';
 import { BASE_API, BASE_IMAGE_API_GET } from "../../Config/Config";
 import './../../Config/Pagination.css';

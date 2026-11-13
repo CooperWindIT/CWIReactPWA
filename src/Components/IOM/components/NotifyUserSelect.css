@@ -1,0 +1,39 @@
+/* Notify user picker (NotifyUserSelect.jsx) */
+.nu-box { position: relative; }
+.nu-btn {
+    width: 100%; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 7px 12px 7px 8px; text-align: left;
+    border: 1px solid #d0d5dd; border-radius: 12px; background: #fff; transition: border-color .15s, box-shadow .15s;
+}
+.nu-btn:hover:not(:disabled) { border-color: #a4bcfd; }
+.nu-box.open .nu-btn { border-color: #2f5bea; box-shadow: 0 0 0 4px rgba(47, 91, 234, .12); }
+.nu-btn:disabled { background: #f9fafb; cursor: not-allowed; }
+.nu-avatar {
+    width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #6172f3, #444ce7); color: #fff; font-size: 12.5px; font-weight: 800;
+}
+.nu-avatar.empty { background: #eef4ff; color: #2f5bea; font-size: 15px; }
+.nu-main { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.nu-main b { font-size: 13.5px; color: #101828; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nu-main small { font-size: 12px; color: #667085; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nu-ph { font-size: 13.5px; color: #98a2b3; }
+.nu-clear { width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: #98a2b3; }
+.nu-clear:hover { background: #f2f4f7; color: #475467; }
+.nu-caret { font-size: 12px; color: #667085; transition: transform .2s; }
+.nu-box.open .nu-caret { transform: rotate(180deg); }
+
+.nu-panel {                      /* inline (not floating) so it is never clipped inside scrolling modals */
+    margin-top: 6px; background: #fff; border: 1px solid #eaecf0; border-radius: 14px;
+    box-shadow: 0 12px 28px rgba(16, 24, 40, .12); overflow: hidden;
+}
+.nu-search { display: flex; align-items: center; gap: 8px; margin: 10px; padding: 0 12px; height: 40px; border-radius: 10px; background: #f2f4f7; color: #98a2b3; }
+.nu-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-size: 13.5px; color: #101828; }
+.nu-list { list-style: none; margin: 0; padding: 0 6px; max-height: 240px; overflow-y: auto; }
+.nu-opt { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px; border: none; background: none; border-radius: 10px; text-align: left; }
+.nu-opt:hover { background: #f5f8ff; }
+.nu-opt.active { background: #eef4ff; }
+.nu-dept { flex-shrink: 0; font-size: 11.5px; font-weight: 600; color: #475467; background: #f2f4f7; border-radius: 99px; padding: 2px 9px; max-width: 40%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nu-check { color: #2f5bea; }
+.nu-empty { padding: 16px; text-align: center; font-size: 13px; color: #667085; display: flex; gap: 8px; justify-content: center; align-items: center; }
+.nu-foot { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-top: 1px solid #f2f4f7; font-size: 12px; color: #667085; }
+.nu-link { border: none; background: none; color: #2f5bea; font-weight: 600; font-size: 12px; padding: 0; }
+.nu-link:disabled { opacity: .5; }

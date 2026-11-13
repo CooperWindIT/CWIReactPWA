@@ -1,0 +1,357 @@
+
+.iim-page-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #172b4d;
+    margin-bottom: 6px;
+}
+
+.iim-page-description {
+    color: #64748b;
+    font-size: 16px;
+    line-height: 1.5;
+    max-width: 720px;
+    margin-bottom: 20px;
+}
+
+.iim-card {
+    background: #fff;
+    border: 1px solid #dce3ed;
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+}
+
+.iim-card-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 15px 20px;
+    border-bottom: 1px solid #dce3ed;
+}
+
+.iim-manager-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.iim-manager-header .iim-page-description {
+    margin-bottom: 0;
+}
+
+.iim-manager-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 15px 20px;
+    border-bottom: 1px solid #dce3ed;
+}
+
+.iim-tab {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #172b4d;
+    border-radius: 25px;
+    padding: 7px 15px;
+    font-size: 14px;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.iim-tab:hover {
+    background: #f1f5f9;
+}
+
+.iim-tab-active {
+    background: #e9efff;
+    color: #214db8;
+    border-color: #214db8;
+    font-weight: 600;
+}
+
+.iim-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: none;
+    border-radius: 7px;
+    padding: 10px 16px;
+    background: #244fbd;
+    color: #fff;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.iim-btn-primary:hover {
+    background: #193e9b;
+    color: #fff;
+}
+
+.iim-btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.iim-register-btn {
+    min-height: 48px;
+    padding: 12px 22px;
+    font-size: 15px;
+}
+
+.iim-table {
+    width: 100%;
+    margin-bottom: 0;
+    border-collapse: collapse;
+    color: #172b4d;
+}
+
+.iim-table thead th {
+    background: #f7f9fb;
+    color: #53657c;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 15px;
+    white-space: nowrap;
+    border-bottom: 1px solid #dce3ed;
+}
+
+.iim-table tbody td {
+    padding: 13px 15px;
+    font-size: 14px;
+    border-bottom: 1px solid #dce3ed;
+    vertical-align: middle;
+}
+
+.iim-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.iim-table tbody tr:hover {
+    background: #fafcff;
+}
+
+.iim-photo-needed,
+.iim-photo-uploaded {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border-radius: 20px;
+    padding: 5px 11px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.iim-photo-needed {
+    background: #fff1d9;
+    color: #9a5b00;
+}
+
+.iim-photo-uploaded {
+    background: #e1f4e9;
+    color: #087b4c;
+}
+
+.iim-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    flex-shrink: 0;
+}
+
+.iim-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.iim-status-pending {
+    background: #e9efff;
+    color: #214db8;
+}
+
+.iim-status-reviewed {
+    background: #f0eaff;
+    color: #6538bb;
+}
+
+.iim-status-approved {
+    background: #e1f4e9;
+    color: #087b4c;
+}
+
+.iim-status-default {
+    background: #fff1d9;
+    color: #9a5b00;
+}
+
+.iim-action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.iim-btn-outline,
+.iim-btn-approve {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 7px 12px;
+    background: #fff;
+    color: #172b4d;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.iim-btn-outline:hover:not(:disabled) {
+    background: #f1f5f9;
+}
+
+.iim-btn-outline:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.iim-btn-approve {
+    background: #d7eee2;
+    border-color: #d7eee2;
+    color: #fff;
+}
+
+.iim-btn-approve-active {
+    background: #12804d;
+    border-color: #12804d;
+}
+
+.iim-btn-approve-active:hover {
+    background: #08643a;
+}
+
+.iim-btn-approve:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.iim-search-box {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 0 12px;
+    height: 46px;
+    width: 425px;
+    max-width: 100%;
+    color: #8795a8;
+}
+
+.iim-search-box input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: #172b4d;
+    font-size: 14px;
+}
+
+.iim-search-box input::placeholder {
+    color: #8795a8;
+}
+
+.iim-search-box button {
+    border: none;
+    background: transparent;
+    color: #64748b;
+    padding: 3px;
+    cursor: pointer;
+}
+
+.iim-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 16px 20px;
+    border-top: 1px solid #dce3ed;
+}
+
+.iim-pagination-info {
+    color: #64748b;
+    font-size: 13px;
+}
+
+.iim-pagination-btn {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 13px;
+    color: #172b4d;
+}
+
+.iim-pagination-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+
+    .iim-manager-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .iim-register-btn {
+        width: 100%;
+    }
+
+    .iim-manager-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .iim-search-box {
+        width: 100%;
+    }
+
+    .iim-pagination {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .iim-action-buttons {
+        flex-wrap: wrap;
+    }
+
+    .iim-page-title {
+        font-size: 21px;
+    }
+
+}

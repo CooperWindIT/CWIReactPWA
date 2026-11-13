@@ -1,0 +1,1084 @@
+/* =========================================================
+   Inward Records – premium look
+   ========================================================= */
+
+   .ir-page {
+    --ir-primary: #2f5bea;
+    --ir-primary-dark: #1d3fb8;
+    --ir-primary-soft: #eef2ff;
+    --ir-text: #101828;
+    --ir-muted: #667085;
+    --ir-border: #e4e7ec;
+    --ir-bg-soft: #f8fafc;
+    --ir-success: #12805c;
+    --ir-success-soft: #e7f6ef;
+    --ir-warning: #b54708;
+    --ir-warning-soft: #fff4e5;
+    --ir-violet: #6941c6;
+    --ir-violet-soft: #f4f0ff;
+    --ir-radius: 14px;
+    color: var(--ir-text);
+}
+
+/* ---------- Header ---------- */
+.ir-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.ir-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.ir-header-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #fff;
+    background: linear-gradient(135deg, #3b6cff 0%, #1d3fb8 100%);
+    box-shadow: 0 8px 20px rgba(47, 91, 234, 0.28);
+    flex-shrink: 0;
+}
+
+.ir-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.2px;
+}
+
+.ir-subtitle {
+    color: var(--ir-muted);
+    font-size: 14px;
+    margin-top: 2px;
+}
+
+.ir-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 20px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #fff;
+    background: linear-gradient(135deg, #3b6cff 0%, #2346c9 100%);
+    box-shadow: 0 6px 16px rgba(47, 91, 234, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ir-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(47, 91, 234, 0.35);
+    color: #fff;
+}
+
+/* ---------- Status tabs (compact badges) ---------- */
+.ir-kpis {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.ir-kpi {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid var(--ir-border);
+    border-radius: 999px;
+    padding: 5px 12px 5px 5px;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
+    outline: none;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ir-kpi:hover {
+    border-color: #c7d2fe;
+    background: #fafbff;
+}
+
+.ir-kpi:focus,
+.ir-kpi:focus-visible {
+    outline: none;
+}
+
+.ir-kpi.active {
+    border-color: var(--ir-primary);
+    background: var(--ir-primary-soft);
+    box-shadow: 0 0 0 2px rgba(47, 91, 234, 0.12);
+}
+
+.ir-kpi-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+/* label + count on one line */
+.ir-kpi > span:last-child {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ir-kpi-label {
+    color: var(--ir-text);
+    font-weight: 500;
+}
+
+.ir-kpi.active .ir-kpi-label {
+    color: var(--ir-primary);
+    font-weight: 600;
+}
+
+.ir-kpi-value {
+    min-width: 22px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #f2f4f7;
+    color: var(--ir-text);
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ir-kpi.active .ir-kpi-value {
+    background: var(--ir-primary);
+    color: #fff;
+}
+
+.ir-tone-blue   { background: var(--ir-primary-soft); color: var(--ir-primary); }
+.ir-tone-amber  { background: var(--ir-warning-soft); color: var(--ir-warning); }
+.ir-tone-violet { background: var(--ir-violet-soft);  color: var(--ir-violet); }
+.ir-tone-green  { background: var(--ir-success-soft); color: var(--ir-success); }
+
+/* ---------- Main card ---------- */
+.ir-card {
+    background: #fff;
+    border: 1px solid var(--ir-border);
+    border-radius: var(--ir-radius);
+    box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+    overflow: hidden;
+}
+
+.ir-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--ir-border);
+    background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+}
+
+.ir-toolbar-title {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.ir-toolbar-title small {
+    color: var(--ir-muted);
+    font-weight: 400;
+    margin-left: 6px;
+}
+
+.ir-filters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ---------- date range: one calendar icon per date, click anywhere on a date to open the picker ---------- */
+.ir-range {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--ir-border);
+    border-radius: 10px;
+    background: #fff;
+    height: 40px;
+    padding: 0 4px;
+    gap: 2px;
+}
+
+/* the old leading icon is replaced by an icon inside each date */
+.ir-range > i {
+    display: none;
+}
+
+.ir-range input[type="date"] {
+    position: relative;
+    border: none;
+    outline: none;
+    height: 32px;
+    width: 136px;
+    padding: 0 8px 0 30px;
+    border-radius: 7px;
+    font-size: 13px;
+    color: var(--ir-text);
+    cursor: pointer;
+    background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4.5' width='18' height='17' rx='2.5'/%3E%3Cpath d='M16 2.5v4M8 2.5v4M3 10h18'/%3E%3C/svg%3E") no-repeat 9px center;
+    transition: background-color .15s ease;
+}
+
+.ir-range input[type="date"]:hover {
+    background-color: #f3f6fb;
+}
+
+.ir-range input[type="date"]:focus {
+    background-color: #eef3ff;
+}
+
+/* Chrome / Edge: the browser's own picker button covers the whole field (invisible),
+   so a click anywhere on the date opens the calendar and only our icon is shown */
+.ir-range input[type="date"]::-webkit-calendar-picker-indicator {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    height: auto;
+    margin: 0;
+    padding: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* Firefox shows its own icon -> drop ours there */
+@supports (-moz-appearance: none) {
+    .ir-range input[type="date"] {
+        background-image: none;
+        padding-left: 8px;
+    }
+}
+
+.ir-range span {
+    color: var(--ir-muted);
+    font-size: 12px;
+    padding: 0 2px;
+}
+
+.ir-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--ir-border);
+    border-radius: 10px;
+    height: 40px;
+    padding: 0 12px;
+    width: 260px;
+    max-width: 100%;
+    background: #fff;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ir-search:focus-within,
+.ir-range:focus-within {
+    border-color: var(--ir-primary);
+    box-shadow: 0 0 0 3px rgba(47, 91, 234, 0.1);
+}
+
+.ir-search i {
+    color: var(--ir-muted);
+}
+
+.ir-search input {
+    border: none;
+    outline: none;
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    background: transparent;
+}
+
+.ir-btn-soft,
+.ir-btn-ghost {
+    height: 40px;
+    border-radius: 10px;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 0.15s ease;
+}
+
+.ir-btn-soft {
+    border: none;
+    background: var(--ir-primary);
+    color: #fff;
+}
+
+.ir-btn-soft:hover:not(:disabled) {
+    background: var(--ir-primary-dark);
+}
+
+.ir-btn-ghost {
+    border: 1px solid var(--ir-border);
+    background: #fff;
+    color: var(--ir-text);
+}
+
+.ir-btn-ghost:hover {
+    background: var(--ir-bg-soft);
+}
+
+.ir-today-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 10px;
+    background: var(--ir-primary-soft);
+    color: var(--ir-primary);
+    font-weight: 600;
+    font-size: 13px;
+}
+
+/* ---------- Table ---------- */
+.ir-table {
+    width: 100%;
+    margin: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.ir-table thead th {
+    background: var(--ir-bg-soft);
+    color: var(--ir-muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--ir-border);
+    white-space: nowrap;
+}
+
+.ir-table tbody td {
+    padding: 16px 20px;
+    font-size: 14px;
+    border-bottom: 1px solid #f0f2f5;
+    vertical-align: middle;
+}
+
+.ir-table tbody tr {
+    transition: background 0.12s ease;
+}
+
+.ir-table tbody tr:hover {
+    background: #fafbff;
+}
+
+.ir-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.ir-record {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ir-record-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--ir-primary-soft);
+    color: var(--ir-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ir-record-no {
+    font-weight: 700;
+    color: var(--ir-text);
+}
+
+.ir-sub {
+    color: var(--ir-muted);
+    font-size: 12.5px;
+    margin-top: 2px;
+}
+
+.ir-plate {
+    display: inline-block;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.6px;
+    padding: 4px 10px;
+    border: 1.5px solid #d0d5dd;
+    border-radius: 6px;
+    background: #fcfcfd;
+}
+
+.ir-num {
+    font-weight: 600;
+}
+
+.ir-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ir-pill .ir-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.ir-pill-blue   { background: var(--ir-primary-soft); color: var(--ir-primary); }
+.ir-pill-violet { background: var(--ir-violet-soft);  color: var(--ir-violet); }
+.ir-pill-green  { background: var(--ir-success-soft); color: var(--ir-success); }
+.ir-pill-amber  { background: var(--ir-warning-soft); color: var(--ir-warning); }
+
+.ir-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.ir-btn-view {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--ir-border);
+    background: #fff;
+    color: var(--ir-text);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s ease;
+}
+
+.ir-btn-view:hover {
+    border-color: var(--ir-primary);
+    color: var(--ir-primary);
+    background: var(--ir-primary-soft);
+}
+
+.ir-btn-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: var(--ir-primary);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.ir-btn-upload:hover {
+    background: var(--ir-primary-dark);
+}
+
+/* ---------- Skeleton ---------- */
+.ir-skel {
+    height: 12px;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #f0f2f5 25%, #e6e9ef 37%, #f0f2f5 63%);
+    background-size: 400% 100%;
+    animation: ir-shimmer 1.3s ease infinite;
+}
+
+@keyframes ir-shimmer {
+    0% { background-position: 100% 50%; }
+    100% { background-position: 0 50%; }
+}
+
+/* ---------- Empty ---------- */
+.ir-empty {
+    text-align: center;
+    padding: 56px 20px;
+}
+
+.ir-empty-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    margin: 0 auto 14px;
+    background: var(--ir-bg-soft);
+    color: #98a2b3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+}
+
+.ir-empty-title {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+/* ---------- Footer / pagination ---------- */
+.ir-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 14px 20px;
+    border-top: 1px solid var(--ir-border);
+    background: #fcfcfd;
+}
+
+.ir-footer-info {
+    color: var(--ir-muted);
+    font-size: 13px;
+}
+
+.ir-footer-info b {
+    color: var(--ir-text);
+}
+
+.ir-pager {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ir-pager select {
+    height: 34px;
+    border: 1px solid var(--ir-border);
+    border-radius: 8px;
+    padding: 0 8px;
+    font-size: 13px;
+    background: #fff;
+}
+
+.ir-page-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    border: 1px solid var(--ir-border);
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ir-text);
+}
+
+.ir-page-btn:hover:not(:disabled) {
+    background: var(--ir-primary-soft);
+    border-color: #c7d2fe;
+    color: var(--ir-primary);
+}
+
+.ir-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.ir-page-label {
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 54px;
+    text-align: center;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 992px) {
+}
+
+@media (max-width: 576px) {
+    .ir-search,
+    .ir-range {
+        width: 100%;
+    }
+
+    .ir-range input[type="date"] {
+        flex: 1;
+        min-width: 0;
+        width: auto;
+    }
+
+    .ir-header .ir-btn-primary {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .ir-header-actions {
+        width: 100%;
+    }
+
+    .ir-header-actions > button {
+        flex: 1 1 auto;
+        justify-content: center;
+        white-space: nowrap;
+    }
+}
+
+/* ---------- Security: single date + photo upload ---------- */
+.ir-link-today {
+    border: none;
+    background: var(--ir-primary-soft);
+    color: var(--ir-primary);
+    font-size: 11.5px;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 3px 8px;
+}
+
+
+.ir-photo-drop {
+    width: 100%;
+    border: 1.5px dashed #c7d2fe;
+    border-radius: 12px;
+    background: #fafbff;
+    padding: 26px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--ir-primary);
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.ir-photo-drop small {
+    color: var(--ir-muted);
+    font-weight: 400;
+}
+
+/* ---------- Upload photo modal ---------- */
+.ir-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1060;
+    background: rgba(16, 24, 40, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.ir-modal {
+    width: 100%;
+    max-width: 420px;
+    background: #fff;
+    border-radius: var(--ir-radius, 14px);
+    box-shadow: 0 20px 48px rgba(16, 24, 40, 0.22);
+    overflow: hidden;
+}
+
+.ir-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid var(--ir-border, #e4e7ec);
+}
+
+.ir-modal-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ir-text, #101828);
+}
+
+.ir-modal-sub {
+    font-size: 12px;
+    color: var(--ir-muted, #667085);
+    margin-top: 2px;
+}
+
+.ir-modal-close {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 8px;
+    background: var(--ir-bg-soft, #f8fafc);
+    color: var(--ir-muted, #667085);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ir-modal-close:hover {
+    background: #eef0f4;
+}
+
+.ir-modal-body {
+    padding: 18px;
+}
+
+.ir-modal-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid var(--ir-border, #e4e7ec);
+    background: var(--ir-bg-soft, #f8fafc);
+}
+
+.ir-preview {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px;
+    border: 1px solid var(--ir-border, #e4e7ec);
+    border-radius: 12px;
+}
+
+.ir-preview img {
+    width: 96px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+    background: var(--ir-bg-soft, #f8fafc);
+}
+
+.ir-preview-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+
+.ir-preview-name {
+    font-size: 13px;
+    font-weight: 600;
+    max-width: 230px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ir-preview-size {
+    font-size: 11.5px;
+    color: var(--ir-muted, #667085);
+}
+
+/* =========================================================
+   Top navigation (Portal + menu links) – premium bar
+   Applied with className="app-toolbar iim-nav"
+   ========================================================= */
+.iim-nav .page-title > .d-flex {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px !important;
+    padding: 5px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid #e4e7ec;
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 18px rgba(16, 24, 40, 0.06);
+    backdrop-filter: blur(6px);
+}
+
+.iim-nav .page-title > .d-flex > .dropdown { margin: 0 !important; }
+.iim-nav .page-title > .d-flex > .d-flex { gap: 4px; }
+
+/* every nav button */
+.iim-nav .menu-link {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 6px;
+    margin: 0 !important;
+    padding: 8px 14px !important;
+    border: none !important;
+    border-radius: 10px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: #344054 !important;
+    font-weight: 600;
+    font-size: 13.5px;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+    cursor: pointer;
+}
+.iim-nav .menu-link .menu-title { color: inherit !important; display: inline-flex; align-items: center; }
+.iim-nav .menu-link i { color: inherit !important; }
+
+.iim-nav .menu-link:hover {
+    background: #f2f5ff !important;
+    color: #2f5bea !important;
+}
+
+/* Portal button */
+.iim-nav .menu-link.dropdown-toggle {
+    background: #f4f6fb !important;
+    color: #101828 !important;
+}
+.iim-nav .menu-link.dropdown-toggle:hover,
+.iim-nav .menu-link.dropdown-toggle[aria-expanded="true"] {
+    background: #eef2ff !important;
+    color: #2f5bea !important;
+}
+.iim-nav .menu-link.dropdown-toggle::after { margin-left: 6px; opacity: .6; }
+
+/* thin divider after Portal */
+.iim-nav .page-title > .d-flex > .dropdown::after {
+    content: "";
+    display: inline-block;
+    width: 1px; height: 22px;
+    background: #e4e7ec;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+.iim-nav .page-title > .d-flex > .dropdown { display: inline-flex !important; align-items: center; }
+
+/* active menu */
+.iim-nav .menu-link.active {
+    background: linear-gradient(135deg, #3d68f0, #1d3fb8) !important;
+    color: #fff !important;
+    box-shadow: 0 6px 14px rgba(47, 91, 234, 0.3) !important;
+}
+.iim-nav .menu-link.active:hover { color: #fff !important; }
+
+/* Portal dropdown list */
+.iim-nav .dropdown-menu {
+    border: 1px solid #e4e7ec !important;
+    border-radius: 14px !important;
+    padding: 6px !important;
+    min-width: 230px;
+    box-shadow: 0 16px 40px rgba(16, 24, 40, 0.14) !important;
+    margin-top: 8px !important;
+}
+.iim-nav .dropdown-menu .dropdown-item,
+.iim-nav .dropdown-menu .module-item {
+    border-radius: 10px;
+    padding: 9px 12px;
+    font-weight: 500;
+    font-size: 13.5px;
+    color: #344054;
+}
+.iim-nav .dropdown-menu .dropdown-item:hover,
+.iim-nav .dropdown-menu .module-item:hover { background: #f2f5ff; color: #2f5bea; }
+.iim-nav .dropdown-menu .dropdown-item i { width: 18px; text-align: center; text-shadow: none !important; }
+.iim-nav .dropdown-menu .active-module .dropdown-item { background: #eef2ff; color: #2f5bea; font-weight: 600; }
+
+/* =========================================================
+   IOM – spacing under the header + mobile responsive
+   ========================================================= */
+
+/* a little space between the blue header and the Portal / menu bar */
+.app-toolbar.iim-nav { padding-top: 18px !important; padding-bottom: 10px !important; }
+
+/* ---------- Upload modal: camera + options ---------- */
+.ir-photo-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ir-photo-option {
+    display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+    border: 1.5px dashed #c7d2fe; background: #fafbff; border-radius: 14px;
+    padding: 20px 12px; color: #344054; transition: border-color .15s, background .15s, transform .05s;
+}
+.ir-photo-option:hover { border-color: #2f5bea; background: #f2f5ff; }
+.ir-photo-option:active { transform: translateY(1px); }
+.ir-photo-option b { font-size: 14px; color: #101828; }
+.ir-photo-option small { font-size: 12px; color: #667085; }
+.ir-photo-option-icon {
+    width: 48px; height: 48px; border-radius: 14px; font-size: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #eef2ff; color: #2f5bea;
+}
+.ir-photo-option.primary { border-style: solid; border-color: #2f5bea; background: #f5f7ff; }
+.ir-photo-option.primary .ir-photo-option-icon {
+    background: linear-gradient(135deg, #5b7cfa, #1d3fb8); color: #fff;
+    box-shadow: 0 6px 14px rgba(47, 91, 234, .3);
+}
+
+.ir-preview-big { border: 1px solid #e4e7ec; border-radius: 14px; overflow: hidden; }
+.ir-preview-big img { width: 100%; max-height: 300px; object-fit: contain; background: #0f172a; display: block; }
+.ir-preview-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; flex-wrap: wrap; }
+.ir-btn-sm { padding: 6px 12px !important; font-size: 12.5px !important; }
+
+.ir-cam { border-radius: 14px; overflow: hidden; background: #0b1220; }
+.ir-cam-stage { position: relative; aspect-ratio: 4 / 3; background: #0b1220; }
+.ir-cam-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ir-cam-loading {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 8px;
+    color: #cbd5e1; font-size: 13px;
+}
+.ir-cam-frame {
+    position: absolute; inset: 10%; border: 2px solid rgba(255,255,255,.75); border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.18); pointer-events: none;
+}
+.ir-cam-flash { position: absolute; inset: 0; background: #fff; opacity: .8; animation: ir-flash .18s ease-out forwards; }
+@keyframes ir-flash { to { opacity: 0; } }
+.ir-cam-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; background: #0b1220; }
+.ir-cam-side {
+    width: 44px; height: 44px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,.12); color: #fff; font-size: 16px;
+}
+.ir-cam-shutter {
+    width: 68px; height: 68px; border-radius: 50%; border: 4px solid #fff; background: transparent; padding: 4px;
+}
+.ir-cam-shutter span { display: block; width: 100%; height: 100%; border-radius: 50%; background: #fff; transition: transform .1s; }
+.ir-cam-shutter:active span { transform: scale(.88); }
+.ir-cam-shutter:disabled { opacity: .4; }
+
+/* ---------- Tablet ---------- */
+@media (max-width: 992px) {
+    .ir-header { flex-wrap: wrap; gap: 14px; }
+    .ir-toolbar { flex-direction: column; align-items: stretch; gap: 12px; }
+    .ir-filters, .it-filters { flex-wrap: wrap; width: 100%; }
+    .ir-filters .ir-search, .it-filters .it-search { flex: 1 1 220px; }
+}
+
+/* ---------- Phone ---------- */
+@media (max-width: 576px) {
+    .app-toolbar.iim-nav { padding-top: 12px !important; }
+    #kt_app_content_container.app-container,
+    #kt_app_toolbar_container.app-container { padding-left: 12px !important; padding-right: 12px !important; }
+
+    /* page header */
+    .ir-header { align-items: flex-start; }
+    .ir-header-left { gap: 12px; }
+    .ir-header-icon { width: 44px; height: 44px; font-size: 18px; flex-shrink: 0; }
+    .ir-title { font-size: 20px !important; }
+    .ir-subtitle { font-size: 12.5px !important; }
+    .ir-header .ir-btn-primary, .ir-header > button { width: 100%; justify-content: center; }
+    .ir-today-chip { align-self: flex-start; }
+
+    /* KPI badges scroll sideways instead of wrapping */
+    .ir-kpis { flex-wrap: nowrap !important; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+    .ir-kpis::-webkit-scrollbar { display: none; }
+    .ir-kpi { flex: 0 0 auto; }
+
+    /* filters full width */
+    .ir-filters > *, .it-filters > * { width: 100%; }
+    .ir-range { width: 100%; }
+    .ir-range input[type="date"] { flex: 1; min-width: 0; width: auto; }
+    .ir-filters .ir-btn-soft, .ir-filters .ir-btn-ghost,
+    .it-filters .ir-btn-soft, .it-filters .ir-btn-ghost { flex: 1 1 calc(50% - 6px); width: auto; justify-content: center; }
+    .ir-toolbar { padding: 14px !important; }
+
+    /* tables marked .ir-stack become cards */
+    .ir-stack thead { display: none; }
+    .ir-stack, .ir-stack tbody { display: block; width: 100%; }
+    .ir-stack tbody tr {
+        display: block; margin: 10px 12px; padding: 4px 0;
+        border: 1px solid #e4e7ec; border-radius: 14px; background: #fff;
+        box-shadow: 0 1px 2px rgba(16,24,40,.04);
+    }
+    .ir-stack tbody td {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        padding: 8px 14px !important; border: none !important; text-align: right !important;
+    }
+    .ir-stack tbody td[data-label]::before {
+        content: attr(data-label); font-size: 11.5px; font-weight: 600; letter-spacing: .3px;
+        text-transform: uppercase; color: #667085; text-align: left;
+    }
+    .ir-stack tbody td.ir-stack-head {
+        border-bottom: 1px dashed #e4e7ec !important; padding: 12px 14px !important; justify-content: flex-start;
+    }
+    .ir-stack tbody td.ir-stack-actions { padding-top: 10px !important; padding-bottom: 12px !important; }
+    .ir-stack tbody td.ir-stack-actions .ir-actions { width: 100%; justify-content: stretch; gap: 8px; }
+    .ir-stack tbody td.ir-stack-actions .ir-actions > button { flex: 1; justify-content: center; }
+    .ir-stack tbody td[colspan] { display: block; text-align: center !important; }
+    .ir-stack tbody tr:has(td[colspan]) { border: none; box-shadow: none; }
+
+    /* footer / pager */
+    .ir-footer { flex-direction: column; gap: 10px; align-items: stretch !important; text-align: center; }
+    .ir-pager { justify-content: center; flex-wrap: wrap; }
+
+    /* small modals become bottom sheets */
+    .ir-modal-overlay { align-items: flex-end; padding: 0; }
+    .ir-modal { max-width: 100%; border-radius: 18px 18px 0 0; max-height: 94vh; overflow-y: auto; }
+    .ir-modal-foot { position: sticky; bottom: 0; }
+    .ir-modal-foot > button { flex: 1; justify-content: center; }
+    .ir-photo-options { grid-template-columns: 1fr; }
+    .ir-cam-stage { aspect-ratio: 3 / 4; }
+
+    /* top nav bar */
+    .iim-nav .page-title > .d-flex { padding: 4px; }
+    .iim-nav .menu-link { padding: 7px 10px !important; font-size: 13px; }
+}
+@media (max-width: 576px) {
+    .ir-stack tbody td.it-sno { display: none; }
+    .ir-stack tbody td.it-desc { max-width: none; }
+    .ir-stack tbody td.it-desc > span { max-width: 60%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+
+/* Phone: show the full menu bar (Portal + menu links) instead of only the grid icon */
+@media (max-width: 767.98px) {
+    .iim-nav .page-title.d-md-block { display: block !important; max-width: 100%; }
+    .iim-nav .page-title.d-md-none { display: none !important; }
+    .iim-nav #kt_app_toolbar_container { overflow: visible; }
+    /* wrap instead of scroll so the Portal dropdown is never clipped */
+    .iim-nav .page-title > .d-flex { max-width: 100%; flex-wrap: wrap; }
+    .iim-nav .page-title > .d-flex > .d-flex { flex-wrap: wrap; }
+    .iim-nav .menu-link { white-space: nowrap; }
+}
+
+/* Phone: camera fits inside the bottom sheet (shutter always visible) */
+@media (max-width: 576px) {
+    .ir-cam-stage { aspect-ratio: auto; height: 52vh; }
+    .ir-cam-bar { padding: 10px 18px; }
+    .ir-cam-shutter { width: 62px; height: 62px; }
+}
+
+
+/* ---------- Header actions: Trace Barcode (all users) + Register ---------- */
+.ir-header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.ir-btn-trace {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 16px;
+    border-radius: 12px;
+    border: 1.5px solid #c7d2fe;
+    background: #eef2ff;
+    color: #4338ca;
+    font-weight: 700;
+    font-size: 14px;
+    white-space: nowrap;
+    transition: background .15s, border-color .15s, box-shadow .15s, transform .1s;
+}
+
+.ir-btn-trace:hover {
+    background: #e0e7ff;
+    border-color: #a5b4fc;
+    box-shadow: 0 6px 16px rgba(79, 70, 229, .16);
+}
+
+.ir-btn-trace:active {
+    transform: scale(.97);
+}
