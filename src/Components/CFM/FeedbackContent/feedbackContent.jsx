@@ -124,7 +124,7 @@ export default function FeedbackContent() {
             //    setMenuData(parsedMenu);
                // Find Dashboard and Visitors menus
                const dashboardMenu = parsedMenu.find(
-                   (item) => item.MenuName === "Contents"
+                   (item) => item.MenuName === "Create Questions"
                );
    
                let actionIds = [];
@@ -449,7 +449,7 @@ export default function FeedbackContent() {
                 >
                     <div className="page-title d-flex flex-column justify-content-center flex-wrap me-3">
                         <h1 className="page-heading d-flex text-gray-900 fw-bold fs-3 flex-column justify-content-center my-0">
-                            Contents
+                            Questions
                         </h1>
 
                         <ul className="breadcrumb breadcrumb-separatorless fw-semibold fs-7 my-0 pt-1">
@@ -465,7 +465,7 @@ export default function FeedbackContent() {
                                 <span className="bullet bg-gray-500 w-5px h-2px"></span>
                             </li>
                             <li className="breadcrumb-item text-muted">
-                                Contents
+                                Questions
                             </li>
                         </ul>
                     </div>
@@ -478,7 +478,7 @@ export default function FeedbackContent() {
                                 onClick={openAdd}
                             >
                                 <i className="bi bi-plus-lg text-white"></i>
-                                <span>Register Content</span>
+                                <span>Register Questions</span>
                             </button>
                         </div>
                     )}

@@ -77,10 +77,10 @@ import FeedbackFormPreview, {
 
 // Where Back returns to. It goes there with the customer in route state, so
 // the list reopens on the same customer instead of an empty picker.
-const LIST_ROUTE = "/cfm/feedback-request";
+const LIST_ROUTE = "/fpm/feedback-request";
 
 // The edit route, without :publicCode. A saved new request opens here.
-const EDIT_ROUTE = "/cfm/feedback-request/edit";
+const EDIT_ROUTE = "/fpm/feedback-request/edit";
 
 // The email carries the customer's link, built by publicFormUrl in
 // cfmServices:  https://portal-andiso.cooperwind.online/?<PublicCode>

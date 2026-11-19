@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Tooltip } from 'antd';
+import ColorPicker from './ColorPicker';
 import styles from './PropertiesPanel.module.css';
 
 const AUTO_STROKE = 'theme-auto';
@@ -148,6 +149,25 @@ function Swatch({ color, active, onClick, transparent, autoStrokePreview }) {
   );
 }
 
+// The hairline between the presets and the picker, so the last swatch and the
+// picker button don't read as one run of seven choices. Inline rather than a
+// new class because it is one rule and it borrows a variable the stylesheet
+// already defines.
+function SwatchDivider() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 1,
+        height: 24,
+        alignSelf: 'center',
+        margin: '0 1px',
+        background: 'var(--panel-border)',
+      }}
+    />
+  );
+}
+
 export default function PropertiesPanel({ node, onUpdate, onDelete, onClose, readMode, theme }) {
   // The panel no longer springs open the moment a shape is selected — it used
   // to sit on top of the canvas and block the very shapes being worked on.
@@ -198,6 +218,14 @@ export default function PropertiesPanel({ node, onUpdate, onDelete, onClose, rea
   }
 
   const autoStrokePreview = theme === 'dark' ? '#ffffff' : '#1f1f1f';
+
+  // What the picker should show for a stroke left on "automatic". The shape
+  // really is drawn in the theme's ink, so that is what the button shows —
+  // treating the word as a missing colour would put an empty chequerboard on
+  // a shape that plainly has a visible outline.
+  const strokeForPicker = !node.strokeColor || node.strokeColor === AUTO_STROKE
+    ? autoStrokePreview
+    : node.strokeColor;
 
   return (
     <div className={[styles.panel, styles.open].join(' ')}>
@@ -286,6 +314,15 @@ export default function PropertiesPanel({ node, onUpdate, onDelete, onClose, rea
                 onClick={() => onUpdate({ strokeColor: color })}
               />
             ))}
+
+            <SwatchDivider />
+
+            <ColorPicker
+              value={strokeForPicker}
+              theme={theme}
+              title="More stroke colours"
+              onChange={(color) => onUpdate({ strokeColor: color })}
+            />
           </div>
         </div>
 
@@ -301,6 +338,16 @@ export default function PropertiesPanel({ node, onUpdate, onDelete, onClose, rea
                 onClick={() => onUpdate({ fillColor: color })}
               />
             ))}
+
+            <SwatchDivider />
+
+            <ColorPicker
+              value={node.fillColor || 'transparent'}
+              theme={theme}
+              title="More background colours"
+              allowTransparent
+              onChange={(color) => onUpdate({ fillColor: color })}
+            />
           </div>
         </div>
 

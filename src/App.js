@@ -161,12 +161,12 @@ function App() {
               <Route path="/service-requests/track-ticket" element={<TrackTicket />} />
 
               {/* Customer Feedback Module */}
-              <Route path="/cfm/dashboard" element={<CFMDashboard />} />
-              <Route path="/cfm/feedback-content" element={<FeedbackContent />} />
-              <Route path="/cfm/feedback-request/view/:publicCode" element={<ViewFeedbackRequest />} />
-              <Route path="/cfm/feedback-request" element={<FeedbackRequest />} />
-              <Route path="/cfm/feedback-request/create" element={<CreateFeedbackRequest />} />
-              <Route path="/cfm/feedback-request/edit/:publicCode" element={<EditFeedbackRequest />} />
+              <Route path="/fpm/dashboard" element={<CFMDashboard />} />
+              <Route path="/fpm/feedback-content" element={<FeedbackContent />} />
+              <Route path="/fpm/feedback-request/view/:publicCode" element={<ViewFeedbackRequest />} />
+              <Route path="/fpm/feedback-request" element={<FeedbackRequest />} />
+              <Route path="/fpm/feedback-request/create" element={<CreateFeedbackRequest />} />
+              <Route path="/fpm/feedback-request/edit/:publicCode" element={<EditFeedbackRequest />} />
 
               {/* HRM */}
               <Route path="/pam/users" element={<UsersList />} />

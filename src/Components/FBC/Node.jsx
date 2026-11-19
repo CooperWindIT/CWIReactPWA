@@ -7,6 +7,25 @@ const SVG_SHAPES = ['diamond', 'parallelogram', 'hexagon', 'cylinder'];
 // Breathing room kept between the lowest line of text and the shape's bottom
 // border when the shape auto-grows to fit its text.
 const TEXT_FIT_PADDING = 10;
+// A text shape has no border of its own — its box IS the text, so it gets a
+// hairline of breathing room instead of the roomier allowance a bordered
+// shape needs. Enough that the selection outline doesn't sit on the glyphs
+// and the caret at the end of a line is still visible.
+// Exported because Canvas.jsx has to subtract it to recover the width of the
+// text itself when it scales a text shape — see the resize branch there.
+export const TEXT_SHAPE_PADDING = 6;
+// The smallest a text shape's type may get. Exported for the same reason:
+// Canvas has to scale the wrap width by the font change that ACTUALLY lands,
+// and this is where that change stops.
+export const MIN_TEXT_FONT_SIZE = 10;
+// An empty text shape still needs somewhere to put the caret.
+const MIN_TEXT_SHAPE_WIDTH = 24;
+// Floor for the wrap ceiling, so a text shape dragged very small still has a
+// line to write on rather than one letter per row.
+const MIN_TEXT_WRAP_WIDTH = 48;
+// Used only until Canvas has measured the viewport (first render, or if the
+// prop is ever missing).
+const DEFAULT_TEXT_WRAP_WIDTH = 720;
 const CP_POSITIONS = [
   { left: '50%', top: '0%', pos: 'top' },
   { left: '100%', top: '50%', pos: 'right' },
@@ -128,6 +147,7 @@ export default function Node({
   onConnect,
   onTextsChange,
   onAutoResize,
+  maxTextWidth,
   markedForErase,
   autoEdit,
   onAutoEditConsumed,
@@ -187,7 +207,9 @@ export default function Node({
     }
 
     if (mode === 'select' && !readMode) {
-      onSelect(node.id, { additive: event.ctrlKey || event.metaKey });
+      // Shift counts as additive alongside Ctrl/Cmd — Shift+click is what most
+      // people reach for first to build up a selection.
+      onSelect(node.id, { additive: event.ctrlKey || event.metaKey || event.shiftKey });
       onMouseDown(event, node.id);
     }
   }, [mode, node.id, onConnect, onMouseDown, onSelect, readMode, editingTextId]);
@@ -301,6 +323,44 @@ export default function Node({
     setEditingTextId(null);
   }, [node.id, onTextsChange, texts]);
 
+  // A press anywhere outside this node ends the edit.
+  //
+  // Clicking another shape cannot be relied on to blur the caret. handleMouseDown
+  // above, and the drag start in Canvas.jsx, both call preventDefault() so a
+  // shape can be dragged — and that also cancels the browser's focus change.
+  // The contentEditable keeps focus, onBlur never fires, and the caret sits
+  // blinking in a shape the user has already clicked away from, so the next
+  // keystroke lands in the wrong one.
+  useEffect(() => {
+    if (!editingTextId) return undefined;
+
+    const handleDocumentDown = (event) => {
+      // Presses inside this node are its own business: moving the caret
+      // between blocks, grabbing a resize handle, dragging the shape.
+      if (event.target?.closest?.(`[data-nodeid="${node.id}"]`)) return;
+
+      const el = innerRef.current;
+
+      // Blurring is preferred over committing directly, because it goes
+      // through the element's own onBlur — one commit, one history entry.
+      // Calling handleTextBlur here as well would commit twice and leave a
+      // duplicate undo step that looks like undo doing nothing.
+      if (el && document.activeElement === el) {
+        el.blur();
+        return;
+      }
+
+      // Not actually focused (the press that opened it was swallowed, say):
+      // nothing will fire onBlur, so close it here.
+      handleTextBlur(editingTextId);
+    };
+
+    // Capture phase, so the edit is committed before whatever was clicked
+    // starts handling the press.
+    document.addEventListener('mousedown', handleDocumentDown, true);
+    return () => document.removeEventListener('mousedown', handleDocumentDown, true);
+  }, [editingTextId, node.id, handleTextBlur]);
+
   const insertLineBreak = useCallback(() => {
     const el = innerRef.current;
     if (!el) return;
@@ -333,7 +393,7 @@ export default function Node({
     : node.strokeColor;
   const fillColor = node.fillColor || 'transparent';
   const fontFamily = node.fontFamily || 'Segoe UI';
-  const fontSize = Math.max(10, Number(node.fontSize || 16));
+  const fontSize = Math.max(MIN_TEXT_FONT_SIZE, Number(node.fontSize || 16));
   // A plain inline-style override on the wrapper div (see lineOverrideStyle
   // below) turned out not to be enough to blank out the rectangle
   // border/background for a line — whatever CSS paints that box is
@@ -355,6 +415,30 @@ export default function Node({
   const isLineShape = node.shape === 'line';
   const isOvalShape = node.shape === 'oval';
   const isImageShape = node.shape === 'image';
+
+  // A free text shape sizes itself to what has been typed: it grows sideways
+  // as you type and only breaks a line where the writer asked for one with
+  // Shift+Enter or Alt+Enter — or when the line reaches the far side of the
+  // screen, where carrying on sideways would just run the words out of sight.
+  // Every other shape keeps the old behaviour: its width is the user's own
+  // choice and the text wraps inside it.
+  const autoWidth = node.shape === 'text';
+
+  // Where an unbroken line gives up and wraps. Normally the width of what's on
+  // screen, handed down by Canvas. A text shape that has been resized by hand
+  // carries its own ceiling instead, so the lines it was left with are the
+  // lines it keeps — see the resize branch in Canvas.jsx, which scales this
+  // and the font size by the same amount so the words break in the same
+  // places at any size.
+  // Deliberately NOT rounded: a resize scales this and the font size by one
+  // factor, and snapping either to a whole pixel is enough drift to move a
+  // line break.
+  const wrapCeiling = Math.max(
+    MIN_TEXT_WRAP_WIDTH,
+    Number(node.wrapWidth) > 0
+      ? Number(node.wrapWidth)
+      : (Number(maxTextWidth) > 0 ? Number(maxTextWidth) : DEFAULT_TEXT_WRAP_WIDTH),
+  );
   const shapeClass = isLineShape || isImageShape
     ? (styles.shape_diamond || styles.shape_rect)
     : isOvalShape
@@ -437,6 +521,11 @@ export default function Node({
       fontSize: `${fontSize}px`,
       lineHeight: 1.25,
       whiteSpace: 'pre-wrap',
+      // max-content is what makes the box follow the text: the block is as
+      // wide as the longest line wants to be, and the max-width below is the
+      // only thing that ever makes it wrap. Measuring it then reads the width
+      // actually used, not the width it was given.
+      ...(autoWidth ? { width: 'max-content' } : null),
       // Highlighting has to be explicitly allowed on the block being edited —
       // the surrounding node chrome disables text selection so shapes can be
       // dragged without smearing a selection across their labels. Blocks that
@@ -447,12 +536,18 @@ export default function Node({
       // Long unbroken strings wrap instead of running out past the shape's
       // right edge — the shape grows downward to fit (see the auto-grow
       // effect below), so height is the only dimension that has to react.
+      // A word longer than the whole line still has to break somewhere, but
+      // only then — autoWidth text breaks between words everywhere else.
       overflowWrap: 'break-word',
-      wordBreak: 'break-word',
+      wordBreak: autoWidth ? 'normal' : 'break-word',
       outline: 'none',
       // Wide enough to type into comfortably, never wider than the shape.
       minWidth: 8,
-      cursor: readMode ? 'inherit' : 'text',
+      // Only the block actually open for editing claims the text cursor.
+      // Elsewhere a press on a label drags the shape, so the shape's own
+      // move cursor should show through — otherwise a text shape, which is
+      // nothing but label, would never show that it can be moved.
+      cursor: !readMode && isEditingThisBlock ? 'text' : 'inherit',
     };
 
     if (typeof textBlock.x !== 'number' || typeof textBlock.y !== 'number') {
@@ -461,7 +556,10 @@ export default function Node({
         left: '50%',
         top: '50%',
         transform: 'translate(-50%, -50%)',
-        maxWidth: '100%',
+        // The ceiling is the screen (or the hand-set width), never the box's
+        // own width — being clamped by the width it is about to decide is
+        // what made the old text wrap at 160px forever.
+        maxWidth: autoWidth ? wrapCeiling : '100%',
         textAlign: 'center',
       };
     }
@@ -473,7 +571,7 @@ export default function Node({
       ...base,
       left,
       top,
-      maxWidth: Math.max(12, node.w - left),
+      maxWidth: autoWidth ? wrapCeiling : Math.max(12, node.w - left),
       textAlign: 'left',
     };
   };
@@ -493,10 +591,11 @@ export default function Node({
   //
   // Images are excluded: growing the box to fit a caption would stretch the
   // picture's frame, and the caption is meant to sit ON the image anyway.
-  const fitHeightToText = useCallback(() => {
+  const fitBoxToText = useCallback(() => {
     if (isLineShape || isImageShape || !texts.length || typeof onAutoResize !== 'function') return;
 
-    let needed = 0;
+    let neededH = 0;
+    let neededW = 0;
 
     texts.forEach((textBlock) => {
       const el = textElRefs.current[textBlock.id];
@@ -505,21 +604,38 @@ export default function Node({
       const blockHeight = el.offsetHeight;
 
       if (typeof textBlock.y === 'number') {
-        needed = Math.max(needed, Math.max(0, textBlock.y - fontSize * 0.6) + blockHeight);
+        neededH = Math.max(neededH, Math.max(0, textBlock.y - fontSize * 0.6) + blockHeight);
       } else {
         // A centered block needs at least its own height to sit inside.
-        needed = Math.max(needed, blockHeight);
+        neededH = Math.max(neededH, blockHeight);
       }
+
+      // Same reasoning as the height above: measured from the block's
+      // UNCLAMPED left, so the target doesn't move as the box resizes.
+      const left = typeof textBlock.x === 'number' ? Math.max(0, textBlock.x) : 0;
+      neededW = Math.max(neededW, left + el.offsetWidth);
     });
 
-    needed += TEXT_FIT_PADDING;
-
-    if (needed > node.h) {
-      onAutoResize(node.id, { h: Math.ceil(needed) });
+    // Every other shape: only ever taller, never narrower, because its width
+    // belongs to the user and the text wraps to it.
+    if (!autoWidth) {
+      const needed = neededH + TEXT_FIT_PADDING;
+      if (needed > node.h) onAutoResize(node.id, { h: Math.ceil(needed) });
+      return;
     }
-  }, [isLineShape, isImageShape, texts, onAutoResize, fontSize, node.h, node.id]);
 
-  useLayoutEffect(fitHeightToText);
+    // A text shape's box is the text, so it shrinks as well as grows — that is
+    // what stops a sentence that has been shortened from leaving a selection
+    // box stretched out across empty canvas.
+    const w = Math.max(MIN_TEXT_SHAPE_WIDTH, Math.ceil(neededW + TEXT_SHAPE_PADDING));
+    const h = Math.max(Math.ceil(fontSize * 1.25), Math.ceil(neededH + TEXT_SHAPE_PADDING));
+
+    if (w !== node.w || h !== node.h) {
+      onAutoResize(node.id, { w, h, exact: true });
+    }
+  }, [isLineShape, isImageShape, autoWidth, wrapCeiling, texts, onAutoResize, fontSize, node.w, node.h, node.id]);
+
+  useLayoutEffect(fitBoxToText);
 
   // Typing inside a contentEditable mutates the DOM directly without any
   // React state change, so the effect above wouldn't re-run until the edit was
@@ -527,8 +643,8 @@ export default function Node({
   // whole time you were writing it. Re-measuring on each input keeps the box
   // growing line by line as you type.
   const handleTextInput = useCallback(() => {
-    fitHeightToText();
-  }, [fitHeightToText]);
+    fitBoxToText();
+  }, [fitBoxToText]);
 
   return (
     <div
@@ -640,7 +756,10 @@ export default function Node({
         <React.Fragment key={cp.pos}>
           <div
             className={styles.cp}
-            style={{ left: cp.left, top: cp.top }}
+            // Crosshair for the same reason the resize handles name theirs:
+            // a connection point starts an arrow, not a move, and it sits on
+            // top of a shape that now says move.
+            style={{ left: cp.left, top: cp.top, cursor: 'crosshair' }}
             onMouseDown={(event) => {
               event.stopPropagation();
               onConnect(node.id);
@@ -706,6 +825,11 @@ export default function Node({
               <div
                 key={handle}
                 className={[styles.resizeHandle, styles[`resizeHandle_${handle}`]].join(' ')}
+                // Stated here rather than left to the stylesheet: the shape
+                // now sets a move cursor, and anything on top of it that does
+                // not say otherwise would inherit it and promise the wrong
+                // gesture.
+                style={{ cursor: handle === 'nw' || handle === 'se' ? 'nwse-resize' : 'nesw-resize' }}
                 onMouseDown={(event) => onResizeStart(event, node.id, handle)}
               />
             ))}

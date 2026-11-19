@@ -1,15 +1,18 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
-import Toolbar from './Toolbar';
+import Toolbar, { SHAPE_TOOLS } from './Toolbar';
 import Canvas from './Canvas';
 import PropertiesPanel from './PropertiesPanel';
 import ArrowPropertiesPanel from './ArrowPropertiesPanel';
 import Toast from './Toast';
 import LastSaved from './LastSaved';
+import UnsavedChangesDialog, { GUARD_ACTIONS } from './UnsavedChangesDialog';
+import MiniMap from './MiniMap';
 import FAQButton from '../Config/FAQBtn';
 import { useFiles } from './hooks/useFiles';
 import { uid, snapshot } from './Geometry';
 import { DEFAULT_ARROW_STYLE } from './connectionRouting';
+import ColorPicker from './ColorPicker';
 import './flow.css';
 import { useNavigate } from 'react-router-dom';
 import { exportDiagramAsPdf } from './hooks/pdfUtils';
@@ -23,6 +26,11 @@ const DEFAULT_FONT_FAMILY = 'Segoe UI';
 const DEFAULT_FONT_SIZE = 16;
 const ZOOM_STEPS = [50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200];
 const DEFAULT_COLLAPSED_SIDES = { top: false, right: false, bottom: false, left: false };
+// The colours offered beside the bucket while it is in use. The same set the
+// Background row in the shape panel offers, so the two agree; anything else
+// comes from the picker next to them.
+const BUCKET_SWATCHES = ['transparent', '#fdeaea', '#d3f9d8', '#d0ebff', '#fff3bf', '#e5dbff'];
+
 
 // Breathing room added around a text block when it's wrapped in a container,
 // so the box doesn't sit flush against the lettering.
@@ -39,22 +47,52 @@ function isAnnotationNode(node) {
 
 const DRAFT_KEY_PREFIX = 'fc_diagram_draft_';
 
-function getDraftStorageKey() {
+// Who the browser is currently signed in as, as a string safe to put in a
+// storage key.
+//
+// The field is `Id` (and `OrgId`), which is what the rest of the app reads —
+// see Sidebar.jsx. An earlier version of this looked for `id`, `userId` and
+// `UserId` but NOT `Id`, so it never matched and every account fell through
+// to the same 'anon' key. Two people signing into the same browser then
+// shared one draft slot, and the second one opened the first one's diagram.
+//
+// The org is included because a user id is only unique within an org.
+export function getUserScope() {
   try {
     const raw = sessionStorage.getItem('userData');
     const parsed = raw ? JSON.parse(raw) : null;
-    // Adjust this to whatever field actually identifies the user in your userData payload.
-    const userId = parsed?.id || parsed?.userId || parsed?.UserId || 'anon';
-    return `${DRAFT_KEY_PREFIX}${userId}`;
+
+    const userId =
+      parsed?.Id ?? parsed?.id ?? parsed?.UserId ?? parsed?.userId ?? null;
+
+    if (userId === null || userId === undefined || userId === '') return 'anon';
+
+    const orgId = parsed?.OrgId ?? parsed?.orgId ?? parsed?.OrgID ?? '0';
+
+    return `${orgId}_${userId}`;
   } catch (e) {
-    return `${DRAFT_KEY_PREFIX}anon`;
+    return 'anon';
   }
+}
+
+function getDraftStorageKey() {
+  return `${DRAFT_KEY_PREFIX}${getUserScope()}`;
 }
 
 function readDraft() {
   try {
     const raw = localStorage.getItem(getDraftStorageKey());
-    return raw ? JSON.parse(raw) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (!parsed) return null;
+
+    // The key already scopes this to one account. This is the second lock:
+    // the draft says who wrote it, and a draft written by anyone else is
+    // refused outright. Keying alone failed silently once already — if the
+    // scope ever comes out wrong again, this turns a data leak into a
+    // missing draft, which is the right way for it to fail.
+    if (parsed.owner && parsed.owner !== getUserScope()) return null;
+
+    return parsed;
   } catch (e) {
     return null;
   }
@@ -66,7 +104,8 @@ function writeDraft(payload) {
     // it here rather than at the call site keeps the stored timestamp and the
     // displayed one the same number.
     const savedAt = Date.now();
-    localStorage.setItem(getDraftStorageKey(), JSON.stringify({ ...payload, savedAt }));
+    const owner = getUserScope();
+    localStorage.setItem(getDraftStorageKey(), JSON.stringify({ ...payload, owner, savedAt }));
     return savedAt;
   } catch (e) {
     // Quota exceeded or storage unavailable (e.g. private browsing) — fail silently.
@@ -94,6 +133,7 @@ function readLastSaved(fileId) {
     const raw = localStorage.getItem(getLastSavedStorageKey());
     const parsed = raw ? JSON.parse(raw) : null;
     if (!parsed || typeof parsed.savedAt !== 'number') return null;
+    if (parsed.owner && parsed.owner !== getUserScope()) return null;
     // A stored time belongs to one diagram. Showing it against another would
     // claim a save that never happened for the file on screen.
     if ((parsed.fileId || null) !== (fileId || null)) return null;
@@ -107,7 +147,7 @@ function writeLastSaved(fileId, savedAt) {
   try {
     localStorage.setItem(
       getLastSavedStorageKey(),
-      JSON.stringify({ fileId: fileId || null, savedAt }),
+      JSON.stringify({ fileId: fileId || null, owner: getUserScope(), savedAt }),
     );
   } catch (e) {
     // Storage unavailable — the timestamp just won't survive a reload.
@@ -358,6 +398,15 @@ export default function FlowBuilderC() {
   // zoom needed to place the image in the visible area actually live. A
   // counter rather than a boolean so picking a second image still registers.
   const [insertImageRequest, setInsertImageRequest] = useState(0);
+  // The minimap, and the two things it needs from Canvas: where the viewport
+  // is, and a way to move it.
+  const [showMiniMap, setShowMiniMap] = useState(false);
+  const [viewport, setViewport] = useState(null);
+  const scrollCanvasToRef = useRef(null);
+  // What the bucket pours. Kept here rather than read off the selected shape
+  // so the tool still has a colour when nothing is selected, and so filling
+  // ten shapes in a row doesn't need the colour re-picked each time.
+  const [bucketColor, setBucketColor] = useState('#d0ebff');
   // Id of a text node that was just created and should open straight into a
   // caret. Kept in component state rather than as a field on the node itself,
   // so this transient "focus me" intent never ends up saved in the diagram.
@@ -391,6 +440,24 @@ export default function FlowBuilderC() {
   const [versionJson, setVersionJson] = useState(null);
   const [sharedWriteAccess, setSharedWriteAccess] = useState(true);
   const [isViewMode, setIsViewMode] = useState(false);
+
+  // ── Guarding unsaved work ────────────────────────────────────────────────
+  //
+  // The history snapshot that is currently on the server (or that was just
+  // loaded from it). pushHistory creates a NEW snapshot object for every
+  // change, so comparing object identity against this tells us whether
+  // anything has happened since — no deep comparison, which matters because
+  // images live on nodes as inline data URLs and serialising the diagram on
+  // every Sidebar click would be slowest on exactly the diagrams worst to
+  // lose.
+  const savedSnapshotRef = useRef(null);
+
+  // Actions waiting on the user's answer. The Sidebar fires several guarded
+  // props for a single click — "Edit Version" calls onLoadDocument AND
+  // onStartEditVersion — so they are collected and run together rather than
+  // each raising its own dialog.
+  const pendingActionsRef = useRef([]);
+  const [guardAction, setGuardAction] = useState(null);
 
 
   const navigate = useNavigate();
@@ -464,6 +531,63 @@ export default function FlowBuilderC() {
     history.current.push(snapshot(n, c));
     if (history.current.length > 60) history.current.shift();
     historyIdx.current = history.current.length - 1;
+  }, []);
+
+  // Has anything changed since the diagram was last persisted?
+  const hasUnsavedWork = useCallback(() => {
+    if (readMode) return false;
+
+    const current = history.current[historyIdx.current];
+
+    // Nothing has ever been persisted for this diagram, so whatever is on the
+    // canvas is unsaved by definition. An empty canvas is nothing to lose.
+    if (!savedSnapshotRef.current) {
+      return (nodesRef.current?.length || 0) > 0
+        || (connectionsRef.current?.length || 0) > 0;
+    }
+
+    return current !== savedSnapshotRef.current;
+  }, [readMode]);
+
+  // Marks the current state as the one that is safely stored, so the guard
+  // stops treating it as unsaved. Called after a successful save, and after
+  // loading, since a freshly loaded diagram has no unsaved edits yet.
+  const markWorkPersisted = useCallback(() => {
+    savedSnapshotRef.current = history.current[historyIdx.current] || null;
+  }, []);
+
+  // Wraps a Sidebar action so it cannot silently throw away unsaved work.
+  // With nothing to lose it runs straight through, so the common case keeps
+  // its existing behaviour exactly.
+  const guardUnsaved = useCallback((actionKey, run) => (...args) => {
+    if (!hasUnsavedWork()) {
+      run(...args);
+      return;
+    }
+
+    pendingActionsRef.current.push(() => run(...args));
+
+    // Several guarded props can fire for one click; the most specific
+    // wording wins so the dialog describes what the user actually pressed.
+    setGuardAction((previous) => {
+      const a = GUARD_ACTIONS[actionKey];
+      const b = previous ? GUARD_ACTIONS[previous] : null;
+      return (!b || (a && a.rank >= b.rank)) ? actionKey : previous;
+    });
+  }, [hasUnsavedWork]);
+
+  const runPendingActions = useCallback(() => {
+    const queued = pendingActionsRef.current;
+    pendingActionsRef.current = [];
+    setGuardAction(null);
+    // In the order the Sidebar called them, which is what its own handlers
+    // assume: load the diagram first, then set the version mode.
+    queued.forEach((fn) => fn());
+  }, []);
+
+  const cancelPendingActions = useCallback(() => {
+    pendingActionsRef.current = [];
+    setGuardAction(null);
   }, []);
 
   const commitCurrentSnapshot = useCallback(() => {
@@ -665,13 +789,22 @@ export default function FlowBuilderC() {
       const savedAt = Date.now();
       setLastSavedAt(savedAt);
       writeLastSaved(currentFileId, savedAt);
+
+      // This state is now on the server, so the unsaved-changes guard has
+      // nothing to warn about until the next edit.
+      markWorkPersisted();
     }
 
     clearDraft(); // now safely persisted server-side; drop the local safety-net copy
     setDraftSavedAt(null);
 
-    setToast('Saved!');
-  }, [connections, currentFileId, fileName, nodes, saveFileWithPdf, loadFileFromServer]);
+    setToast(savedInfo ? 'Saved!' : "Couldn't save — your changes are still here.");
+
+    // Reported back so "Save & continue" can tell whether it is safe to go
+    // ahead. Without this the dialog would discard the diagram on a failed
+    // save, which is the exact loss it exists to prevent.
+    return Boolean(savedInfo);
+  }, [connections, currentFileId, fileName, markWorkPersisted, nodes, saveFileWithPdf, loadFileFromServer]);
 
   const edmOffcanvasRef = useRef(null);
   const [edmPdfPayload, setEdmPdfPayload] = useState(null); // { file, name }
@@ -683,6 +816,10 @@ export default function FlowBuilderC() {
     // A brand new diagram is not a version of anything, so whatever version
     // workflow was running is over.
     exitVersionMode();
+
+    // Nor is it someone else's read-only file, so the lock a share may have
+    // left behind comes off.
+    setSharedWriteAccess(true);
 
     setNodes([]);
     setConnections([]);
@@ -697,15 +834,27 @@ export default function FlowBuilderC() {
     setCurrentFileId(file.id);
     history.current = [snapshot([], [])];
     historyIdx.current = 0;
-  }, [connections, currentFileId, exitVersionMode, fileName, newFile, nodes, saveFile, setCurrentFileId]);
+    markWorkPersisted();
+  }, [connections, currentFileId, exitVersionMode, fileName, markWorkPersisted, newFile, nodes, saveFile, setCurrentFileId]);
 
   const handleLoadFile = useCallback(
     (fileId) => {
+      // Shared drafts are searched too. They live in their own list, so a
+      // click on one used to fall through all of these, hit the return below
+      // and do nothing at all — no diagram, no error, nothing. Ids come from
+      // the same server table either way, so a file is in exactly one of
+      // these three lists and the order can't pick the wrong one.
       const file =
         draftFiles.find((f) => f.id === fileId) ||
+        sharedDraftFiles.find((f) => f.id === fileId) ||
         files.find((f) => f.id === fileId);
 
       if (!file) return;
+
+      // Opening your own file has to lift the lock the last read-only share
+      // left behind. Nothing else sets this back, so without it one read-only
+      // share turned the whole editor read-only until a reload.
+      setSharedWriteAccess(file.isShared ? Boolean(file.isWrite) : true);
 
       skipFileLoadEffect.current = true;
 
@@ -731,8 +880,11 @@ export default function FlowBuilderC() {
         ),
       ];
       historyIdx.current = 0;
+      // Freshly loaded from storage: this IS the saved state, so the
+      // guard has nothing to warn about yet.
+      markWorkPersisted();
     },
-    [files, draftFiles, setCurrentFileId]
+    [files, draftFiles, sharedDraftFiles, markWorkPersisted, setCurrentFileId]
   );
 
   const handleLoadDiagram = useCallback((diagram) => {
@@ -776,7 +928,8 @@ export default function FlowBuilderC() {
     ];
 
     historyIdx.current = 0;
-  }, []);
+    markWorkPersisted();
+  }, [markWorkPersisted]);
 
   // Keeps autosave's "flush on unload" handler reading the freshest state
   // without needing to re-subscribe its window listeners on every change.
@@ -975,6 +1128,7 @@ export default function FlowBuilderC() {
     setSelectedConnectionId(null);
     history.current = [snapshot(loadedNodes, loadedConnections)];
     historyIdx.current = 0;
+    markWorkPersisted();
   }, [currentFileId]); // getFile deliberately excluded — see getFileRef above.
 
   const handleGridToggle = () => {
@@ -1331,6 +1485,19 @@ export default function FlowBuilderC() {
       const next = prev.map((node) => {
         if (node.id !== id) return node;
 
+        // A free text shape asks for an exact box: its size IS its text, so it
+        // narrows and shortens as words are deleted, not just grows. Every
+        // other shape only ever gets taller — its width is the user's own
+        // choice and its text wraps to fit.
+        if (size.exact) {
+          const nextW = Math.max(1, Math.round(size.w));
+          const nextH = Math.max(1, Math.round(size.h));
+          if (nextW === node.w && nextH === node.h) return node;
+
+          changed = true;
+          return { ...node, w: nextW, h: nextH };
+        }
+
         const nextH = Math.max(node.h, Math.round(size.h));
         if (nextH === node.h) return node;
 
@@ -1341,6 +1508,28 @@ export default function FlowBuilderC() {
       return changed ? next : prev;
     });
   }, []);
+
+  // Bucket fill: one click, one shape, one undo step. The selection is left
+  // alone on purpose — the point of the tool is to colour several shapes in a
+  // row without the panel following each one.
+  const handleBucketFill = useCallback((nodeId) => {
+    if (readMode) return;
+
+    setNodes((prev) => {
+      let changed = false;
+
+      const next = prev.map((node) => {
+        if (node.id !== nodeId || node.fillColor === bucketColor) return node;
+        changed = true;
+        return { ...node, fillColor: bucketColor };
+      });
+
+      if (!changed) return prev;
+
+      pushHistory(next, connectionsRef.current);
+      return next;
+    });
+  }, [bucketColor, pushHistory, readMode]);
 
   // Setting a node's text wholesale (used by paste-into-selected-node): this
   // collapses the node down to a single centered block, which is what an
@@ -1408,11 +1597,40 @@ export default function FlowBuilderC() {
 
   const handleUpdateNode = useCallback((updates) => {
     setNodes((prev) => {
-      const next = prev.map((node) => (
-        node.id === selectedId
-          ? { ...node, ...updates }
-          : node
-      ));
+      const next = prev.map((node) => {
+        if (node.id !== selectedId) return node;
+
+        const merged = { ...node, ...updates };
+
+        // The panel's Label field has to write through to `texts`, because
+        // that is what the shape actually RENDERS — `label` is only a mirror
+        // of it, joined back together in handleTextsChange for search and the
+        // PDF export to read.
+        //
+        // Spreading the update alone stored the new label and left `texts`
+        // untouched, so the shape carried on showing its old caption. It
+        // looked like it worked on an empty shape only because an empty shape
+        // has no `texts` array to take precedence over the mirror.
+        if (Object.prototype.hasOwnProperty.call(updates, 'label')) {
+          const value = updates.label ?? '';
+          const existing = Array.isArray(node.texts) ? node.texts : [];
+
+          const texts = existing.length
+            // The first block is the shape's caption. Any others were placed
+            // by hand at a particular spot, so they are left alone rather
+            // than being collapsed into the one field editing them.
+            ? existing.map((block, i) => (i === 0 ? { ...block, value } : block))
+            // Nothing there yet: start a caption, centred (x/y unset is what
+            // centres it — see getTextBlockStyle in Node.jsx).
+            : [{ id: `${node.id}-t0`, x: null, y: null, value }];
+
+          merged.texts = texts;
+          merged.label = texts.map((t) => t.value).filter(Boolean).join(' ');
+        }
+
+        return merged;
+      });
+
       pushHistory(next, connections);
       return next;
     });
@@ -1676,6 +1894,22 @@ export default function FlowBuilderC() {
         if (event.key === 'v' || event.key === 'V') handleModeChange('select');
         if (event.key === 'c' || event.key === 'C') handleModeChange('connect');
         if (event.key === 'h' || event.key === 'H') handleModeChange('pan');
+        // The tools behind the ⋮ menu. Same letters the menu prints beside
+        // them, so the list doubles as the reference for these.
+        if (event.key === 'b' || event.key === 'B') handleModeChange('fill');
+        if (event.key === 'q' || event.key === 'Q') handleModeChange('lasso');
+        if (event.key === 'k' || event.key === 'K') handleModeChange('laser');
+        if ((event.key === 'i' || event.key === 'I') && !readMode) {
+          setInsertImageRequest((n) => n + 1);
+        }
+
+        // The numbers printed on the shape buttons, now that something is
+        // listening for them. Driven from the toolbar's own list so a shape
+        // added there is reachable by its key without a second edit here.
+        if (!readMode) {
+          const shapeForKey = SHAPE_TOOLS.find((shape) => shape.short === event.key);
+          if (shapeForKey) handleShapeSelect(shapeForKey.id);
+        }
       }
 
       if (event.key === 'Escape') {
@@ -1691,7 +1925,7 @@ export default function FlowBuilderC() {
 
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [handleDeleteConnection, handleDeleteNode, handleModeChange, handleSave, readMode, redo, selectedConnectionId, selectedId, selectedIds.length, undo]);
+  }, [handleDeleteConnection, handleDeleteNode, handleModeChange, handleSave, handleShapeSelect, readMode, redo, selectedConnectionId, selectedId, selectedIds.length, undo]);
 
   const selectedNode = selectedIds.length === 1 ? (nodes.find((node) => node.id === selectedIds[0]) || null) : null;
   const canUndo = historyIdx.current > 0;
@@ -1823,7 +2057,8 @@ export default function FlowBuilderC() {
     ];
 
     historyIdx.current = 0;
-  }, [loadDiagramFromUrl]);
+    markWorkPersisted();
+  }, [loadDiagramFromUrl, markWorkPersisted]);
 
   const handleSubmitVersion = () => {
     const diagram = {
@@ -1988,16 +2223,16 @@ export default function FlowBuilderC() {
         edmDocuments={edmDocuments}
         fetchEDMDocuments={fetchEDMDocuments}
         fetchSharedDrafts={fetchSharedDrafts}
-        onLoadDocument={handleLoadDiagram}
-        onStartVersion={() => setVersionMode('add')}
-        onViewVersion={() => setVersionMode('view')}
-        onStartEditVersion={() => setVersionMode('edit')}
+        onLoadDocument={guardUnsaved('openDocument', handleLoadDiagram)}
+        onStartVersion={guardUnsaved('addVersion', () => setVersionMode('add'))}
+        onViewVersion={guardUnsaved('viewVersion', () => setVersionMode('view'))}
+        onStartEditVersion={guardUnsaved('editVersion', () => setVersionMode('edit'))}
         versionJson={versionJson}
-        onSharedPermission={setSharedWriteAccess}
+        onSharedPermission={guardUnsaved('sharedDraft', setSharedWriteAccess)}
 
         currentFileId={currentFileId}
-        onNewFile={handleNewFile}
-        onLoadFile={handleLoadFile}
+        onNewFile={guardUnsaved('new', handleNewFile)}
+        onLoadFile={guardUnsaved('open', handleLoadFile)}
         onDeleteFile={deleteFile}
         theme={theme}
         onThemeChange={setTheme}
@@ -2009,7 +2244,10 @@ export default function FlowBuilderC() {
         onGetFileData={handleGetFileData}
         onUploadToEdm={handleUploadToEdm}
 
-        onOpenView={(value) => setIsViewMode(value)}
+        onOpenView={(value) => guardUnsaved(
+          value ? 'openFileView' : 'openFileEdit',
+          () => setIsViewMode(value),
+        )()}
       />
 
       <div className="fc-main">
@@ -2077,6 +2315,57 @@ export default function FlowBuilderC() {
           </div>
         )}
 
+        {mode === 'fill' && !readMode && (
+          <div className="fc-connect-hint" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span>Click any shape to fill it.</span>
+            {BUCKET_SWATCHES.map((color) => (
+              <button
+                key={color}
+                type="button"
+                title={color === 'transparent' ? 'No fill' : color}
+                onClick={() => setBucketColor(color)}
+                style={{
+                  width: 22,
+                  height: 22,
+                  boxSizing: 'border-box',
+                  padding: 0,
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  backgroundColor: color === 'transparent' ? '#ffffff' : color,
+                  backgroundImage: color === 'transparent'
+                    ? 'linear-gradient(45deg,#c9c9d4 25%,transparent 25%,transparent 75%,#c9c9d4 75%),linear-gradient(45deg,#c9c9d4 25%,transparent 25%,transparent 75%,#c9c9d4 75%)'
+                    : 'none',
+                  backgroundSize: '8px 8px',
+                  backgroundPosition: '0 0, 4px 4px',
+                  border: bucketColor === color
+                    ? '2px solid #696eff'
+                    : '1px solid rgba(0,0,0,0.15)',
+                }}
+              />
+            ))}
+            <ColorPicker
+              value={bucketColor}
+              theme={theme}
+              title="More fill colours"
+              allowTransparent
+              size={22}
+              onChange={setBucketColor}
+            />
+          </div>
+        )}
+
+        {mode === 'lasso' && !readMode && (
+          <div className="fc-connect-hint">
+            Draw a loop around the shapes you want. Hold Shift to add them to what's already selected.
+          </div>
+        )}
+
+        {mode === 'laser' && (
+          <div className="fc-connect-hint">
+            Move the pointer to draw attention to something. The trail fades on its own and changes nothing.
+          </div>
+        )}
+
         {activeShape && !readMode && showShapeHint && (
           <div className="fc-connect-hint">
             Click on the canvas to place a new {activeShape} shape, or drag the tool into the diagram.
@@ -2090,7 +2379,10 @@ export default function FlowBuilderC() {
             selectedId={selectedId}
             selectedIds={selectedIds}
             selectedConnectionId={selectedConnectionId}
-            mode={readMode ? 'view' : mode}
+            // Read mode forces every tool off except the laser, which is
+            // allowed through because it only points at things — someone
+            // explaining a locked diagram is the main reason it exists.
+            mode={readMode ? (mode === 'laser' ? 'laser' : 'view') : mode}
             activeShape={readMode ? null : activeShape}
             setActiveShape={setActiveShape}
             connectFrom={readMode ? null : connectFrom}
@@ -2123,11 +2415,14 @@ export default function FlowBuilderC() {
             onTextsChange={readMode ? () => { } : handleTextsChange}
             onAutoResize={readMode ? () => { } : handleAutoResizeNode}
             onErase={readMode ? () => { } : handleEraseElements}
+            onBucketFill={readMode ? () => { } : handleBucketFill}
             onConnectionControlEnd={readMode ? () => { } : commitCurrentSnapshot}
             onDeleteConnection={readMode ? () => { } : handleDeleteConnection}
             readMode={readMode}
             zoom={zoom}
             onZoomChange={setZoom}
+            onViewportChange={showMiniMap ? setViewport : undefined}
+            scrollToRequest={scrollCanvasToRef}
             theme={theme}
             showGrid={showGrid}
             canvasBg={canvasBg}
@@ -2155,6 +2450,20 @@ export default function FlowBuilderC() {
           />
         </div>
 
+        {/* The map carries its own button and stacks the pair above the zoom
+            dock. Putting that button inside the dock made the dock wider, and
+            the undo/redo dock — pinned at a fixed offset of its own — slid
+            over the top of it. */}
+        <MiniMap
+          nodes={nodes}
+          connections={connections}
+          view={viewport}
+          theme={theme}
+          open={showMiniMap}
+          onToggle={() => setShowMiniMap((prev) => !prev)}
+          onJump={(x, y) => scrollCanvasToRef.current?.(x, y)}
+        />
+
         <div className="fc-zoomDock">
           <button type="button" className="fc-zoomBtn" onClick={zoomOut} title="Zoom out">-</button>
           <button type="button" className="fc-zoomValue" onClick={resetZoom} title="Reset zoom">
@@ -2175,6 +2484,18 @@ export default function FlowBuilderC() {
           <FAQButton />
         </div>
       </div>
+
+      <UnsavedChangesDialog
+        action={guardAction}
+        fileName={fileName}
+        onSaveAndContinue={async () => {
+          const ok = await handleSave();
+          if (ok) runPendingActions();
+          return ok;
+        }}
+        onDiscardAndContinue={runPendingActions}
+        onCancel={cancelPendingActions}
+      />
 
       <Toast message={toast} theme={theme} onDone={() => setToast('')} />
 

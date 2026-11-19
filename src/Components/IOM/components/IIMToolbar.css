@@ -1,0 +1,13 @@
+/* =========================================================
+   IIM toolbar (Portal dropdown + module menu)
+   Keep the toolbar and its dropdowns ABOVE the page content.
+   Page cards animate (transform) on load / hover, which puts them in their own
+   layer – without this the Portal menu opened underneath the dashboard cards.
+   ========================================================= */
+   .iim-nav {
+    position: relative;
+    z-index: 60;
+}
+.iim-nav .dropdown-menu {
+    z-index: 1060 !important;   /* above every page card */
+}

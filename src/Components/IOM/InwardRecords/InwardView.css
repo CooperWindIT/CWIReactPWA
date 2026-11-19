@@ -646,3 +646,9 @@
 .iv-swal-lg .iv-swal-notify .nu-list { max-height: 260px; }
 .iv-swal-lg .iv-swal-grid b { font-size: 20px; }
 @media (max-width: 576px) { .iv-swal-html { margin: 8px 12px 0 !important; } }
+
+/* Reviewed but counts don't match -> amber "Re-count" bar */
+.iv-items-action.recount { background: #fffaeb; border-top-color: #fedf89; }
+.iv-items-action.recount .iv-items-action-text { color: #93370d; }
+.iv-items-action.recount .iv-items-action-text > i { background: #fef0c7; color: #dc6803; }
+.iv-items-action.recount .iv-items-action-text b { color: #b42318; }

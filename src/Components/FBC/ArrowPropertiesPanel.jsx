@@ -7,8 +7,11 @@ import {
   STROKE_PALETTE,
   ARROWHEAD,
   ARROWHEAD_OPTIONS,
+  CORNER_STYLE,
+  CORNER_STYLE_OPTIONS,
   resolveArrowStyle,
 } from './connectionRouting';
+import ColorPicker from './ColorPicker';
 
 // A tiny stub of line ending in the head being offered, so the choice is made
 // by looking at the shape rather than by reading its name.
@@ -176,7 +179,11 @@ export default function ArrowPropertiesPanel({
         top: 16,
         left: 16,
         zIndex: 30,
-        width: 232,
+        // Wide enough to keep the five stroke swatches, the divider and the
+        // colour picker on one line. Below 256 the picker drops to a row of
+        // its own and reads as a stray swatch.
+        width: 264,
+        boxSizing: 'border-box',
         maxHeight: 'calc(100% - 32px)',
         overflowY: 'auto',
         padding: '16px 16px 18px',
@@ -238,6 +245,10 @@ export default function ArrowPropertiesPanel({
             style={{
               width: 28,
               height: 28,
+              // Without this the selected swatch is 2px bigger than the rest,
+              // because its border goes from 1px to 2px and the default box
+              // model adds that on top of the width.
+              boxSizing: 'border-box',
               padding: 0,
               borderRadius: 7,
               background: color,
@@ -262,29 +273,13 @@ export default function ArrowPropertiesPanel({
           }}
         />
 
-        {/* Anything outside the five swatches. The native picker is the quickest
-            way to offer the full range without building a second popover. */}
-        <label
-          title="Custom colour"
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            background: stroke,
-            border: `1px solid ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}`,
-            cursor: 'pointer',
-            display: 'block',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-        >
-          <input
-            type="color"
-            value={stroke}
-            onChange={(event) => set({ stroke: event.target.value })}
-            style={{ opacity: 0, width: '100%', height: '100%', cursor: 'pointer', border: 'none' }}
-          />
-        </label>
+        {/* Anything outside the five swatches. */}
+        <ColorPicker
+          value={stroke}
+          theme={theme}
+          title="More colours"
+          onChange={(color) => set({ stroke: color })}
+        />
       </Section>
 
       <Section labelColor={colors.label} title="Stroke width">
@@ -381,6 +376,42 @@ export default function ArrowPropertiesPanel({
             <svg width="20" height="20" viewBox="0 0 20 20">
               {option.body}
               <path d={option.head} fill="currentColor" />
+            </svg>
+          </OptionButton>
+        ))}
+      </Section>
+
+      <Section labelColor={colors.label} title="Corners">
+        {CORNER_STYLE_OPTIONS.map((option) => (
+          <OptionButton
+            colors={colors}
+            key={option.id}
+            title={
+              style.arrowType === ARROW_TYPE.ELBOW
+                ? option.label
+                : 'Corners apply to elbow arrows only'
+            }
+            // A straight line and a curve have no corners, so the row is shown
+            // but inert rather than hidden — a control that appears and
+            // disappears as you change arrow type is harder to find again than
+            // one that greys out.
+            disabled={style.arrowType !== ARROW_TYPE.ELBOW}
+            active={style.cornerStyle === option.id}
+            onClick={() => set({ cornerStyle: option.id })}
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20">
+              <path
+                d={
+                  option.id === CORNER_STYLE.ROUNDED
+                    ? 'M3,16 L7,16 Q10,16 10,13 L10,8 Q10,5 13,5 L17,5'
+                    : 'M3,16 L10,16 L10,5 L17,5'
+                }
+                stroke="currentColor"
+                strokeWidth="1.8"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="miter"
+              />
             </svg>
           </OptionButton>
         ))}

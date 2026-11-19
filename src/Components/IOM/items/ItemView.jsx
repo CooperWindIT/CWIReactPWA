@@ -495,10 +495,10 @@ const ItemView = () => {
                                                             <td className="it-part iv-c-inward" data-label="Inward">{selectedInward?.InwardRecordNo || "-"}</td>
                                                             <td className="iv-c-status"><span className={`iim-unit-badge ${meta.cls}`}>{meta.label}</span></td>
                                                             <td className="iv-c-insp" data-label="Inspected">{u.InspectedOn ? formatDate(u.InspectedOn) : <span className="text-muted">—</span>}</td>
-                                                            <td className={`it-desc iv-c-reason ${u.ReworkReason ? "" : "iv-empty"}`} data-label="Rework reason">
+                                                            <td className={`it-desc iv-c-reason ${u.ReworkReason ? "" : "iv-td-none"}`} data-label="Rework reason">
                                                                 <ReasonText text={u.ReworkReason} max={15} emptyText="N/A" />
                                                             </td>
-                                                            <td className={`iv-c-img ${imgUrl ? "" : "iv-empty"}`} data-label="Rework image">
+                                                            <td className={`iv-c-img ${imgUrl ? "" : "iv-td-none"}`} data-label="Rework image">
                                                                 {imgUrl ? (
                                                                     <button
                                                                         type="button"

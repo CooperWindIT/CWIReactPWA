@@ -17,6 +17,7 @@ import {
   routeSegments,
   trimForArrow,
   buildArrowPath,
+  cornerRadiusFor,
   polylineMidpoint,
   sampleQuadratic,
   hashSeed,
@@ -192,11 +193,12 @@ export default function Connections({
     end: hasEndHead,
   });
 
-  // Corner rounding only belongs to elbows — a sampled curve and a straight
-  // line have no corners to round.
-  const pathData = buildArrowPath(trimmed, style.sloppiness, seed, {
-    rounded: arrowType === ARROW_TYPE.ELBOW,
-  });
+  // Corner rounding only belongs to elbows, and only when this arrow asks for
+  // it. cornerRadiusFor is shared with the PDF exporter so the printed corner
+  // is the drawn one.
+  const cornerRadius = cornerRadiusFor(style, arrowType);
+
+  const pathData = buildArrowPath(trimmed, style.sloppiness, seed, { cornerRadius });
 
   const mid = polylineMidpoint(trimmed);
   const labelX = mid.x;
@@ -303,9 +305,7 @@ export default function Connections({
             line reads as a wobbly line; two overlapping ones read as pencil. */}
         {style.sloppiness >= 2 && (
           <path
-            d={buildArrowPath(trimmed, style.sloppiness, seed + 977, {
-              rounded: arrowType === ARROW_TYPE.ELBOW,
-            })}
+            d={buildArrowPath(trimmed, style.sloppiness, seed + 977, { cornerRadius })}
             stroke={connectionColor}
             strokeWidth={strokeWidth * 0.8}
             fill="none"

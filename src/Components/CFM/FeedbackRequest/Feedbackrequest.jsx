@@ -86,14 +86,14 @@ const ALL_MONTHS = 0;
 
 // The edit screen's route, without the trailing :publicCode. Must match the
 // <Route> registered for EditFeedbackRequest.
-const EDIT_ROUTE = "/cfm/feedback-request/edit";
+const EDIT_ROUTE = "/fpm/feedback-request/edit";
 
 // The create screen — same layout as edit, registered as its own route.
-const CREATE_ROUTE = "/cfm/feedback-request/create";
+const CREATE_ROUTE = "/fpm/feedback-request/create";
 
 // The view screen (form + comments + email customer), without :publicCode.
 // Must match the <Route> registered for ViewFeedbackRequest.
-const VIEW_ROUTE = "/cfm/feedback-request/view";
+const VIEW_ROUTE = "/fpm/feedback-request/view";
 
 // "October 2026" -> { month: "oct", year: 2026 }, tolerant of "Oct 2026" and
 // any extra words, so the month filter doesn't depend on the exact wording
@@ -189,7 +189,7 @@ export default function FeedbackRequest() {
                 const parsedMenu = JSON.parse(sessionMenuData);
                 // Find Dashboard and Visitors menus
                 const dashboardMenu = parsedMenu.find(
-                    (item) => item.MenuName === "Feedback Request"
+                    (item) => item.MenuName === "Create Feedback Request"
                 );
     
                 let actionIds = [];

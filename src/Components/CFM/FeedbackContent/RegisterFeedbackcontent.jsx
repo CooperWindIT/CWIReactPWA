@@ -170,7 +170,7 @@ export default function RegisterFeedbackContent({
 
                     <div className="ms-3">
                         <h5 id={`${offcanvasId}Label`} className="cfm-panel-title">
-                            {isEdit ? "Edit Content" : "Register Content"}
+                            {isEdit ? "Edit Question" : "Register Question"}
                         </h5>
 
                         <div className="cfm-panel-sub">

@@ -79,12 +79,12 @@ const [edmDocuments, setEdmDocuments] = useState([]);
         cancelButtonText: "No",
         reverseButtons: true,
       });
-  
+
       if (!result.isConfirmed) return;
-  
+
       try {
         const userData = JSON.parse(sessionStorage.getItem("userData"));
-  
+
         const response = await fetchWithAuth("Design/InactiveDesignFile", {
           method: "POST",
           headers: {
@@ -95,24 +95,24 @@ const [edmDocuments, setEdmDocuments] = useState([]);
             FlowChartId: id,
           }),
         });
-  
+
         if (!response.ok) {
           throw new Error("Failed to delete file.");
         }
-  
+
         const data = await response.json();
-  
+
         if (data?.ResultData?.Status === "Success") {
           setFiles((prev) => {
             const remaining = prev.filter((f) => f.id !== id);
-  
+
             if (currentFileId === id) {
               setCurrentFileId(remaining[0]?.id || null);
             }
-  
+
             return remaining;
           });
-  
+
           Swal.fire({
             icon: "success",
             title: "Deleted!",
@@ -130,7 +130,7 @@ const [edmDocuments, setEdmDocuments] = useState([]);
         }
       } catch (error) {
         console.error("Delete failed:", error);
-  
+
         Swal.fire({
           icon: "error",
           title: "Error",
@@ -140,9 +140,9 @@ const [edmDocuments, setEdmDocuments] = useState([]);
     },
     [currentFileId]
   );
-  
 
-  
+
+
   const fetchBackendFiles = useCallback(async () => {
     try {
       const response = await fetchWithAuth(
@@ -151,15 +151,15 @@ const [edmDocuments, setEdmDocuments] = useState([]);
           method: "GET",
         }
       );
-  
+
       const data = await response.json();
-  
+
       if (!response.ok) {
         throw new Error(data?.Message || "Failed to fetch drafts");
       }
-  
+
       const drafts = data?.ResultData || [];
-      
+
       const backendFiles = drafts.map((item) => {
         let diagram = {
           name: item.Filename,
@@ -167,17 +167,17 @@ const [edmDocuments, setEdmDocuments] = useState([]);
           connections: [],
           savedAt: Date.now(),
         };
-      
+
         try {
           const json = LZString.decompressFromBase64(item.JsonData);
-            
+
           if (json) {
             diagram = JSON.parse(json);
           }
         } catch (e) {
           console.error("Failed to parse draft", e);
         }
-      
+
         return {
           id: item.Id,
           name: diagram.name || item.Filename,
@@ -191,9 +191,9 @@ const [edmDocuments, setEdmDocuments] = useState([]);
           jsonData: item.JsonData,
         };
       });
-      
+
       setDraftFiles(backendFiles);
-  
+
       return backendFiles;
     } catch (err) {
       console.error("fetchBackendFiles:", err);
@@ -205,9 +205,9 @@ const [edmDocuments, setEdmDocuments] = useState([]);
     async (id, name, nodes, connections) => {
       // Save locally first
       saveFile(id, name, nodes, connections);
-  
+
       const existingDraft = draftFiles.find((f) => f.id === id);
-  
+
       const diagram = {
         name,
         nodes,
@@ -215,17 +215,17 @@ const [edmDocuments, setEdmDocuments] = useState([]);
         savedAt: Date.now(),
         version: 1,
       };
-  
+
       // Compress JSON
       const jsonString = JSON.stringify(diagram);
       const compressedJson = LZString.compressToBase64(jsonString);
-  
+
       const isEdit = !!existingDraft;
-  
+
       const endpoint = isEdit
         ? "Design/EditDrafts"
         : "Design/CreateDraft";
-  
+
       const payload = isEdit
         ? {
             Id: id,
@@ -239,7 +239,7 @@ const [edmDocuments, setEdmDocuments] = useState([]);
             FileName: name,
             JsonData: compressedJson,
           };
-  
+
       try {
         const response = await fetchWithAuth(endpoint, {
           method: "POST",
@@ -248,13 +248,13 @@ const [edmDocuments, setEdmDocuments] = useState([]);
           },
           body: JSON.stringify(payload),
         });
-  
+
         const result = await response.json();
-  
+
         if (!response.ok) {
           throw new Error(result?.Message || "Failed to save draft");
         }
-  
+
         if (isEdit) {
           // Update existing backend draft locally
           setDraftFiles((prev) =>
@@ -276,7 +276,7 @@ const [edmDocuments, setEdmDocuments] = useState([]);
           // New draft -> refresh list to get DB Id
           fetchBackendFiles();
         }
-  
+
         // Update local files list
         setFiles((prev) =>
           prev.map((file) =>
@@ -290,7 +290,7 @@ const [edmDocuments, setEdmDocuments] = useState([]);
               : file
           )
         );
-        
+
         fetchBackendFiles();
         return result;
       } catch (err) {
@@ -310,11 +310,11 @@ const [edmDocuments, setEdmDocuments] = useState([]);
   const loadFileFromServer = useCallback(
     async (fileId) => {
       const file = draftFiles.find((f) => f.id === fileId);
-  
+
       if (!file) return null;
-  
+
       setCurrentFileId(fileId);
-  
+
       return {
         ...file,
         loaded: true,
@@ -339,7 +339,7 @@ const fetchEDMDocuments = useCallback(async (masterTypeId = 0) => {
     if (!response.ok) {
       throw new Error(result?.Message || "Failed to fetch documents");
     }
-    
+
     // const documents = (result?.ResultData || []).map((item) => ({
     //   id: item.Id,
     //   type: "document",
@@ -354,7 +354,7 @@ const fetchEDMDocuments = useCallback(async (masterTypeId = 0) => {
     //   isBackendDocument: true,
     //   jsonData: item.JsonData
     // }));
-    const documents = result.ResultData.map((item, index) => {    
+    const documents = result.ResultData.map((item, index) => {
       return {
         id: item.Id,
         type: "document",
@@ -406,17 +406,51 @@ const fetchSharedDrafts = useCallback(async () => {
       throw new Error(result?.Message || "Failed to fetch shared drafts");
     }
 
-    const drafts = (result?.ResultData || []).map((item) => ({
-      id: item.Id,
-      name: item.FileName,
-      filename: item.FileUrl,
-      url: `${BASE_DOCS_API_GET}${item.FileUrl}`,
-      updatedAt: item.SharedOn || item.CreatedOn || new Date().toISOString(),
-      shared: item.SharedBy,
-      loaded: true,
-      isBackend: true,
-      isWrite: item.IsWrite,
-    }));
+    // Shared drafts arrive with their diagram already in the payload, exactly
+    // the way MyDrafts does — same LZString blob in the same JsonData field.
+    // It used to be thrown away here, so every row reached the sidebar with
+    // no nodes and no connections, and clicking one had nothing to open.
+    const drafts = (result?.ResultData || []).map((item) => {
+      let diagram = {
+        name: item.FileName,
+        nodes: [],
+        connections: [],
+        savedAt: null,
+      };
+
+      try {
+        const json = LZString.decompressFromBase64(item.JsonData);
+
+        if (json) {
+          diagram = JSON.parse(json);
+        }
+      } catch (e) {
+        console.error("Failed to parse shared draft", e);
+      }
+
+      return {
+        id: item.Id,
+        name: diagram.name || item.FileName,
+        filename: item.FileUrl,
+        url: `${BASE_DOCS_API_GET}${item.FileUrl}`,
+        nodes: diagram.nodes || [],
+        connections: diagram.connections || [],
+        // The date the share is listed by stays the date it was shared, not
+        // the date the owner last saved it.
+        updatedAt: item.SharedOn || item.CreatedOn || new Date().toISOString(),
+        shared: item.SharedBy,
+        loaded: true,
+        isBackend: true,
+        // Marks the row as someone else's file, which is what decides whether
+        // the editor locks itself when this one is opened.
+        isShared: true,
+        // Coerced on purpose: a missing IsWrite used to arrive as undefined,
+        // and `setReadMode(!undefined)` locks a diagram that was shared for
+        // editing.
+        isWrite: Boolean(item.IsWrite),
+        jsonData: item.JsonData,
+      };
+    });
 
     setSharedDraftFiles(drafts);
 

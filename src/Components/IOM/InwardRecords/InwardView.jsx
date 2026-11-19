@@ -424,6 +424,7 @@ const InwardView = () => {
 
     const handleUpdateInventory = async () => {
         if (!orgId || !record?.Id || updatingInventory) return;
+        if (needsRecount) return;   // counts must match before inventory update
 
         const allUnits = generateBarcodes(record, items).flatMap(g => g.units);
         const verifiedTotal = allUnits.length;
@@ -626,6 +627,8 @@ const InwardView = () => {
     const shortItems = items.filter(it => (getDifference(it) ?? 0) < 0).length;
     const excessItems = items.filter(it => (getDifference(it) ?? 0) > 0).length;
     const hasMismatch = totalShort > 0 || totalExcess > 0;
+    // Reviewed with short / excess -> only Re-count, no Update Inventory until counts match
+    const needsRecount = isReviewed && anyVerified && hasMismatch;
 
     // signed variance number: -1 red, +1 amber, 0 green
     // net = total row: a 0 that hides short + excess is shown grey, not green
@@ -710,7 +713,7 @@ const InwardView = () => {
         {
             key: "approved",
             title: isApproved ? "Inventory updated" : "Update inventory",
-            sub: isApproved ? "Verified quantities added to stock" : "Pending inventory update",
+            sub: isApproved ? "Verified quantities added to stock" : needsRecount ? "Waiting – counts don't match, re-count first" : "Pending inventory update",
             state: isApproved ? "done" : isReviewed ? "current" : "pending",
             icon: "fa-solid fa-circle-check"
         },
@@ -1229,25 +1232,32 @@ const InwardView = () => {
                                     </div>
                                 )}
 
-                                {/* NEXT STEP – Review Count / Update Inventory (below the items) */}
+                                {/* NEXT STEP – Review Count / Re-count / Update Inventory (below the items)
+                                    - Pending review              -> Review Count
+                                    - Reviewed but short / excess -> Re-count Items (Update Inventory hidden until counts match)
+                                    - Reviewed and all matched    -> Update Inventory */}
                                 {(isPending || isReviewed) && (
-                                    <div className="iv-items-action">
+                                    <div className={`iv-items-action ${needsRecount ? "recount" : ""}`}>
                                         <div className="iv-items-action-text">
-                                            <i className={isPending ? "fa-solid fa-clipboard-list" : "fa-solid fa-boxes-stacked"} />
+                                            <i className={isPending ? "fa-solid fa-clipboard-list" : needsRecount ? "fa-solid fa-triangle-exclamation" : "fa-solid fa-boxes-stacked"} />
                                             <span>
                                                 {isPending
                                                     ? "Count the items received and enter the verified quantities."
-                                                    : "Quantities are verified. Add them to inventory."}
+                                                    : needsRecount
+                                                        ? <>Counts don't match the declared quantities{totalShort ? <> · <b>{totalShort} short</b></> : null}{totalExcess ? <> · <b>{totalExcess} excess</b></> : null}. Re-count the items before updating inventory.</>
+                                                        : "Quantities are verified. Add them to inventory."}
                                             </span>
                                         </div>
 
-                                        {isPending && (
+                                        {(isPending || needsRecount) && (
                                             <button type="button" className="ir-btn-primary" onClick={() => setShowReviewModal(true)}>
-                                                <UnorderedListOutlined /> Review Count
+                                                {isPending
+                                                    ? <><UnorderedListOutlined /> Review Count</>
+                                                    : <><i className="fa-solid fa-rotate" /> Re-count Items</>}
                                             </button>
                                         )}
 
-                                        {isReviewed && (
+                                        {isReviewed && !needsRecount && (
                                             <button
                                                 type="button"
                                                 className="iv-btn-approve"

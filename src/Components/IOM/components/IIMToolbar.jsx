@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Dropdown, Menu } from "antd";
 import Swal from "sweetalert2";
 import { fetchWithAuth } from "../../../utils/api";
+import "./IIMToolbar.css";
 
 const iconColors = ['#FF6B35', '#00B8D9', '#36B37E', '#FFAB00', '#6554C0', '#FF5630'];
 

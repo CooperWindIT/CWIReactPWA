@@ -1,5 +1,5 @@
 import React, { useRef, useCallback, useEffect } from 'react';
-import Node from './Node';
+import Node, { TEXT_SHAPE_PADDING, MIN_TEXT_FONT_SIZE } from './Node';
 import Connections from './Connections';
 import ContextMenu from './ContextMenu';
 import {
@@ -43,6 +43,91 @@ function nodeContains(outer, inner) {
     && inner.y >= outer.y - CONTAINMENT_SLACK
     && inner.x + inner.w <= outer.x + outer.w + CONTAINMENT_SLACK
     && inner.y + inner.h <= outer.y + outer.h + CONTAINMENT_SLACK;
+}
+
+// A shape that fully encloses at least one other shape is treated as a
+// container: a frame drawn around a group rather than a shape in its own
+// right. Pressing its empty interior starts a rubber band over the shapes it
+// holds instead of dragging the frame — see handleNodeMouseDown.
+function isContainerNode(node, all) {
+  return all.some((other) => nodeContains(node, other));
+}
+
+// How near a container's edge a press has to land to count as grabbing the
+// frame itself rather than banding inside it, in canvas units.
+const CONTAINER_BORDER_GRAB = 8;
+
+function isOnNodeBorder(node, point, slack) {
+  if (point.x < node.x - slack || point.x > node.x + node.w + slack) return false;
+  if (point.y < node.y - slack || point.y > node.y + node.h + slack) return false;
+
+  return point.x <= node.x + slack
+    || point.x >= node.x + node.w - slack
+    || point.y <= node.y + slack
+    || point.y >= node.y + node.h - slack;
+}
+
+// A band smaller than this in both directions was a click, not a drag.
+const BAND_CLICK_SLOP = 3;
+
+// Where a line of free text wraps itself: the visible width, less this
+// margin. The other two cover the moment before the canvas has been measured,
+// and a window too narrow to be worth honouring.
+const TEXT_WRAP_MARGIN = 80;
+const TEXT_WRAP_MIN = 200;
+const TEXT_WRAP_FALLBACK = 720;
+
+// How far a text shape may be scaled by dragging a handle, as a multiple of
+// the size it was when the drag began.
+const TEXT_SCALE_MIN = 0.15;
+const TEXT_SCALE_MAX = 12;
+
+// How long a laser mark stays on screen, and how often the trail is redrawn
+// while it fades. The pointer leaves nothing behind in the diagram — it is
+// there to point at something while someone is watching.
+const LASER_LIFETIME = 1100;
+const LASER_MIN_STEP = 2;
+
+// Is this point inside the lasso? Standard ray crossing: count how many of
+// the polygon's edges a ray cast to the right crosses, odd means inside.
+function pointInPolygon(point, polygon) {
+  let inside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
+    const yiAbove = polygon[i].y > point.y;
+    const yjAbove = polygon[j].y > point.y;
+
+    if (yiAbove === yjAbove) continue;
+
+    const dy = polygon[j].y - polygon[i].y;
+    const crossingX = ((polygon[j].x - polygon[i].x) * (point.y - polygon[i].y)) / (dy || 1e-9) + polygon[i].x;
+
+    if (point.x < crossingX) inside = !inside;
+  }
+
+  return inside;
+}
+
+// A shape is caught by the lasso when its middle is inside the loop, or when
+// a corner is — so a big frame can be picked up by looping one of its corners
+// without having to enclose the whole thing.
+function lassoCatchesNode(node, polygon) {
+  const points = [
+    { x: node.x + node.w / 2, y: node.y + node.h / 2 },
+    { x: node.x, y: node.y },
+    { x: node.x + node.w, y: node.y },
+    { x: node.x + node.w, y: node.y + node.h },
+    { x: node.x, y: node.y + node.h },
+  ];
+
+  return points.some((point) => pointInPolygon(point, polygon));
+}
+
+function rectEnclosesRect(node, rect) {
+  return node.x <= rect.x
+    && node.y <= rect.y
+    && node.x + node.w >= rect.x + rect.w
+    && node.y + node.h >= rect.y + rect.h;
 }
 
 // Stacking for the canvas: both the order shapes are drawn in and the z-index
@@ -225,6 +310,7 @@ export default function Canvas({
   onTextsChange,
   onAutoResize,
   onErase,
+  onBucketFill,
   onQuickCreateFromNode,
   onFocusBranch,
   onConnectionControlEnd,
@@ -232,6 +318,11 @@ export default function Canvas({
   readMode,
   zoom,
   onZoomChange,
+  // The minimap lives outside the canvas, beside the zoom controls, so the
+  // two talk through these: Canvas reports where the viewport is, and fills
+  // the ref with a function the map can call to move it.
+  onViewportChange,
+  scrollToRequest,
   showGrid,
   canvasBg,
   sessionUserData,
@@ -244,6 +335,10 @@ export default function Canvas({
   const selecting = useRef(null);
   const resizing = useRef(null);
   const draggingConnectionHandle = useRef(null);
+  // Set when a press landed on a container's empty interior. The press came
+  // through the node, so only the node handler can tell — the canvas handler
+  // below reads this to start a band instead of letting the frame be dragged.
+  const bandCandidate = useRef(null);
   // Free-hand line drawing: set on mousedown while the Line tool is active,
   // holding the canvas point where the drag started; cleared on mouseup once
   // the finished line is handed off via onCreateLine. Separate from
@@ -262,6 +357,16 @@ export default function Canvas({
   // Elbow-arrow tool: the shape the drag started on, plus where it started.
   // Nothing is created until the drag is released over another shape.
   const drawingElbow = useRef(null);
+  // Lasso in progress: what was selected when it began, and whether this loop
+  // adds to that selection or replaces it.
+  const lassoing = useRef(null);
+  // The loop itself lives in a ref and is mirrored into state for rendering.
+  // The mouseup handler is registered once and would otherwise close over the
+  // empty loop it was created with.
+  const lassoPointsRef = useRef(null);
+  // Laser marks waiting to fade, and the animation frame doing the fading.
+  const laserRef = useRef([]);
+  const laserFrame = useRef(null);
   const didDrag = useRef(false);
   const [selectionRect, setSelectionRect] = React.useState(null);
   // Live preview of the line being drawn, in absolute canvas coordinates —
@@ -277,8 +382,34 @@ export default function Canvas({
   // being dragged, plus the shape currently under it so it can be highlighted
   // as a valid drop target.
   const [elbowPreview, setElbowPreview] = React.useState(null);
+  // The loop being drawn by the lasso, in canvas coordinates.
+  const [lassoPoints, setLassoPoints] = React.useState(null);
+  // The laser trail, mirrored out of laserRef so it renders. Each mark keeps
+  // the time it was made, which is what drives its fade.
+  const [laserTrail, setLaserTrail] = React.useState([]);
 
   const lastPointerPos = useRef({ x: BASE_WIDTH / 2, y: BASE_HEIGHT / 2 });
+
+  // How wide a line of free text may run before it wraps itself: what's
+  // visible on screen, in canvas units, less a margin so the last word isn't
+  // flush against the edge. A text shape grows sideways as it is typed, and
+  // this is where carrying on would push the words out of sight.
+  const [maxTextWidth, setMaxTextWidth] = React.useState(TEXT_WRAP_FALLBACK);
+
+  useEffect(() => {
+    const update = () => {
+      const wrap = wrapRef.current;
+      if (!wrap || !wrap.clientWidth) return;
+      setMaxTextWidth(Math.max(
+        TEXT_WRAP_MIN,
+        Math.round(wrap.clientWidth / zoom) - TEXT_WRAP_MARGIN,
+      ));
+    };
+
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [zoom]);
 
   const handlePaste = useCallback((event) => {
     if (readMode) return;
@@ -425,15 +556,151 @@ export default function Canvas({
     };
   }, [zoom]);
 
+  // Where the window onto the canvas currently is, in canvas units. Only
+  // reported while something is listening — otherwise every scroll event
+  // would push a state update through the parent for nobody's benefit.
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || typeof onViewportChange !== 'function') return undefined;
+
+    const update = () => {
+      onViewportChange({
+        x: wrap.scrollLeft / zoom,
+        y: wrap.scrollTop / zoom,
+        w: wrap.clientWidth / zoom,
+        h: wrap.clientHeight / zoom,
+      });
+    };
+
+    update();
+    wrap.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+
+    return () => {
+      wrap.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [onViewportChange, zoom]);
+
+  // Centre the given canvas point on screen. Handed out through the ref so
+  // the map can drive the canvas without the canvas re-rendering for it.
+  const scrollToCanvasPoint = useCallback((x, y) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    wrap.scrollLeft = Math.max(0, x * zoom - wrap.clientWidth / 2);
+    wrap.scrollTop = Math.max(0, y * zoom - wrap.clientHeight / 2);
+  }, [zoom]);
+
+  useEffect(() => {
+    if (!scrollToRequest) return undefined;
+
+    scrollToRequest.current = scrollToCanvasPoint;
+    return () => {
+      // Only disown the function if it is still ours, so a canvas unmounting
+      // after another has mounted can't blank the live one.
+      if (scrollToRequest.current === scrollToCanvasPoint) scrollToRequest.current = null;
+    };
+  }, [scrollToRequest, scrollToCanvasPoint]);
+
+  // The laser trail fades on its own clock rather than on pointer movement,
+  // so it keeps thinning out after the cursor stops. The frame is only kept
+  // running while there is something left to fade.
+  const runLaserFade = useCallback(() => {
+    laserFrame.current = null;
+
+    const cutoff = Date.now() - LASER_LIFETIME;
+    const alive = laserRef.current.filter((mark) => mark.t > cutoff);
+
+    laserRef.current = alive;
+    setLaserTrail(alive);
+
+    if (alive.length) laserFrame.current = requestAnimationFrame(runLaserFade);
+  }, []);
+
+  const pushLaserPoint = useCallback((point) => {
+    const trail = laserRef.current;
+    const last = trail[trail.length - 1];
+
+    // Sub-pixel jitter would fill the trail with marks nobody can see.
+    if (last && Math.hypot(point.x - last.x, point.y - last.y) < LASER_MIN_STEP) return;
+
+    laserRef.current = [...trail, { x: point.x, y: point.y, t: Date.now() }].slice(-240);
+    setLaserTrail(laserRef.current);
+
+    if (!laserFrame.current) laserFrame.current = requestAnimationFrame(runLaserFade);
+  }, [runLaserFade]);
+
+  // Leaving the tool takes the trail with it, and the frame is always
+  // released — an animation left running after the canvas is gone is a leak.
+  useEffect(() => {
+    if (mode === 'laser') return undefined;
+
+    laserRef.current = [];
+    setLaserTrail([]);
+
+    if (laserFrame.current) {
+      cancelAnimationFrame(laserFrame.current);
+      laserFrame.current = null;
+    }
+
+    return undefined;
+  }, [mode]);
+
+  useEffect(() => () => {
+    if (laserFrame.current) cancelAnimationFrame(laserFrame.current);
+  }, []);
+
+  // What the cursor says about whatever is under it. Worked out here rather
+  // than on the node itself, because this is where the press is decided: the
+  // same three tests that choose between dragging a shape and starting a
+  // rubber band (see handleNodeMouseDown) choose the cursor, so it can never
+  // promise a move that a press would not actually perform.
+  const [hoverCursor, setHoverCursor] = React.useState(null);
+
   useEffect(() => {
     const wrap = wrapRef.current;
     if (!wrap) return;
+
     const trackPointer = (event) => {
-      lastPointerPos.current = toCanvasPoint(event.clientX, event.clientY);
+      const point = toCanvasPoint(event.clientX, event.clientY);
+      lastPointerPos.current = point;
+
+      // A real laser doesn't need a button held down to point at something.
+      // No read-mode check: the laser is the one tool a locked diagram keeps,
+      // since it draws nothing and changes nothing.
+      if (mode === 'laser') pushLaserPoint(point);
+
+      // Mid-gesture the cursor belongs to the gesture, and the tools below
+      // have cursors of their own.
+      if (dragging.current || resizing.current || resizingLineEndpoint.current
+        || selecting.current || panning.current || drawingLine.current
+        || drawingElbow.current || erasing.current) return;
+
+      if (readMode || mode !== 'select' || activeShape) {
+        setHoverCursor((prev) => (prev === null ? prev : null));
+        return;
+      }
+
+      const hovered = nodeAtPoint(point);
+      let next = null;
+
+      if (hovered) {
+        // A frame's empty middle starts a band, so it keeps the plain arrow.
+        // Its border, its caption and a frame already selected all drag.
+        const grabbable = !isContainerNode(hovered, nodes)
+          || selectedIds.includes(hovered.id)
+          || isOnNodeBorder(hovered, point, CONTAINER_BORDER_GRAB);
+
+        if (grabbable) next = 'move';
+      }
+
+      setHoverCursor((prev) => (prev === next ? prev : next));
     };
+
     wrap.addEventListener('mousemove', trackPointer);
     return () => wrap.removeEventListener('mousemove', trackPointer);
-  }, [toCanvasPoint]);
+  }, [toCanvasPoint, nodeAtPoint, nodes, selectedIds, mode, activeShape, readMode, pushLaserPoint]);
 
   // Walks the eraser from one sampled point to the next, marking (or with
   // `reverting`, un-marking) everything along the way. Stepping the segment
@@ -602,6 +869,21 @@ export default function Canvas({
         return;
       }
 
+      if (lassoing.current) {
+        const point = toCanvasPoint(event.clientX, event.clientY);
+        const loop = lassoPointsRef.current || [];
+        const last = loop[loop.length - 1];
+
+        // A point every few pixels of travel is plenty; taking one from every
+        // mousemove puts hundreds of near-identical points through the hit
+        // test for no change in shape.
+        if (last && Math.hypot(point.x - last.x, point.y - last.y) < 3) return;
+
+        lassoPointsRef.current = [...loop, point];
+        setLassoPoints(lassoPointsRef.current);
+        return;
+      }
+
       if (erasing.current) {
         const point = toCanvasPoint(event.clientX, event.clientY);
         // Alt turns the stroke into an "un-eraser": swiping back over
@@ -620,6 +902,72 @@ export default function Canvas({
         const { nodeId, handle, originalNode } = resizeState;
         onNodesChange((prev) => prev.map((node) => {
           if (node.id !== nodeId) return node;
+
+          // Free text resizes by scaling, not by reshaping its box. Dragging
+          // a handle changes the font size and the wrap width by the same
+          // factor, so the words break in exactly the same places and the
+          // writing simply gets bigger or smaller — which is the whole point:
+          // the lines are the ones the writer made, and moving a handle must
+          // not re-flow them. The box itself is left to the fit in Node.jsx,
+          // which measures the text and sets w and h from it.
+          if (node.shape === 'text') {
+            const originalWidth = Math.max(1, originalNode.w);
+            const originalHeight = Math.max(1, originalNode.h);
+
+            let scale = 1;
+            if (handle.includes('e')) {
+              scale = (point.x - originalNode.x) / originalWidth;
+            } else if (handle.includes('w')) {
+              scale = (originalNode.x + originalNode.w - point.x) / originalWidth;
+            } else if (handle.includes('s')) {
+              scale = (point.y - originalNode.y) / originalHeight;
+            } else if (handle.includes('n')) {
+              scale = (originalNode.y + originalNode.h - point.y) / originalHeight;
+            }
+
+            scale = Math.max(TEXT_SCALE_MIN, Math.min(TEXT_SCALE_MAX, scale));
+
+            const baseFont = Math.max(MIN_TEXT_FONT_SIZE, Number(originalNode.fontSize) || 16);
+            // The text's own width, not the box's — the box carries padding
+            // that must not be scaled along with it, or the ceiling drifts a
+            // few pixels wide and a short word jumps up onto the line above.
+            const baseWrap = Math.max(
+              1,
+              Number(originalNode.wrapWidth) || (originalNode.w - TEXT_SHAPE_PADDING),
+            );
+
+            // Keeping the lines exactly as they are comes down to this: the
+            // font and the wrap width must change by the SAME factor, with no
+            // rounding between them. Glyph widths are linear in font size, so
+            // when both scale together every line breaks after the same word
+            // at any size. Round the font to a whole pixel while scaling the
+            // ceiling by what was asked for and that stops being true — the
+            // half-percent of drift is enough to pull a word up a line. So
+            // the factor is taken from the font size that actually lands,
+            // clamp included, and two decimals is ample precision.
+            const nextFont = Math.round(
+              Math.max(MIN_TEXT_FONT_SIZE, baseFont * scale) * 100,
+            ) / 100;
+            const effective = nextFont / baseFont;
+
+            const scaled = {
+              ...originalNode,
+              fontSize: nextFont,
+              wrapWidth: Math.round(baseWrap * effective * 100) / 100,
+            };
+
+            // Dragging a left or top handle keeps the opposite edge still, the
+            // way every other shape does. The box is approximated from the
+            // scale here; the fit in Node.jsx then corrects it by a pixel.
+            if (handle.includes('w')) {
+              scaled.x = Math.max(0, originalNode.x + originalNode.w - Math.round(originalWidth * effective));
+            }
+            if (handle.includes('n')) {
+              scaled.y = Math.max(0, originalNode.y + originalNode.h - Math.round(originalHeight * effective));
+            }
+
+            return scaled;
+          }
 
           const nextNode = { ...originalNode };
           // A line is deliberately a thin, mostly-flat bounding box (see
@@ -772,6 +1120,17 @@ export default function Canvas({
 
       if (selecting.current) {
         const point = toCanvasPoint(event.clientX, event.clientY);
+
+        // The press that began inside a frame also selected that frame, the
+        // way pressing any shape does. Now that it has turned into a drag it
+        // is a band, not a click on the frame, so that selection goes away.
+        if (!selecting.current.moved) {
+          selecting.current.moved = true;
+          if (selecting.current.containerId && !selecting.current.additive) {
+            onSelectNode(null);
+          }
+        }
+
         setSelectionRect(getCanvasRectFromPoints(selecting.current.startPoint, point));
         return;
       }
@@ -820,6 +1179,35 @@ export default function Canvas({
         }
       }
 
+      // The loop closes itself on release: the last point is joined back to
+      // the first, so the user doesn't have to land exactly where they began.
+      if (lassoing.current) {
+        const state = lassoing.current;
+        lassoing.current = null;
+
+        const loop = lassoPointsRef.current;
+
+        // Three points is the least that can enclose anything. Fewer means
+        // the tool was clicked rather than drawn with, which selects nothing.
+        if (loop && loop.length >= 3) {
+          const canvasEl = canvasRef.current;
+
+          const ids = nodes
+            .filter((node) => lassoCatchesNode(node, loop))
+            .filter((node) => !canvasEl || canvasEl.querySelector(`[data-nodeid="${node.id}"]`))
+            .map((node) => node.id);
+
+          onSelectNodes(
+            state.additive ? Array.from(new Set([...state.baseIds, ...ids])) : ids,
+          );
+        } else if (!state.additive) {
+          onSelectNode(null);
+        }
+
+        lassoPointsRef.current = null;
+        setLassoPoints(null);
+      }
+
       // Releasing the button is what actually commits an eraser stroke —
       // everything marked during the swipe goes in one deletion (and so one
       // undo step).
@@ -834,17 +1222,43 @@ export default function Canvas({
       }
 
       if (selecting.current) {
+        const state = selecting.current;
         const point = toCanvasPoint(event.clientX, event.clientY);
-        const finalRect = getCanvasRectFromPoints(selecting.current.startPoint, point);
-        const ids = nodes
-          .filter((node) => (
-            node.x < finalRect.x + finalRect.w &&
-            node.x + node.w > finalRect.x &&
-            node.y < finalRect.y + finalRect.h &&
-            node.y + node.h > finalRect.y
-          ))
-          .map((node) => node.id);
-        onSelectNodes(ids);
+        const finalRect = getCanvasRectFromPoints(state.startPoint, point);
+        const isClick = finalRect.w < BAND_CLICK_SLOP && finalRect.h < BAND_CLICK_SLOP;
+
+        if (isClick) {
+          // Never grew into a band. Inside a frame that means the user was
+          // clicking the frame, which is what pressing any shape does — the
+          // press already selected it, and this only re-states it in case
+          // something else cleared it in between.
+          if (state.containerId && !state.additive) onSelectNodes([state.containerId]);
+        } else {
+          const canvasEl = canvasRef.current;
+
+          const ids = nodes
+            .filter((node) => (
+              node.x < finalRect.x + finalRect.w &&
+              node.x + node.w > finalRect.x &&
+              node.y < finalRect.y + finalRect.h &&
+              node.y + node.h > finalRect.y
+            ))
+            // A frame the band was drawn INSIDE is not part of what the band
+            // caught: the user reached past it for the shapes it holds. The
+            // frame can still be included by dragging out past its edge.
+            .filter((node) => !(rectEnclosesRect(node, finalRect) && isContainerNode(node, nodes)))
+            // Collapsed branches are still in `nodes` but aren't on screen,
+            // and a band must never pick up something the user can't see.
+            // The DOM is the honest answer to what is currently rendered.
+            .filter((node) => !canvasEl || canvasEl.querySelector(`[data-nodeid="${node.id}"]`))
+            .map((node) => node.id);
+
+          onSelectNodes(
+            state.additive
+              ? Array.from(new Set([...state.baseIds, ...ids]))
+              : ids,
+          );
+        }
       }
       // Tidy the route once the handle is released. Mid-drag this would
       // renumber the segments under the cursor; here it just removes the
@@ -871,6 +1285,8 @@ export default function Canvas({
       draggingConnectionHandle.current = null;
       panning.current = null;
       selecting.current = null;
+      lassoing.current = null;
+      bandCandidate.current = null;
       drawingLine.current = null;
       erasing.current = null;
       drawingElbow.current = null;
@@ -888,7 +1304,7 @@ export default function Canvas({
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
     };
-  }, [getCanvasRectFromPoints, nodes, onConnectionControlEnd, onConnectionsChange, onCreateLine, onErase, onNodeDragEnd, onNodesChange, onSelectNodes, setActiveShape, applyEraserAlongSegment, toCanvasPoint, nodeAtPoint, onCreateArrowConnection, arrowDefaults]);
+  }, [getCanvasRectFromPoints, nodes, onConnectionControlEnd, onConnectionsChange, onCreateLine, onErase, onNodeDragEnd, onNodesChange, onSelectNode, onSelectNodes, setActiveShape, applyEraserAlongSegment, toCanvasPoint, nodeAtPoint, onCreateArrowConnection, arrowDefaults]);
 
   useEffect(() => {
     if (!activeSearchNodeId || !wrapRef.current) return;
@@ -899,12 +1315,46 @@ export default function Canvas({
 
 
   const handleNodeMouseDown = useCallback((event, nodeId) => {
+    // Cleared on every press so a band candidate can never outlive the
+    // gesture that set it.
+    bandCandidate.current = null;
+
     if (mode !== 'select' || readMode) return;
     const node = nodes.find((item) => item.id === nodeId);
     if (!node) return;
-    if (event.ctrlKey || event.metaKey) return;
+
+    // Ctrl / Cmd / Shift all mean "add this to the selection" rather than
+    // "start dragging it". Node has already toggled it in; preventDefault is
+    // only here to stop the browser extending a native text selection across
+    // the canvas, which Shift-clicking otherwise does.
+    if (event.ctrlKey || event.metaKey || event.shiftKey) {
+      event.preventDefault();
+      return;
+    }
+
     const point = toCanvasPoint(event.clientX, event.clientY);
     const isAlreadySelected = selectedIds.includes(nodeId);
+
+    // A frame drawn around a group covers everything inside it, so pressing
+    // its empty middle used to grab the frame — leaving no way to rubber-band
+    // the shapes it holds, since a band could only start on bare canvas. Its
+    // interior now belongs to the band. The frame itself is still grabbed by
+    // its border, by its own caption, or from anywhere once it is selected.
+    const pressedOwnText = Boolean(event.target?.closest?.('[data-textid]'));
+
+    if (
+      !isAlreadySelected
+      && !pressedOwnText
+      && isContainerNode(node, nodes)
+      && !isOnNodeBorder(node, point, CONTAINER_BORDER_GRAB)
+    ) {
+      bandCandidate.current = { nodeId, point, baseIds: selectedIds };
+      // No drag starts here, but the press must not begin a native text
+      // selection either — the band is about to be drawn over this frame's
+      // contents.
+      event.preventDefault();
+      return;
+    }
 
     const dragIds = isAlreadySelected
       ? selectedIds
@@ -1051,6 +1501,11 @@ export default function Canvas({
   }, [onNodeDrop, readMode, toCanvasPoint, onCreateImage, setActiveShape]);
 
   const handleCanvasMouseDown = useCallback((event) => {
+    // Read and clear in one go: this press either consumes the candidate the
+    // node handler just set, or there isn't one.
+    const fromContainer = bandCandidate.current;
+    bandCandidate.current = null;
+
     const clickedOnCanvasSurface =
       event.target === canvasRef.current || event.target.classList.contains(styles.grid);
 
@@ -1073,6 +1528,42 @@ export default function Canvas({
         setElbowPreview({ points: [point, point], targetId: null });
       }
 
+      event.preventDefault();
+      return;
+    }
+
+    // Bucket fill: one click, one shape. Clicking bare canvas does nothing
+    // rather than flooding the background, which there is no way to undo by
+    // clicking again.
+    if (mode === 'fill' && !readMode) {
+      const point = toCanvasPoint(event.clientX, event.clientY);
+      const target = nodeAtPoint(point);
+
+      if (target && typeof onBucketFill === 'function') onBucketFill(target.id);
+
+      event.preventDefault();
+      return;
+    }
+
+    // Lasso: draw a loop around anything, in any shape. The rubber band can
+    // only ever be a rectangle, so things sitting diagonally near each other
+    // can't be picked out without catching everything between them.
+    if (mode === 'lasso' && !readMode) {
+      const point = toCanvasPoint(event.clientX, event.clientY);
+
+      lassoing.current = {
+        additive: event.shiftKey || event.ctrlKey || event.metaKey,
+        baseIds: selectedIds,
+      };
+      lassoPointsRef.current = [point];
+      setLassoPoints(lassoPointsRef.current);
+
+      event.preventDefault();
+      return;
+    }
+
+    // The laser never touches the diagram, so a press is just a press.
+    if (mode === 'laser') {
       event.preventDefault();
       return;
     }
@@ -1118,13 +1609,29 @@ export default function Canvas({
       return;
     }
 
-    if (!readMode && mode === 'select' && clickedOnCanvasSurface) {
-      const point = toCanvasPoint(event.clientX, event.clientY);
-      selecting.current = { startPoint: point };
+    // A band starts on bare canvas, or inside a frame — see
+    // handleNodeMouseDown for how a press on a frame's interior gets here.
+    if (!readMode && mode === 'select' && (clickedOnCanvasSurface || fromContainer)) {
+      const point = fromContainer ? fromContainer.point : toCanvasPoint(event.clientX, event.clientY);
+      // Holding a modifier keeps what was already selected and adds whatever
+      // the band catches, the same way a modifier-click adds one shape.
+      const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+
+      selecting.current = {
+        startPoint: point,
+        additive,
+        baseIds: fromContainer ? fromContainer.baseIds : selectedIds,
+        containerId: fromContainer ? fromContainer.nodeId : null,
+        moved: false,
+      };
       setSelectionRect({ x: point.x, y: point.y, w: 0, h: 0 });
-      onSelectNode(null);
+
+      // Pressing bare canvas clears the selection immediately, as it always
+      // has. A press inside a frame doesn't: it may yet turn out to be a
+      // click on the frame, so it is settled on mouseup instead.
+      if (!additive && !fromContainer) onSelectNode(null);
     }
-  }, [activeShape, mode, onCreateNode, onSelectNode, readMode, setActiveShape, toCanvasPoint, applyEraserAlongSegment, nodeAtPoint]);
+  }, [activeShape, mode, onCreateNode, onSelectNode, readMode, selectedIds, setActiveShape, toCanvasPoint, applyEraserAlongSegment, nodeAtPoint]);
 
   const handleContextMenu = useCallback((event) => {
     if (readMode) return;
@@ -1271,7 +1778,14 @@ export default function Canvas({
         id="canvas-wrap"
         onWheel={handleWheel}
         style={{
-          cursor: mode === "pan" ? "grab" : mode === "erase" ? "cell" : (mode === "arrow" || activeShape) ? "crosshair" : "default",
+          cursor: mode === "pan" ? "grab"
+            : mode === "erase" ? "cell"
+              : mode === "fill" ? "copy"
+                // The laser keeps a visible cursor on purpose: the trail
+                // fades to nothing when the pointer stops, and hiding the
+                // cursor as well would leave nothing on screen at all.
+                : (mode === "arrow" || mode === "lasso" || mode === "laser" || activeShape) ? "crosshair"
+                  : (hoverCursor || "default"),
         }}
       >
         <div
@@ -1305,6 +1819,56 @@ export default function Canvas({
                   height: selectionRect.h,
                 }}
               />
+            )}
+
+            {lassoPoints && lassoPoints.length > 1 && (
+              <svg
+                width={BASE_WIDTH}
+                height={BASE_HEIGHT}
+                style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible', pointerEvents: 'none' }}
+              >
+                {/* Drawn closed while it is still being drawn, so the shape on
+                    screen is the shape that will be tested against. */}
+                <path
+                  d={`M${lassoPoints.map((p) => `${p.x},${p.y}`).join(' L')} Z`}
+                  fill="rgba(105,110,255,0.10)"
+                  stroke="#696eff"
+                  strokeWidth={1.5}
+                  strokeDasharray="5 4"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            )}
+
+            {laserTrail.length > 1 && (
+              <svg
+                width={BASE_WIDTH}
+                height={BASE_HEIGHT}
+                style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible', pointerEvents: 'none' }}
+              >
+                {/* One segment per pair so each can carry its own age. A
+                    single path can only fade as a whole, which looks like a
+                    blinking line rather than a trail. */}
+                {laserTrail.slice(1).map((mark, index) => {
+                  const previous = laserTrail[index];
+                  const age = (Date.now() - mark.t) / LASER_LIFETIME;
+                  const life = Math.max(0, 1 - age);
+
+                  return (
+                    <line
+                      key={`${mark.t}-${index}`}
+                      x1={previous.x}
+                      y1={previous.y}
+                      x2={mark.x}
+                      y2={mark.y}
+                      stroke="#ff2d55"
+                      strokeWidth={2 + life * 5}
+                      strokeOpacity={life}
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
+              </svg>
             )}
 
             {linePreview && (
@@ -1492,6 +2056,7 @@ export default function Canvas({
                         onLabelChange={onLabelChange}
                         onTextsChange={onTextsChange}
                         onAutoResize={onAutoResize}
+                        maxTextWidth={maxTextWidth}
                         markedForErase={erasePreview.nodeIds.includes(node.id)}
                         autoEdit={autoEditNodeId === node.id}
                         onAutoEditConsumed={onAutoEditConsumed}

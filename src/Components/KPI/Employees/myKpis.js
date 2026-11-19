@@ -392,19 +392,19 @@ export default function MyKPIs() {
     const fetchCyclesScoreByUserId = async () => {
         try {
             setLoading(true);
-    
+
             // Clear previous message
             setReviewCycleMessage("");
-    
+
             const response = await getCyclesScoreByUserId({
                 orgId: sessionUserData?.OrgId,
                 cycleId: selectedQuarter?.Id,
                 employeeId: sessionUserData?.Id,
                 periodId: selectedPeriod,
             });
-    
+
             console.log("Cycles Score Response:", response);
-    
+
             // Handle 409 response
             if (
                 response?.code === 409 ||
@@ -413,46 +413,46 @@ export default function MyKPIs() {
                 setReviewData([]);
                 setReviewStatus("Pending");
                 setTotalWeightedScore(0);
-    
+
                 setReviewCycleMessage(
                     response?.data?.[0]?.Message ||
                     response?.message ||
                     "Employee is not participating in this Review Cycle."
                 );
-    
+
                 return;
             }
-    
+
             // Normal response
             const data = Array.isArray(response?.data)
                 ? response.data
                 : [];
-    
+
             setReviewData(data);
             setReviewStatus(data?.[0]?.Status || "Pending");
-    
+
             // Calculate Total Weighted Score
             const total = data.reduce(
                 (sum, item) =>
                     sum + Number(item?.WeightedScore || 0),
                 0
             );
-    
+
             setTotalWeightedScore(
                 Number(total.toFixed(2))
             );
-    
+
         } catch (error) {
             console.error(error);
-    
+
             setReviewData([]);
             setReviewStatus("Pending");
             setTotalWeightedScore(0);
-    
+
             setReviewCycleMessage(
                 "Unable to fetch KPI review details."
             );
-    
+
         } finally {
             setLoading(false);
         }
@@ -976,67 +976,67 @@ export default function MyKPIs() {
                                 </div>
                             )}
 
-{selectedQuarter && (
-    <div className='col-12'>
-        <div className="card border-0 shadow-sm rounded-4">
+                            {selectedQuarter && (
+                                <div className='col-12'>
+                                    <div className="card border-0 shadow-sm rounded-4">
 
-            <div className="card-header border-0 py-3 px-4">
-                <div className="d-flex align-items-center justify-content-between w-100">
-                    <div>
-                        <h5 className="fw-bold mb-0">
-                            <i className="bi bi-bullseye text-primary me-2"></i>
-                            KPI Details
-                        </h5>
+                                        <div className="card-header border-0 py-3 px-4">
+                                            <div className="d-flex align-items-center justify-content-between w-100">
+                                                <div>
+                                                    <h5 className="fw-bold mb-0">
+                                                        <i className="bi bi-bullseye text-primary me-2"></i>
+                                                        KPI Details
+                                                    </h5>
 
-                        <small className="text-muted">
-                            Review and manage KPI targets & weightage
-                        </small>
-                    </div>
-                </div>
-            </div>
+                                                    <small className="text-muted">
+                                                        Review and manage KPI targets & weightage
+                                                    </small>
+                                                </div>
+                                            </div>
+                                        </div>
 
-            {loading ? (
-                <div className="p-4">
-                    <Skeleton
-                        active
-                        paragraph={{ rows: 8 }}
-                        title
-                    />
-                </div>
+                                        {loading ? (
+                                            <div className="p-4">
+                                                <Skeleton
+                                                    active
+                                                    paragraph={{ rows: 8 }}
+                                                    title
+                                                />
+                                            </div>
 
-            ) : reviewCycleMessage ? (
+                                        ) : reviewCycleMessage ? (
 
-                <div className="card-body">
-                    <div className="text-center py-5">
+                                            <div className="card-body">
+                                                <div className="text-center py-5">
 
-                        <i
-                            className="bi bi-person-x-fill text-warning"
-                            style={{ fontSize: "45px" }}
-                        />
+                                                    <i
+                                                        className="bi bi-person-x-fill text-warning"
+                                                        style={{ fontSize: "45px" }}
+                                                    />
 
-                        <h5 className="fw-bold mt-3 mb-2">
-                            You are Not Participating
-                        </h5>
+                                                    <h5 className="fw-bold mt-3 mb-2">
+                                                        You are Not Participating
+                                                    </h5>
 
-                        <p className="text-muted mb-0">
-                            {reviewCycleMessage}
-                        </p>
+                                                    <p className="text-muted mb-0">
+                                                        {reviewCycleMessage}
+                                                    </p>
 
-                    </div>
-                </div>
+                                                </div>
+                                            </div>
 
-            ) : (
-                <div className='card-body'>
+                                        ) : (
+                                            <div className='card-body'>
 
-                    <div
-                        className="table-responsive review-table-container custom-scrollbar mb-4"
-                        style={{
-                            maxHeight: "500px",
-                            overflowY: "auto"
-                        }}
-                    >
+                                                <div
+                                                    className="table-responsive review-table-container custom-scrollbar mb-4"
+                                                    style={{
+                                                        maxHeight: "500px",
+                                                        overflowY: "auto"
+                                                    }}
+                                                >
 
-                        {reviewData?.map((item, index) => {
+                                                    {reviewData?.map((item, index) => {
                                                         const cardId = item.Id ?? index;
                                                         const isExpanded = expandedCards.has(cardId);
 
@@ -1275,7 +1275,7 @@ export default function MyKPIs() {
                                                                                     </div>
                                                                                 </div>
 
-                                                                                <div className="col-lg-6">
+                                                                                {/* <div className="col-lg-6">
                                                                                     <div className="card border shadow-sm h-100">
                                                                                         <div className="card-body">
                                                                                             <div className="d-flex align-items-center border-bottom pb-2 mb-3">
@@ -1312,6 +1312,77 @@ export default function MyKPIs() {
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
+                                                                                </div> */}
+                                                                                <div
+                                                                                    className="col-lg-6"
+                                                                                    style={{
+                                                                                        position: "relative"
+                                                                                    }}
+                                                                                >
+                                                                                    <div
+                                                                                        className="card border shadow-sm h-100"
+                                                                                        style={{
+                                                                                            filter: selectedQuarter?.Status === "CLOSED"
+                                                                                                ? "none"
+                                                                                                : "blur(5px)",
+                                                                                            pointerEvents: selectedQuarter?.Status === "CLOSED"
+                                                                                                ? "auto"
+                                                                                                : "none",
+                                                                                            userSelect: selectedQuarter?.Status === "CLOSED"
+                                                                                                ? "auto"
+                                                                                                : "none"
+                                                                                        }}
+                                                                                    >
+                                                                                        <div className="card-body">
+                                                                                            <div className="d-flex align-items-center border-bottom pb-2 mb-3">
+                                                                                                <i className="bi bi-person-workspace text-success me-2 fs-5"></i>
+                                                                                                <h6 className="mb-0 fw-bold">Manager Review</h6>
+                                                                                            </div>
+
+                                                                                            <div className="mb-3">
+                                                                                                <label className="small fw-semibold mb-1">
+                                                                                                    <i className="bi bi-star-fill text-warning me-1"></i>
+                                                                                                    Manager Score
+                                                                                                </label>
+
+                                                                                                <Input
+                                                                                                    size="large"
+                                                                                                    type="number"
+                                                                                                    style={{ height: 40 }}
+                                                                                                    value={item.Score2 ?? ""}
+                                                                                                    disabled
+                                                                                                />
+                                                                                            </div>
+
+                                                                                            <div>
+                                                                                                <label className="small fw-semibold mb-1">
+                                                                                                    <i className="bi bi-chat-left-text-fill text-success me-1"></i>
+                                                                                                    Manager Feedback
+                                                                                                </label>
+
+                                                                                                <Input.TextArea
+                                                                                                    rows={4}
+                                                                                                    value={item.Remarks2 ?? ""}
+                                                                                                    disabled
+                                                                                                />
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+
+                                                                                    {selectedQuarter?.Status !== "CLOSED" && (
+                                                                                        <div
+                                                                                            className="position-absolute top-50 start-50 translate-middle text-center"
+                                                                                            style={{ zIndex: 2, width: "90%" }}
+                                                                                        >
+                                                                                            <i className="bi bi-lock-fill fs-2 text-muted"></i>
+                                                                                            <div className="fw-bold mt-2">
+                                                                                                Manager Review Locked
+                                                                                            </div>
+                                                                                            <small className="text-muted">
+                                                                                                Available once the quarter is closed.
+                                                                                            </small>
+                                                                                        </div>
+                                                                                    )}
                                                                                 </div>
                                                                             </div>
 

@@ -35,6 +35,18 @@ export const SLOPPINESS = {
   CARTOONIST: 2,
 };
 
+// How an elbow turns a corner. Only elbows have corners, so this is ignored
+// on straight and curved arrows.
+export const CORNER_STYLE = {
+  SHARP: 'sharp',      // exact 90 degrees
+  ROUNDED: 'rounded',  // eased by ELBOW_RADIUS
+};
+
+export const CORNER_STYLE_OPTIONS = [
+  { id: CORNER_STYLE.SHARP, label: 'Sharp — exact 90\u00B0' },
+  { id: CORNER_STYLE.ROUNDED, label: 'Rounded' },
+];
+
 // The shapes an arrow can end in. Either end of a connection can carry any of
 // them, independently — a double-headed arrow is just both ends set to the
 // same thing.
@@ -69,6 +81,9 @@ export const DEFAULT_ARROW_STYLE = {
   strokeWidth: 3.2,
   strokeStyle: STROKE_STYLE.SOLID,
   sloppiness: SLOPPINESS.ARCHITECT,
+  // Right angles by default. An arrow saved before this existed has no
+  // cornerStyle, so it lands here too and comes out square.
+  cornerStyle: CORNER_STYLE.SHARP,
   startArrowhead: ARROWHEAD.NONE,
   endArrowhead: ARROWHEAD.TRIANGLE,
   opacity: 100,
@@ -88,8 +103,11 @@ export const ARROW_HEAD_W = 12;
 // only needs to be a hair.
 export const ARROW_GAP = 2;
 
-// Corner softening on elbows. Set to 0 for hard 90° corners.
-const ELBOW_RADIUS = 8;
+// How much an elbow corner is eased when its cornerStyle is ROUNDED.
+// Exported because the PDF exporter has to round by exactly the same amount —
+// a second number typed in over there is how the print drifted from the
+// screen once already.
+export const ELBOW_RADIUS = 8;
 
 // Kept as an alias so older imports of CONNECTION_WIDTH still resolve.
 export const CONNECTION_WIDTH = DEFAULT_ARROW_STYLE.strokeWidth;
@@ -167,6 +185,9 @@ export function resolveArrowStyle(connection, defaults) {
       : DEFAULT_ARROW_STYLE.strokeWidth,
     strokeStyle: pick('strokeStyle'),
     sloppiness: Number(pick('sloppiness')) || 0,
+    cornerStyle: pick('cornerStyle') === CORNER_STYLE.ROUNDED
+      ? CORNER_STYLE.ROUNDED
+      : CORNER_STYLE.SHARP,
     startArrowhead: normalizeArrowhead(
       own.startArrowhead,
       normalizeArrowhead(base.startArrowhead, ARROWHEAD.NONE),
@@ -784,7 +805,11 @@ export function trimForArrow(points, { start = false, end = true } = {}) {
 
 // Turns a polyline into an SVG path, optionally easing each corner with a
 // quadratic curve whose control point is the corner itself.
-export function buildPolylinePath(points, radius = ELBOW_RADIUS) {
+// radius defaults to 0 — square. It used to default to ELBOW_RADIUS, which
+// quietly rounded anything that didn't pass a radius, including the drag
+// preview in Canvas.jsx: the arrow you were dragging had soft corners and the
+// one you got had sharp ones.
+export function buildPolylinePath(points, radius = 0) {
   if (!points.length) return '';
   if (points.length === 2 || radius <= 0) {
     return `M${points[0].x},${points[0].y}` +
@@ -949,11 +974,22 @@ export function sampleQuadratic(p0, p1, p2, steps = 24) {
 
 // The one entry point the renderer uses: route points in, path string out,
 // with sloppiness applied if the connection asks for it.
-export function buildArrowPath(points, sloppiness, seed, { rounded = true } = {}) {
+export function buildArrowPath(points, sloppiness, seed, { cornerRadius = 0 } = {}) {
   if (!sloppiness) {
-    return buildPolylinePath(points, rounded ? ELBOW_RADIUS : 0);
+    return buildPolylinePath(points, cornerRadius);
   }
   return buildSmoothPath(roughenPoints(points, sloppiness, seed));
+}
+
+// The one place that turns a connection's style into a corner radius.
+//
+// Both the canvas and the PDF exporter call this rather than deciding for
+// themselves, so a sharp arrow on screen cannot print rounded. Only elbows
+// have corners; a curve and a straight line get 0 whatever is stored.
+export function cornerRadiusFor(style, arrowType) {
+  const type = arrowType || style?.arrowType;
+  if (type !== ARROW_TYPE.ELBOW) return 0;
+  return style?.cornerStyle === CORNER_STYLE.ROUNDED ? ELBOW_RADIUS : 0;
 }
 
 // ---------------------------------------------------------------------------

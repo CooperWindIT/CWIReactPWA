@@ -4,8 +4,12 @@ import { ArrowsAltOutlined, SearchOutlined, ShrinkOutlined, ArrowLeftOutlined } 
 import { Input, Popover, Tooltip } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import LastSaved from './LastSaved';
+import ToolbarOverflowMenu from './ToolbarOverflowMenu';
 
-const SHAPE_TOOLS = [
+// Exported so the keyboard shortcuts in flowbuilder2.js can be driven from
+// the same list the buttons are drawn from. The numbers printed in the corner
+// of each button were decoration until then — nothing was listening for them.
+export const SHAPE_TOOLS = [
   { id: 'rect', label: 'Rectangle', short: '2' },
   { id: 'rounded', label: 'Rounded', short: '3' },
   { id: 'diamond', label: 'Diamond', short: '4' },
@@ -155,6 +159,11 @@ export default function Toolbar({
 
   autoArrowEnabled,
   onToggleAutoArrow,
+
+  // Bumps a counter in flowbuilder2.js that Canvas watches; Canvas opens the
+  // file picker and places the image, since it is the one that knows the
+  // scroll position and zoom.
+  onInsertImage,
 
   // When this diagram was last written to the server, shown beside Search.
   lastSavedAt,
@@ -317,6 +326,16 @@ export default function Toolbar({
                 <span className={styles.toolIndex}>{shape.short}</span>
               </ToolButton>
             ))}
+
+            {/* Tools that are reached occasionally live behind this rather
+                than taking a permanent slot on an already long toolbar. */}
+            <ToolbarOverflowMenu
+              mode={mode}
+              onModeChange={onModeChange}
+              onInsertImage={onInsertImage}
+              theme={theme}
+              readMode={readMode}
+            />
 
             <div className={styles.sep} />
 

@@ -6,6 +6,7 @@ import {
   ARROW_HEAD_LEN,
   ARROW_HEAD_W,
   CONNECTION_WIDTH,
+  cornerRadiusFor,
   STROKE_STYLE,
   resolveArrowStyle,
   getConnectionAnchors,
@@ -158,6 +159,36 @@ function hexToRgb(hex) {
 function resolveInk(color, fallback = "#1f1f1f") {
   if (!color || color === "theme-auto") return fallback;
   return color;
+}
+
+// Does this shape actually have a background, or is it see-through?
+//
+// This distinction is why a diagram could come out with no arrows at all. A
+// transparent shape used to be painted with a SOLID WHITE fill, which on a
+// white page looks identical to transparent — right up until it is drawn over
+// something, at which point it quietly erases it. A swimlane frame drawn
+// around a whole flowchart wiped every arrow inside it.
+function hasBackground(fillColor) {
+  return Boolean(
+    fillColor && fillColor !== "transparent" && fillColor !== "theme-auto"
+  );
+}
+
+// ─── containment ────────────────────────────────────────────────────────────
+
+// How far a shape may stick out of another and still count as inside it.
+const CONTAINMENT_SLACK = 2;
+
+// Does `outer` fully enclose `inner`? Area is compared as well as bounds so
+// two shapes of the same size can't each claim to contain the other.
+function nodeContains(outer, inner) {
+  if (outer.id === inner.id) return false;
+  if (outer.w * outer.h <= inner.w * inner.h) return false;
+
+  return inner.x >= outer.x - CONTAINMENT_SLACK
+    && inner.y >= outer.y - CONTAINMENT_SLACK
+    && inner.x + inner.w <= outer.x + outer.w + CONTAINMENT_SLACK
+    && inner.y + inner.h <= outer.y + outer.h + CONTAINMENT_SLACK;
 }
 
 function loadImageAsDataUrl(src) {
@@ -313,7 +344,12 @@ function drawConnection(doc, conn, fromNode, toNode, ctx) {
   if (canvasPoints.length < 2) return;
 
   const isElbow = style.arrowType === ARROW_TYPE.ELBOW;
-  const shaped = isElbow ? roundPolylineCorners(canvasPoints, 8) : canvasPoints;
+  // The radius is decided by the SAME helper the canvas uses, from this
+  // arrow's own cornerStyle — not by a number typed in over here. At 0 this
+  // is a no-op and the elbow keeps its exact right angles.
+  const shaped = isElbow
+    ? roundPolylineCorners(canvasPoints, cornerRadiusFor(style, style.arrowType))
+    : canvasPoints;
   const pts = shaped.map(toPage);
 
   const color = resolveInk(style.stroke);
@@ -434,23 +470,22 @@ function drawNodeShape(doc, node, scale = 1, images) {
   const cx = x + w / 2;
   const cy = y + h / 2;
 
-  const fill =
-    !fillColor || fillColor === "transparent" || fillColor === "theme-auto"
-      ? "#ffffff"
-      : fillColor;
-
+  const filled = hasBackground(fillColor);
   const stroke = resolveInk(strokeColor);
 
-  doc.setFillColor(...hexToRgb(fill));
+  if (filled) doc.setFillColor(...hexToRgb(fillColor));
   doc.setDrawColor(...hexToRgb(stroke));
   doc.setLineWidth(Math.max(0.6, 1.4 * scale));
   if (typeof doc.setLineJoin === "function") doc.setLineJoin("round");
 
-  const style = "FD";
+  // Outline only when the shape is see-through. Painting a white background
+  // instead looks the same on an empty page and hides everything underneath
+  // on a busy one.
+  const style = filled ? "FD" : "S";
 
   // A free-drawn line carries its own endpoints and is not a box at all.
   if (shape === "line") {
-    doc.setLineCap && doc.setLineCap("round");
+    if (typeof doc.setLineCap === "function") doc.setLineCap("round");
     const x1 = typeof node.x1 === "number" ? node.x1 : x;
     const y1 = typeof node.y1 === "number" ? node.y1 : y;
     const x2 = typeof node.x2 === "number" ? node.x2 : x + w;
@@ -492,8 +527,16 @@ function drawNodeShape(doc, node, scale = 1, images) {
       { x, y: cy },
     ], style);
   } else if (shape === "cylinder") {
+    // The cylinder is assembled from a body, a bottom curve and a top
+    // ellipse, and the body's own top edge has to be hidden by that ellipse.
+    // That only works against an opaque fill, so an unfilled cylinder still
+    // gets a white body — it is a small shape and almost never a container,
+    // so it can't swallow a diagram the way a frame can.
+    const bodyStyle = "FD";
+    if (!filled) doc.setFillColor(255, 255, 255);
+
     const ry = h * 0.15;
-    doc.rect(x, y + ry, w, h - ry * 2, style);
+    doc.rect(x, y + ry, w, h - ry * 2, bodyStyle);
 
     const bottomLeft = sampleQuadratic(
       { x, y: y + h - ry },
@@ -511,10 +554,10 @@ function drawNodeShape(doc, node, scale = 1, images) {
     drawPolyline(
       doc,
       [...bottomLeft, ...bottomRight, { x: x + w, y: y + ry }, { x, y: y + ry }],
-      style
+      bodyStyle
     );
 
-    doc.ellipse(cx, y + ry, w / 2, ry, style);
+    doc.ellipse(cx, y + ry, w / 2, ry, bodyStyle);
   } else {
     // 'rect', 'rectangle', 'process' and anything unrecognised.
     doc.rect(x, y, w, h, style);
@@ -818,6 +861,17 @@ export async function exportDiagramAsPdf({ name, nodes = [], connections = [], m
   // is now being drawn.
   const diagramNodes = Object.fromEntries(grown.map((n) => [n.id, toDiagram(n)]));
 
+  // A shape that encloses others is a background — a swimlane frame, a
+  // grouping box — and backgrounds belong UNDER the arrows. The canvas
+  // already works this way (see computeNodeStacking in Canvas.jsx); drawing
+  // every node after every connection is what let a filled frame paint over
+  // a whole flowchart's worth of arrows.
+  const isContainer = (node) => grown.some((other) => nodeContains(node, other));
+  const containers = grown.filter(isContainer);
+  const contents = grown.filter((node) => !isContainer(node));
+
+  containers.forEach((node) => drawNodeShape(doc, node, fitScale, images));
+
   connections.forEach((conn) => {
     const from = diagramNodes[conn.from];
     const to = diagramNodes[conn.to];
@@ -826,7 +880,9 @@ export async function exportDiagramAsPdf({ name, nodes = [], connections = [], m
     drawConnection(doc, conn, from, to, { fitScale, toPage });
   });
 
-  grown.forEach((node) => drawNodeShape(doc, node, fitScale, images));
+  contents.forEach((node) => drawNodeShape(doc, node, fitScale, images));
+
+  // Labels last, so a caption is never clipped by the shape next to it.
   grown.forEach((node) => drawNodeLabel(doc, node, layouts.get(node.id)));
   return doc;
 }

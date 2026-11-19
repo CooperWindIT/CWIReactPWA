@@ -8,8 +8,11 @@
   pointer-events: none;
 }
 
+/* Wide enough for a colour row to hold six swatches, the divider and the
+   colour picker on one line. Below 286px the picker drops onto a row of its
+   own, where it reads as a stray seventh swatch. */
 .panel.open {
-  width: 248px;
+  width: 296px;
   pointer-events: auto;
 }
 
@@ -83,6 +86,11 @@
 .swatch {
   width: 28px;
   height: 28px;
+  /* Stated rather than inherited from whatever reset the app ships, because
+     the width above is what the one-line colour row is measured against — and
+     because without it the selected swatch grows by 4px when its border turns
+     from transparent to coloured. */
+  box-sizing: border-box;
   border: 2px solid transparent;
   border-radius: 8px;
   cursor: pointer;

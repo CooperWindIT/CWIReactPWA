@@ -24,7 +24,6 @@ const Base1 = ({ children }) => {
     const [currentWeek, setCurrentWeek] = useState("");
 
     const navigate = useNavigate();
-    const currentPath = window.location.pathname;
     const location = useLocation();
     const shouldHideSidebar = ["/vms/", "/edm/", "/faq", "/kpi/", "/service-requests", "/iom/"].some(path => location.pathname.includes(path));
     const searchParams = new URLSearchParams(location.search);
@@ -221,14 +220,23 @@ const Base1 = ({ children }) => {
     };
 
     const currentSubPath = location.pathname + location.search;
+
+    // ---------- Sidebar helpers ----------
+    const normalizePath = (p = "") => "/" + String(p).replace(/^\/+/, "");
+
+    const isMenuActive = (item) =>
+        normalizePath(item.MenuPath) === location.pathname ||
+        !!item.SubItems?.some((sub) => normalizePath(sub.MenuPath) === currentSubPath);
+
     useEffect(() => {
         if (!menuItems) return;
 
         menuItems.forEach((item, index) => {
-            if (item.SubItems?.some((sub) => `/${sub.MenuPath}` === currentSubPath)) {
+            if (item.SubItems?.some((sub) => normalizePath(sub.MenuPath) === currentSubPath)) {
                 setActiveDropdown(index);
             }
         });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentSubPath, menuItems]);
 
     useEffect(() => {
@@ -390,6 +398,65 @@ const Base1 = ({ children }) => {
         }
     };
 
+    // ---------- Reusable premium menu renderer (desktop + mobile) ----------
+    const renderMenu = (isMobile = false) => (
+        <nav className="psb-nav">
+            {menuItems?.map((item, index) => {
+                const hasSub = item.SubItems?.length > 0;
+                const isOpen = activeDropdown === index;
+                const isActive = isMenuActive(item);
+
+                return (
+                    <div key={index} className="psb-item">
+                        <a
+                            href={item.MenuPath}
+                            title={item.MenuName}
+                            className={`psb-link ${isActive ? "is-active" : ""} ${isOpen ? "is-open" : ""}`}
+                            onClick={(e) => {
+                                if (hasSub) {
+                                    e.preventDefault();
+                                    toggleDropdown(index);
+                                }
+                            }}
+                        >
+                            <span className="psb-icon"><i className={item.IconName}></i></span>
+                            <span className="psb-title">{item.MenuName}</span>
+                            {hasSub && <i className="fa-solid fa-chevron-down psb-chevron"></i>}
+                        </a>
+
+                        {hasSub && (
+                            <div className={`psb-submenu ${isOpen ? "show" : ""}`}>
+                                <ul className="list-unstyled mb-0">
+                                    {item.SubItems.map((subItem, subIndex) => {
+                                        const subPath = normalizePath(subItem.MenuPath);
+                                        return (
+                                            <li key={subIndex}>
+                                                <Link
+                                                    to={subPath}
+                                                    className={`psb-sublink ${subPath === currentSubPath ? "is-active" : ""}`}
+                                                    onClick={() => {
+                                                        if (isMobile) {
+                                                            setActiveDropdown(null);
+                                                        } else {
+                                                            window.location.href = subPath;
+                                                        }
+                                                    }}
+                                                >
+                                                    <span className="psb-dot"></span>
+                                                    {subItem.MenuName}
+                                                </Link>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </nav>
+    );
+
 
     return (
         <div className="d-flex flex-column flex-root app-root" id="kt_app_root" >
@@ -400,7 +467,6 @@ const Base1 = ({ children }) => {
             )}
 
             <div className="app-page flex-column flex-column-fluid" id="kt_app_page">
-                {/* <div id="kt_app_header" className="app-header text-white shadow-sm fixed-top" data-kt-sticky="true" style={{ backgroundColor: '#90e0ef' }} */}
                 <div id="kt_app_header" className="app-header text-white shadow-sm fixed-top" data-kt-sticky="true" style={{ backgroundColor: sessionUserData?.HeaderColor }}
                     data-kt-sticky-activate="{default: true, lg: true}" data-kt-sticky-name="app-header-minimize" data-kt-sticky-offset="{default: '200px', lg: '0'}" data-kt-sticky-animation="false">
                     <div className="app-container container-fluid d-flex align-items-stretch justify-content-between" id="kt_app_header_container">
@@ -434,7 +500,7 @@ const Base1 = ({ children }) => {
                                 </div>
                             </div>
 
-                            {/* Heading */}
+                            {/* Navbar */}
                             <div className="app-navbar flex-shrink-0">
                                 <div className="app-navbar-item ms-1 ms-md-4">
                                     {weather && (
@@ -454,7 +520,7 @@ const Base1 = ({ children }) => {
                                                         padding: "2px 12px",
                                                         fontSize: "15px",
                                                         fontWeight: 600,
-                                                        height: "32px", // Slightly shorter to accommodate text below
+                                                        height: "32px",
                                                         cursor: "pointer",
                                                         border: "1px solid rgba(255,255,255,0.25)",
                                                         boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
@@ -500,7 +566,6 @@ const Base1 = ({ children }) => {
                                 <div className="app-navbar-item ms-1 ms-md-4">
                                     <Popover placement="bottom" content={content} className='border p-2 rounded border-dark'>
                                         <div className="text-hover-primary text-dark btn btn-icon btn-custom btn-icon-muted btn-active-light btn-active-color-primary  btn-active-color-primary w-35px h-35px position-relative" id="kt_drawer_chat_toggle">
-                                            {/* <i className="fa-regular fa-user text-white"></i> */}
                                             {sessionUserData?.Name?.charAt(0)}
                                         </div>
                                     </Popover>
@@ -511,71 +576,33 @@ const Base1 = ({ children }) => {
                 </div>
 
                 <div className="app-wrapper flex-row flex-row-fluid pt-20" id="kt_app_wrapper">
-                    {!(
-                        shouldHideSidebar || ["3", "19", "21", "22"].includes(reportId)
-                    ) && (
-                            <div id="kt_app_sidebar" className="app-sidebar flex-column" data-kt-drawer="true" style={{ width: '210px' }}>
-                                <div className="app-sidebar-menu overflow-hidden flex-column-fluid bg-white shadow-sm">
-                                    <div id="kt_app_sidebar_menu_wrapper" className="app-sidebar-wrapper">
-                                        <div id="kt_app_sidebar_menu_scroll" style={{ minHeight: '90vh' }} className="scroll-y my-5 mx-3" data-kt-scroll="true" data-kt-scroll-activate="true"
-                                            data-kt-scroll-height="auto" data-kt-scroll-dependencies="#kt_app_sidebar_logo, #kt_app_sidebar_footer" data-kt-scroll-wrappers="#kt_app_sidebar_menu" data-kt-scroll-offset="5px" data-kt-scroll-save-state="true">
-                                            <div className="menu menu-column menu-rounded menu-sub-indention fw-semibold fs-4" id="#kt_app_sidebar_menu" data-kt-menu="true" data-kt-menu-expand="false">
-                                                <div data-kt-menu-trigger="click" className="menu-item menu-accordion">
-                                                    <div className="sidebar-menu">
-                                                        {menuItems &&
-                                                            menuItems?.map((item, index) => (
-                                                                <div key={index} className="menu-item">
-                                                                    <a
-                                                                        href={item.MenuPath}
-                                                                        className={`menu-link d-flex align-items-center p-2 ${activeDropdown === index ? "active" : ""
-                                                                            }  ${item.MenuPath === currentPath ? "text-highligh fw-bold border border-primary border-2" : "text-dark"} hover-effect`}
-                                                                        onClick={(e) => {
-                                                                            if (item.SubItems?.length) {
-                                                                                e.preventDefault();
-                                                                                toggleDropdown(index);
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        <i className={`me-2 fs-5 ${item.IconName}`}></i>
-                                                                        <span className="menu-title">{item.MenuName}</span>
-                                                                        {item.SubItems?.length > 0 && (
-                                                                            <i
-                                                                                className={`ms-auto fa-solid ${activeDropdown === index ? "fa-chevron-up" : "fa-chevron-down"
-                                                                                    }`}
-                                                                            ></i>
-                                                                        )}
-                                                                    </a>
+                    {!(shouldHideSidebar || ["3", "19", "21", "22"].includes(reportId)) && (
+                        <div id="kt_app_sidebar" className="app-sidebar flex-column psb-sidebar" data-kt-drawer="true" style={{ width: "230px" }}>
+                            <div className="psb-inner">
+                                <div className="psb-section-label">Main Menu</div>
 
-                                                                    {item.SubItems?.length > 0 && (
-                                                                        <ul
-                                                                            className={`submenu list-unstyled ps-4 ${activeDropdown === index ? "d-block" : "d-none"
-                                                                                }`}
-                                                                        >
-                                                                            {item.SubItems.map((subItem, subIndex) => (
-                                                                                <li key={subIndex}>
-                                                                                    <Link
-                                                                                        to={`/${subItem.MenuPath}`}
-                                                                                        className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath}` === currentSubPath ? "fw-bold text-primary" : "text-dark"
-                                                                                            }`}
-                                                                                        onClick={() => window.location.href = `/${subItem.MenuPath}`}
-                                                                                    >
-                                                                                        <i className="fa-solid fa-arrow-right me-2"></i>
-                                                                                        {subItem.MenuName}
-                                                                                    </Link>
-                                                                                </li>
-                                                                            ))}
-                                                                        </ul>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                {renderMenu(false)}
+
+                                {/* Footer user card */}
+                                <div className="psb-footer">
+                                    <div className="psb-avatar">
+                                        {sessionUserData?.ImageURL ? (
+                                            <img src={`${BASE_IMAGE_API_GET}${sessionUserData.ImageURL}`} alt={sessionUserData?.Name || "User"} />
+                                        ) : (
+                                            sessionUserData?.Name?.charAt(0) || "U"
+                                        )}
                                     </div>
+                                    <div className="psb-user">
+                                        <div className="psb-user-name text-truncate">{sessionUserData?.Name || "-"}</div>
+                                        <div className="psb-user-role text-truncate">{sessionUserData?.RoleName || "-"}</div>
+                                    </div>
+                                    <button type="button" className="psb-logout" title="Sign Out" onClick={handleLogout}>
+                                        <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                                    </button>
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
                     <div className="app-main flex-column flex-row-fluid mb-11" id="kt_app_main">
 
                         {children}
@@ -599,7 +626,6 @@ const Base1 = ({ children }) => {
                 id="offcanvasLeftNav"
                 aria-labelledby="offcanvasLeftLabel"
             >
-                {/* Header */}
                 <div className="offcanvas-header border-bottom px-4 py-3">
                     <h5 className="mb-0">Menu</h5>
                     <button
@@ -610,74 +636,8 @@ const Base1 = ({ children }) => {
                     ></button>
                 </div>
 
-                {/* Scrollable body */}
-                <div className="offcanvas-body p-4 custom-scrollbar">
-                    {menuItems &&
-                        menuItems.map((item, index) => (
-                            <div key={index} className="menu-item mb-3">
-                                <a
-                                    href={item.MenuPath}
-                                    className={`menu-link d-flex align-items-center justify-content-between ${item.SubItems?.length ? "has-submenu" : ""
-                                        } ${item.MenuPath === currentPath ? "active" : ""}`}
-                                    onClick={(e) => {
-                                        if (item.SubItems?.length) {
-                                            e.preventDefault();
-                                            toggleDropdown(index);
-                                        }
-                                    }}
-                                >
-                                    <div className="d-flex align-items-center">
-                                        <i className={`me-3 fs-5 ${item.IconName}`}></i>
-                                        <span className="fs-6">{item.MenuName}</span>
-                                    </div>
-                                    {item.SubItems?.length > 0 && (
-                                        <i
-                                            className={`fa fa-chevron-${activeDropdown === index ? "up" : "down"
-                                                }`}
-                                        ></i>
-                                    )}
-                                </a>
-
-                                {item.SubItems?.length > 0 && (
-                                    <ul
-                                        className={`submenu list-unstyled ps-4 mt-2 ${activeDropdown === index ? "show" : ""
-                                            }`}
-                                    >
-                                        {item.SubItems.map((subItem, subIndex) => (
-                                            <li key={subIndex}>
-                                                <Link
-                                                    to={`/${subItem.MenuPath.replace(/^\/+/, "")}`}
-                                                    className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath.replace(/^\/+/, "")}` === currentSubPath
-                                                        ? "fw-bold text-primary"
-                                                        : "text-dark"
-                                                        }`}
-                                                    onClick={() => {
-                                                        // Close mobile menu if required
-                                                        setActiveDropdown(null);
-                                                    }}
-                                                >
-                                                    <i className="fa-solid fa-arrow-right me-2"></i>
-                                                    {subItem.MenuName}
-                                                </Link>
-                                                {/* <Link
-                                                    to={`/${subItem.MenuPath}`}
-                                                    className={`submenu-link d-block py-1 px-2 ${`/${subItem.MenuPath}` === currentSubPath
-                                                        ? "fw-bold text-primary"
-                                                        : "text-dark"
-                                                        }`}
-                                                    onClick={() =>
-                                                        (window.location.href = `/${subItem.MenuPath}`)
-                                                    }
-                                                >
-                                                    <i className="fa-solid fa-arrow-right me-2"></i>
-                                                    {subItem.MenuName} {subItem.MenuPath}
-                                                </Link> */}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                        ))}
+                <div className="offcanvas-body p-3 custom-scrollbar psb-mobile">
+                    {renderMenu(true)}
                 </div>
             </div>
 
@@ -690,49 +650,47 @@ const Base1 = ({ children }) => {
                     width: 50%;
                     height: 100%;
                     background: linear-gradient(
-                        to right, 
-                        transparent, 
-                        rgba(255, 255, 255, 0.3), 
+                        to right,
+                        transparent,
+                        rgba(255, 255, 255, 0.3),
                         transparent
                     );
                     transform: skewX(-25deg);
                     animation: shine 2s infinite;
-                    }
+                }
 
-                    @keyframes shine {
+                @keyframes shine {
                     0% { left: -100%; }
                     20% { left: 100%; }
                     100% { left: 100%; }
-                    }
+                }
+
+                #offcanvasRightViewProfile {
+                    width: 90% !important;
+                }
+
+                @media (min-width: 768px) {
                     #offcanvasRightViewProfile {
-                        width: 90% !important;   /* Mobile view */
+                        width: 40% !important;
                     }
+                }
 
-                    @media (min-width: 768px) { /* Tablet and up */
-                        #offcanvasRightViewProfile {
-                            width: 40% !important;
-                        }
-                    }
-                        
-                    .text-highlight {
-                            color: #0dcaf0 !important; /* Same as Bootstrap's text-info */
-                        }
-                        .menu-link.hover-effect {
-                            transition: all 0.2s ease-in-out;
-                        }
+                .text-highlight {
+                    color: #0dcaf0 !important;
+                }
+                .menu-link.hover-effect {
+                    transition: all 0.2s ease-in-out;
+                }
 
-                        .menu-link.hover-effect:hover {
-                            // color: #0dcaf0 !important; 
-                            transform: translateX(4px);
-                            text-decoration: none;
-                        }
-                   
-              
-                    @keyframes spin {
-                        0% { transform: rotate(0deg); }
-                        100% { transform: rotate(360deg); }
-                    }
-               
+                .menu-link.hover-effect:hover {
+                    transform: translateX(4px);
+                    text-decoration: none;
+                }
+
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
                 `}
             </style>
 
@@ -892,21 +850,18 @@ const Base1 = ({ children }) => {
                                                     </div>
 
                                                     <div className="progress" style={{ height: '8px', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: '10px' }}>
-                                                        {/* Last 30 Days (0-30) - RED */}
                                                         <div
                                                             className="progress-bar progress-bar-animated-smooth bg-danger"
                                                             role="progressbar"
                                                             style={{ width: `${(segments.last30 / 90) * 100}%`, borderRight: '1px solid #fff' }}
                                                         ></div>
 
-                                                        {/* Mid 30 Days (31-60) - BLUE */}
                                                         <div
                                                             className="progress-bar progress-bar-animated-smooth bg-warning"
                                                             role="progressbar"
                                                             style={{ width: `${(segments.mid30 / 90) * 100}%`, borderRight: '1px solid #fff' }}
                                                         ></div>
 
-                                                        {/* First 30 Days (61-90) - RED */}
                                                         <div
                                                             className="progress-bar progress-bar-animated-smooth bg-success"
                                                             role="progressbar"
@@ -914,7 +869,6 @@ const Base1 = ({ children }) => {
                                                         ></div>
                                                     </div>
 
-                                                    {/* Markers for 30/60 days */}
                                                     <div className="d-flex justify-content-between mt-1 px-1">
                                                         <span style={{ fontSize: '0.6rem', color: '#ccc' }}>|</span>
                                                         <span style={{ fontSize: '0.6rem', color: '#ccc' }}>|</span>
@@ -953,9 +907,9 @@ const Base1 = ({ children }) => {
                     border: 2px solid #e5edff;
                     background: #f8fafc;
                     box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
-                    }
+                }
 
-                    .profile-avatar-img {
+                .profile-avatar-img {
                     width: 100%;
                     height: 100%;
                     object-fit: contain;
@@ -965,9 +919,9 @@ const Base1 = ({ children }) => {
                     border-radius: 50%;
                     background: #fff;
                     transition: transform 0.25s ease, filter 0.25s ease;
-                    }
+                }
 
-                    .profile-avatar-overlay {
+                .profile-avatar-overlay {
                     position: absolute;
                     inset: 0;
                     display: flex;
@@ -981,30 +935,21 @@ const Base1 = ({ children }) => {
                     background: rgba(15, 23, 42, 0.62);
                     opacity: 0;
                     transition: opacity 0.25s ease;
-                    }
+                }
 
-                    .profile-avatar-overlay i {
-                    font-size: 14px;
-                    }
+                .profile-avatar-overlay i { font-size: 14px; }
 
-                    .profile-avatar-wrap:hover .profile-avatar-img {
+                .profile-avatar-wrap:hover .profile-avatar-img {
                     transform: scale(1.06);
                     filter: brightness(0.82);
-                    }
-
-                    .profile-avatar-wrap:hover .profile-avatar-overlay {
-                    opacity: 1;
-                    }
-
-                .progress-bar-animated-smooth {
-                    transition: width 1.2s ease-in-out;
                 }
 
-                /* Optional: Add a subtle glow to the active segment */
-                .progress-bar {
-                    box-shadow: inset 0 -1px 0 rgba(0,0,0,0.15);
-                }
-                
+                .profile-avatar-wrap:hover .profile-avatar-overlay { opacity: 1; }
+
+                .progress-bar-animated-smooth { transition: width 1.2s ease-in-out; }
+
+                .progress-bar { box-shadow: inset 0 -1px 0 rgba(0,0,0,0.15); }
+
                 .module-title {
                     color: #0d75ae;
                     font-weight: 700;
@@ -1023,134 +968,334 @@ const Base1 = ({ children }) => {
                     background: rgba(13, 117, 174, 0.1);
                     color: #0d75ae;
                 }
-                {/* Heading */}
 
+                /* ===== Original global styles (used by other pages - keep) ===== */
                 .menu-item {
                     margin-bottom: 5px;
-                    }
+                }
 
-                    .menu-link {
+                .menu-link {
                     text-decoration: none;
                     color: #333;
                     border-radius: 6px;
                     transition: background 0.2s;
-                    }
-
-                    .menu-link:hover {
-                    background: #f5f5f5;
-                    }
-
-                    .menu-link.active {
-                    background: #eaf3ff;
-                    font-weight: bold;
-                    border: 1px solid #007bff;
-                    }
-
-                    .submenu {
-                    margin-top: 5px;
-                    }
-
-                    .submenu-link {
-                    text-decoration: none;
-                    color: #555;
-                    border-radius: 4px;
-                    }
-
-                    .submenu-link:hover {
-                    background: #f1f1f1;
-                    color: #007bff;
-                    }
-
-                    /* Custom Offcanvas */
-                .custom-offcanvas {
-                width: 80% !important;
-                background: #ffffff;
-                border-left: 1px solid #dee2e6;
-                border-radius: 0 0 0.75rem 0.75rem;
-                box-shadow: -5px 0 15px rgba(0, 0, 0, 0.05);
-                }
-
-                .custom-scrollbar {
-                max-height: calc(100vh - 100px);
-                overflow-y: auto;
-                scrollbar-width: thin;
-                }
-
-                /* Scrollbar styling */
-                .custom-scrollbar::-webkit-scrollbar {
-                width: 6px;
-                }
-                .custom-scrollbar::-webkit-scrollbar-thumb {
-                background-color: #ccc;
-                border-radius: 10px;
-                }
-
-                /* Menu links */
-                .menu-link {
-                padding: 0.75rem 1rem;
-                border-radius: 0.5rem;
-                background-color:rgb(236, 240, 244);
-                transition: all 0.3s;
-                font-weight: 500;
-                color: #212529;
-                text-decoration: none;
                 }
 
                 .menu-link:hover {
-                background-color: #e9ecef;
+                    background: #f5f5f5;
+                }
+
+                .menu-link.active {
+                    background: #eaf3ff;
+                    font-weight: bold;
+                    border: 1px solid #007bff;
+                }
+
+                .submenu {
+                    margin-top: 5px;
+                }
+
+                .submenu-link {
+                    text-decoration: none;
+                    color: #555;
+                    border-radius: 4px;
+                }
+
+                .submenu-link:hover {
+                    background: #f1f1f1;
+                    color: #007bff;
+                }
+
+                .menu-link {
+                    padding: 0.75rem 1rem;
+                    border-radius: 0.5rem;
+                    background-color: rgb(236, 240, 244);
+                    transition: all 0.3s;
+                    font-weight: 500;
+                    color: #212529;
+                    text-decoration: none;
+                }
+
+                .menu-link:hover {
+                    background-color: #e9ecef;
                 }
 
                 .menu-link.active:hover,
                 .submenu-link.active-sub:hover {
-                background-color: #c3e7fc;
+                    background-color: #c3e7fc;
                 }
-                /* Active states with light sky blue */
+
                 .menu-link.active,
                 .submenu-link.active-sub {
-                background-color: #d1ecff; /* Light sky blue */
-                color: #0d6efd !important; /* Bootstrap primary for text */
-                font-weight: 600;
-;
-
-;
+                    background-color: #d1ecff;
+                    color: #0d6efd !important;
+                    font-weight: 600;
                 }
 
-
                 .submenu-link {
-                padding-left: 1rem;
-                color: #495057;
-                transition: 0.2s ease;
+                    padding-left: 1rem;
+                    color: #495057;
+                    transition: 0.2s ease;
                 }
 
                 .submenu-link:hover {
-                color: #0d6efd;
+                    color: #0d6efd;
                 }
 
-                /* Arrow icons for dropdowns */
                 .menu-link.has-submenu i.fa-chevron-down,
                 .menu-link.has-submenu i.fa-chevron-up {
-                font-size: 0.9rem;
-                color: #6c757d;
-                margin-left: auto;
+                    font-size: 0.9rem;
+                    color: #6c757d;
+                    margin-left: auto;
                 }
 
-                /* Submenu visibility */
                 .submenu {
-                display: none;
-                transition: all 0.3s ease;
+                    display: none;
+                    transition: all 0.3s ease;
                 }
                 .submenu.show {
-                display: block;
+                    display: block;
                 }
-                .icon-animate {
-                    animation: pulseIcon 2s infinite ease-in-out;
+
+                /* Custom Offcanvas */
+                .custom-offcanvas {
+                    width: 80% !important;
+                    background: #ffffff;
+                    border-left: 1px solid #dee2e6;
+                    border-radius: 0 0 0.75rem 0.75rem;
+                    box-shadow: -5px 0 15px rgba(0, 0, 0, 0.05);
                 }
+
+                .custom-scrollbar {
+                    max-height: calc(100vh - 100px);
+                    overflow-y: auto;
+                    scrollbar-width: thin;
+                }
+
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background-color: #ccc;
+                    border-radius: 10px;
+                }
+
+                .icon-animate { animation: pulseIcon 2s infinite ease-in-out; }
 
                 @keyframes pulseIcon {
                     0% { transform: scale(1); opacity: 0.9; }
                     50% { transform: scale(1.18); opacity: 1; }
                     100% { transform: scale(1); opacity: 0.9; }
                 }
+
+                /* =====================================================
+                   PREMIUM SIDEBAR
+                   ===================================================== */
+                .psb-sidebar {
+                    background: linear-gradient(180deg, #ffffff 0%, #f7fafd 100%) !important;
+                    border-right: 1px solid #edf1f7;
+                    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.04);
+                }
+
+                .psb-inner {
+                    position: sticky;
+                    top: 80px;
+                    height: calc(100vh - 80px - 52px); /* header + footer */
+                    display: flex;
+                    flex-direction: column;
+                    padding: 18px 12px 12px;
+                }
+
+                .psb-section-label {
+                    font-size: 10.5px;
+                    font-weight: 700;
+                    letter-spacing: 1.4px;
+                    text-transform: uppercase;
+                    color: #94a3b8;
+                    padding: 0 10px 10px;
+                }
+
+                .psb-nav {
+                    flex: 1 1 auto;
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                    padding-right: 2px;
+                    scrollbar-width: thin;
+                }
+                .psb-nav::-webkit-scrollbar { width: 4px; }
+                .psb-nav::-webkit-scrollbar-thumb { background: #dbe3ec; border-radius: 10px; }
+
+                /* Main link */
+                .psb-item { margin-bottom: 6px; }
+
+                .psb-link {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    gap: 12px;
+                    padding: 8px 10px;
+                    border-radius: 12px;
+                    color: #334155;
+                    font-size: 14px;
+                    font-weight: 600;
+                    line-height: 1.25;
+                    text-decoration: none;
+                    background: transparent;
+                    transition: background .25s ease, color .25s ease, box-shadow .25s ease, transform .2s ease;
+                }
+                .psb-link:hover {
+                    background: #eef6fb;
+                    color: #0d75ae;
+                    transform: translateX(3px);
+                }
+
+                .psb-icon {
+                    flex: 0 0 34px;
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 10px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 14px;
+                    color: #0d75ae;
+                    background: #ffffff;
+                    border: 1px solid #e6edf5;
+                    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05);
+                    transition: all .25s ease;
+                }
+                .psb-icon i { color: inherit !important; }
+                .psb-link:hover .psb-icon {
+                    border-color: #cfe6f3;
+                    box-shadow: 0 4px 10px rgba(13, 117, 174, 0.15);
+                }
+
+                .psb-title { flex: 1 1 auto; min-width: 0; }
+
+                .psb-chevron {
+                    font-size: 11px;
+                    color: #94a3b8;
+                    transition: transform .3s ease;
+                }
+                .psb-link.is-open .psb-chevron { transform: rotate(180deg); }
+
+                /* Active */
+                .psb-link.is-active {
+                    color: #ffffff !important;
+                    background: linear-gradient(135deg, #0d75ae 0%, #00a6c7 100%);
+                    box-shadow: 0 8px 20px -6px rgba(13, 117, 174, 0.55);
+                    transform: none;
+                }
+                .psb-link.is-active .psb-icon {
+                    color: #ffffff;
+                    background: rgba(255, 255, 255, 0.18);
+                    border-color: rgba(255, 255, 255, 0.28);
+                    box-shadow: none;
+                }
+                .psb-link.is-active .psb-chevron { color: rgba(255, 255, 255, .85); }
+                .psb-link.is-active::before {
+                    content: "";
+                    position: absolute;
+                    left: -12px;
+                    top: 10px;
+                    bottom: 10px;
+                    width: 4px;
+                    border-radius: 0 4px 4px 0;
+                    background: #0d75ae;
+                }
+
+                /* Submenu (smooth expand) */
+                .psb-submenu {
+                    display: grid;
+                    grid-template-rows: 0fr;
+                    transition: grid-template-rows .3s ease;
+                }
+                .psb-submenu.show { grid-template-rows: 1fr; }
+                .psb-submenu > ul {
+                    overflow: hidden;
+                    margin-left: 26px !important;
+                    border-left: 1.5px dashed #dbe5ee;
+                }
+                .psb-submenu.show > ul { padding: 6px 0 2px; }
+
+                .psb-sublink {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin: 2px 0 2px 10px;
+                    padding: 7px 10px;
+                    border-radius: 8px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    color: #64748b;
+                    text-decoration: none;
+                    transition: all .2s ease;
+                }
+                .psb-dot {
+                    width: 6px;
+                    height: 6px;
+                    border-radius: 50%;
+                    background: #cbd5e1;
+                    flex: 0 0 6px;
+                    transition: all .2s ease;
+                }
+                .psb-sublink:hover { background: #f1f7fb; color: #0d75ae; }
+                .psb-sublink:hover .psb-dot { background: #0d75ae; }
+                .psb-sublink.is-active {
+                    background: #e7f4fb;
+                    color: #0d75ae;
+                    font-weight: 700;
+                }
+                .psb-sublink.is-active .psb-dot {
+                    background: #0d75ae;
+                    box-shadow: 0 0 0 3px rgba(13, 117, 174, 0.18);
+                }
+
+                /* Footer user card */
+                .psb-footer {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin-top: 12px;
+                    padding: 10px;
+                    border-radius: 14px;
+                    background: linear-gradient(135deg, #f1f8fc 0%, #eaf6fa 100%);
+                    border: 1px solid #e1eef6;
+                }
+                .psb-avatar {
+                    flex: 0 0 36px;
+                    width: 36px;
+                    height: 36px;
+                    border-radius: 50%;
+                    overflow: hidden;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: 700;
+                    color: #fff;
+                    background: linear-gradient(135deg, #0d75ae, #00a6c7);
+                    border: 2px solid #fff;
+                    box-shadow: 0 2px 8px rgba(13, 117, 174, .25);
+                }
+                .psb-avatar img { width: 100%; height: 100%; object-fit: cover; background: #fff; }
+                .psb-user { flex: 1 1 auto; min-width: 0; line-height: 1.2; }
+                .psb-user-name { font-size: 13px; font-weight: 700; color: #1e293b; }
+                .psb-user-role { font-size: 11px; color: #64748b; }
+                .psb-logout {
+                    flex: 0 0 30px;
+                    width: 30px;
+                    height: 30px;
+                    border: none;
+                    border-radius: 8px;
+                    background: #fff;
+                    color: #ef4444;
+                    box-shadow: 0 1px 4px rgba(15, 23, 42, .08);
+                    transition: all .2s ease;
+                }
+                .psb-logout:hover { background: #ef4444; color: #fff; }
+
+                /* Mobile offcanvas */
+                .psb-mobile .psb-nav { overflow: visible; }
+                .psb-mobile .psb-link.is-active::before { display: none; }
+                .psb-mobile .psb-link { font-size: 15px; }
                 `}
             </style>
         </div>
